@@ -1,0 +1,33 @@
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.seed
+*.token
+*invite-code*
+
+# Daml/DPM outputs
+.daml/
+*.dar
+*.class
+target/
+.dpm/
+
+# Node outputs and local state
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+
+# Local Canton/Decentralization Manager state
+localnet/
+governance/data/
+spikes/data/
+
+# Editor files
+.idea/
+.vscode/
+

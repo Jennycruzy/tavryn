@@ -1,0 +1,118 @@
+module Test.CoreLifecycle where
+
+import DA.Date (Month(..), date)
+import Daml.Script
+
+import Tavryn.Contracts
+import Tavryn.Types
+
+testCoreLifecycle : Script ()
+testCoreLifecycle = script do
+  supplier <- allocatePartyByHint (PartyIdHint "Supplier")
+  buyer <- allocatePartyByHint (PartyIdHint "Buyer")
+  financierA <- allocatePartyByHint (PartyIdHint "FinancierA")
+  financierB <- allocatePartyByHint (PartyIdHint "FinancierB")
+  auditor <- allocatePartyByHint (PartyIdHint "Auditor")
+  governance <- allocatePartyByHint (PartyIdHint "Governance")
+
+  rulesCid <- submit governance do
+    createCmd NetworkRules with
+      governanceParty = governance
+      members = [financierA, financierB]
+      maxAdvanceRate = 0.90
+
+  registryCid <- submit buyer do
+    createCmd BuyerApprovalRegistry with
+      buyer
+      approvedInvoiceNumbers = []
+
+  let terms = InvoiceTerms with
+        externalInvoiceNumber = "INV-001"
+        faceValue = 100.0
+        currency = "USD"
+        issuedDate = date 2026 Jan 1
+        dueDate = date 2026 Feb 1
+
+  draftCid <- submit supplier do
+    createCmd InvoiceDraft with
+      supplier
+      buyer
+      invoiceCommitment = "cb:commitment:001"
+      terms
+
+  invoiceCid <- submit buyer do
+    exerciseCmd draftCid Approve with
+      networkRules = rulesCid
+      approvalRegistry = registryCid
+      eligibleFinanciers = [financierA, financierB]
+      auditor
+
+  -- A rival is a stakeholder of the terms-free approval seal, but cannot query the
+  -- private invoice details contract.
+  Some _ <- queryContractId buyer invoiceCid
+  Some _ <- queryContractId supplier invoiceCid
+  Some approved <- queryContractId financierA invoiceCid
+  None <- queryContractId financierA approved.invoiceDetails
+
+  offerACid <- submit (actAs [buyer, supplier]) do
+    exerciseCmd invoiceCid CreateOffer with
+      approvedInvoice = invoiceCid
+      financier = financierA
+      advance = 80.0
+      advanceRate = 0.80
+
+  offerBCid <- submit (actAs [buyer, supplier]) do
+    exerciseCmd invoiceCid CreateOffer with
+      approvedInvoice = invoiceCid
+      financier = financierB
+      advance = 75.0
+      advanceRate = 0.75
+
+  Some _ <- queryContractId financierA offerACid
+  Some offerB <- queryContractId financierB offerBCid
+  None <- queryContractId financierB offerACid
+  Some _ <- queryContractId financierB invoiceCid
+  None <- queryContractId financierB approved.invoiceDetails
+  Some _ <- queryContractId financierB offerB.fundingSlot
+
+  financedCid <- submit (actAs [buyer, supplier, financierA]) do
+    exerciseCmd offerACid Accept
+
+  -- The winning receivable is private to its own stakeholders.
+  Some _ <- queryContractId financierA financedCid
+  Some _ <- queryContractId auditor financedCid
+
+  -- B's offer is real and visible to B, but the one-use slot is now archived. The
+  -- failed submission is the load-bearing proof of single financing.
+  submitMustFail (actAs [buyer, supplier, financierB]) do
+    exerciseCmd offerBCid Accept
+  Some _ <- queryContractId financierB offerBCid
+  None <- queryContractId financierB offerB.fundingSlot
+  None <- queryContractId financierB financedCid
+
+  receiptCid <- submit (actAs [buyer, financierA]) do
+    exerciseCmd financedCid Repay with
+      repaymentDate = date 2026 Mar 1
+      paymentReference = "CC-REPAY-001"
+
+  None <- queryContractId financierA financedCid
+  Some _ <- queryContractId auditor receiptCid
+
+  -- A second draft with the same external invoice number is refused by the buyer's
+  -- single-maintainer registry. No unique contract key is involved.
+  [(currentRegistryCid, _)] <- queryFilter @BuyerApprovalRegistry buyer
+    (\registry -> registry.buyer == buyer)
+
+  duplicateDraftCid <- submit supplier do
+    createCmd InvoiceDraft with
+      supplier
+      buyer
+      invoiceCommitment = "cb:commitment:duplicate"
+      terms
+
+  submitMustFail buyer do
+    exerciseCmd duplicateDraftCid Approve with
+      networkRules = rulesCid
+      approvalRegistry = currentRegistryCid
+      eligibleFinanciers = [financierA, financierB]
+      auditor

@@ -1,0 +1,285 @@
+module Tavryn.Contracts where
+
+import Tavryn.Types
+
+-- | Network-wide rules are deliberately separate from invoice data. Governance will
+-- replace the direct governance choice with the Decentralization Manager integration.
+template NetworkRules
+  with
+    governanceParty : Party
+    members : [Party]
+    maxAdvanceRate : Decimal
+  where
+    ensure maxAdvanceRate >= 0.0 && maxAdvanceRate <= 1.0
+    signatory governanceParty
+    observer members
+
+    choice SetMaxAdvanceRate : ContractId NetworkRules
+      with
+        newRate : Decimal
+      controller governanceParty
+      do
+        assert (newRate >= 0.0 && newRate <= 1.0)
+        create this with maxAdvanceRate = newRate
+
+-- | The buyer-side single maintainer record for external invoice numbers. This is not a
+-- unique contract key: the buyer consumes and recreates one registry contract per
+-- approval, so a duplicate approval is rejected by ordinary Daml authorization/state.
+template BuyerApprovalRegistry
+  with
+    buyer : Party
+    approvedInvoiceNumbers : [Text]
+  where
+    signatory buyer
+
+    choice RecordApproval : ContractId BuyerApprovalRegistry
+      with
+        externalInvoiceNumber : Text
+      controller buyer
+      do
+        assert (externalInvoiceNumber /= "")
+        assert (not (elem externalInvoiceNumber approvedInvoiceNumbers))
+        create this with
+          approvedInvoiceNumbers = approvedInvoiceNumbers ++ [externalInvoiceNumber]
+
+template InvoiceDraft
+  with
+    supplier : Party
+    buyer : Party
+    invoiceCommitment : Text
+    terms : InvoiceTerms
+  where
+    ensure invoiceCommitment /= ""
+      && terms.externalInvoiceNumber /= ""
+      && terms.faceValue > 0.0
+      && terms.currency /= ""
+      && terms.dueDate > terms.issuedDate
+    signatory supplier
+    observer buyer
+
+    -- The buyer service must check the external invoice number before exercising this
+    -- choice. This contract does not use a contract key for that check.
+    choice Approve : ContractId ApprovedInvoice
+      with
+        networkRules : ContractId NetworkRules
+        approvalRegistry : ContractId BuyerApprovalRegistry
+        eligibleFinanciers : [Party]
+        auditor : Party
+      controller buyer
+      do
+        assert (not (null eligibleFinanciers))
+        registry <- fetch approvalRegistry
+        assert (registry.buyer == buyer)
+        assert (not (elem terms.externalInvoiceNumber registry.approvedInvoiceNumbers))
+        _ <- exercise approvalRegistry RecordApproval with
+          externalInvoiceNumber = terms.externalInvoiceNumber
+        detailsCid <- create InvoiceDetails with
+          buyer
+          supplier
+          auditor
+          invoiceCommitment
+          terms
+        slotCid <- create FundingSlot with
+          supplier
+          buyer
+          invoiceCommitment
+          eligibleFinanciers
+        create ApprovedInvoice with
+          supplier
+          buyer
+          invoiceCommitment
+          invoiceDetails = detailsCid
+          networkRules
+          fundingSlot = slotCid
+          eligibleFinanciers
+          auditor
+
+template InvoiceDetails
+  with
+    buyer : Party
+    supplier : Party
+    auditor : Party
+    invoiceCommitment : Text
+    terms : InvoiceTerms
+  where
+    ensure invoiceCommitment /= ""
+      && terms.externalInvoiceNumber /= ""
+      && terms.faceValue > 0.0
+      && terms.currency /= ""
+      && terms.dueDate > terms.issuedDate
+    signatory buyer, supplier
+    observer auditor
+
+template FundingSlot
+  with
+    supplier : Party
+    buyer : Party
+    invoiceCommitment : Text
+    eligibleFinanciers : [Party]
+  where
+    ensure invoiceCommitment /= "" && not (null eligibleFinanciers)
+    signatory buyer, supplier
+    observer eligibleFinanciers
+
+    -- This is intentionally terms-free. Its only purpose is to make concurrent funding
+    -- attempts contend for one consumable ledger object without disclosing invoice data.
+    choice Claim : ()
+      with
+        claimant : Party
+      controller claimant
+      do
+        assert (elem claimant eligibleFinanciers)
+        pure ()
+
+template ApprovedInvoice
+  with
+    supplier : Party
+    buyer : Party
+    invoiceCommitment : Text
+    invoiceDetails : ContractId InvoiceDetails
+    networkRules : ContractId NetworkRules
+    fundingSlot : ContractId FundingSlot
+    eligibleFinanciers : [Party]
+    auditor : Party
+  where
+    ensure invoiceCommitment /= "" && not (null eligibleFinanciers)
+    signatory buyer, supplier
+    observer eligibleFinanciers
+
+    -- Supplier can issue multiple private offers for this same approved invoice. The
+    -- commitment check binds each offer to this active invoice without a unique key.
+    nonconsuming choice CreateOffer : ContractId FinancingOffer
+      with
+        approvedInvoice : ContractId ApprovedInvoice
+        financier : Party
+        advance : Decimal
+        advanceRate : Decimal
+      controller buyer, supplier
+      do
+        details <- fetch invoiceDetails
+        assert (details.invoiceCommitment == invoiceCommitment)
+        assert (advance > 0.0 && advance <= details.terms.faceValue)
+        assert (advanceRate >= 0.0 && advanceRate <= 1.0)
+        create FinancingOffer with
+          supplier
+          buyer
+          financier
+          approvedInvoice
+          fundingSlot
+          invoiceCommitment
+          terms = details.terms
+          networkRules
+          advance
+          advanceRate
+
+    -- This nested choice is reached from a winning offer acceptance. The winner is an
+    -- actor of the enclosing three-party choice, so it signs the receivable; the losing
+    -- financier is never an actor and never sees this subtransaction.
+    choice FinalizeFunding : ContractId FinancedInvoice
+      with
+        financier : Party
+        advance : Decimal
+        advanceRate : Decimal
+      controller buyer, supplier, financier
+      do
+        assert (elem financier eligibleFinanciers)
+        details <- fetch invoiceDetails
+        assert (details.invoiceCommitment == invoiceCommitment)
+        assert (advance > 0.0 && advance <= details.terms.faceValue)
+        assert (advanceRate >= 0.0 && advanceRate <= 1.0)
+        create FinancedInvoice with
+          buyer
+          supplier
+          financier
+          auditor
+          invoiceCommitment
+          terms = details.terms
+          advance
+          advanceRate
+
+template FinancingOffer
+  with
+    supplier : Party
+    buyer : Party
+    financier : Party
+    approvedInvoice : ContractId ApprovedInvoice
+    fundingSlot : ContractId FundingSlot
+    invoiceCommitment : Text
+    terms : InvoiceTerms
+    networkRules : ContractId NetworkRules
+    advance : Decimal
+    advanceRate : Decimal
+  where
+    ensure invoiceCommitment /= ""
+      && advance > 0.0 && advance <= terms.faceValue
+      && advanceRate >= 0.0 && advanceRate <= 1.0
+    signatory buyer, supplier
+    observer financier
+
+    -- The winning path consumes the terms-free FundingSlot and then nested-consumes the
+    -- hidden ApprovedInvoice. Buyer and supplier are already stakeholders of the
+    -- invoice; the winning financier is the third actor of this private transaction.
+    choice Accept : ContractId FinancedInvoice
+      controller buyer, supplier, financier
+      do
+        slot <- fetch fundingSlot
+        assert (slot.invoiceCommitment == invoiceCommitment)
+        assert (elem financier slot.eligibleFinanciers)
+        rules <- fetch networkRules
+        assert (advanceRate <= rules.maxAdvanceRate)
+        _ <- exercise fundingSlot Claim with claimant = financier
+        exercise approvedInvoice FinalizeFunding with
+          financier
+          advance
+          advanceRate
+
+    choice Withdraw : ()
+      controller supplier
+      do
+        pure ()
+
+template FinancedInvoice
+  with
+    buyer : Party
+    supplier : Party
+    financier : Party
+    auditor : Party
+    invoiceCommitment : Text
+    terms : InvoiceTerms
+    advance : Decimal
+    advanceRate : Decimal
+  where
+    ensure invoiceCommitment /= ""
+      && advance > 0.0 && advance <= terms.faceValue
+      && advanceRate >= 0.0 && advanceRate <= 1.0
+    signatory buyer, supplier, financier
+    observer auditor
+
+    choice Repay : ContractId RepaymentReceipt
+      with
+        repaymentDate : Date
+        paymentReference : Text
+      controller buyer, financier
+      do
+        assert (repaymentDate >= terms.dueDate)
+        assert (paymentReference /= "")
+        create RepaymentReceipt with
+          buyer
+          financier
+          auditor
+          invoiceCommitment
+          repaymentDate
+          paymentReference
+
+template RepaymentReceipt
+  with
+    buyer : Party
+    financier : Party
+    auditor : Party
+    invoiceCommitment : Text
+    repaymentDate : Date
+    paymentReference : Text
+  where
+    ensure invoiceCommitment /= "" && paymentReference /= ""
+    signatory buyer, financier
+    observer auditor

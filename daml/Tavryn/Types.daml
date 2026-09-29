@@ -1,0 +1,9 @@
+module Tavryn.Types where
+
+data InvoiceTerms = InvoiceTerms with
+  externalInvoiceNumber : Text
+  faceValue : Decimal
+  currency : Text
+  issuedDate : Date
+  dueDate : Date
+    deriving (Eq, Show)
