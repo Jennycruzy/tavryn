@@ -9,6 +9,7 @@ import {
   type ActiveContract,
   LedgerApi,
   LedgerApiError,
+  type SubmissionReference,
   type SubmissionResult,
 } from "./ledger-api.js";
 
@@ -35,11 +36,17 @@ export class TavrynInputError extends Error {
 export class TavrynConflictError extends Error {
   readonly status = 409;
   readonly publicCode: string;
+  readonly submissionReference?: SubmissionReference;
 
-  constructor(message: string, publicCode: string) {
+  constructor(
+    message: string,
+    publicCode: string,
+    submissionReference?: SubmissionReference,
+  ) {
     super(message);
     this.name = "TavrynConflictError";
     this.publicCode = publicCode;
+    this.submissionReference = submissionReference;
   }
 }
 
@@ -121,6 +128,7 @@ export class TavrynService {
           throw new TavrynConflictError(
             "The buyer could not approve this invoice. Its external invoice number may already be approved.",
             "DUPLICATE_OR_INVALID_APPROVAL",
+            error.submissionReference,
           );
         }
         throw error;
@@ -170,6 +178,7 @@ export class TavrynService {
           throw new TavrynConflictError(
             "This invoice is no longer available for funding.",
             "INVOICE_UNAVAILABLE",
+            error.submissionReference,
           );
         }
         throw error;

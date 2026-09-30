@@ -90,6 +90,11 @@ try {
     "Financier B received the plain unavailable response",
   );
   assert(
+    typeof rejected.body.submissionReference?.commandId === "string" &&
+      typeof rejected.body.submissionReference?.submissionId === "string",
+    "Financier B rejection contains the real failed submission reference",
+  );
+  assert(
     financierBView.body.contracts
       .filter((contract: any) => contract.templateId.includes("FinancingOffer"))
       .every((contract: any) => contract.createArgument?.financier !== config.parties.financierA),
@@ -128,6 +133,7 @@ try {
             status: rejected.status,
             code: rejected.body.code,
             message: rejected.body.error,
+            submissionReference: rejected.body.submissionReference,
           },
         },
         repayment: {

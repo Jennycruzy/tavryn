@@ -34,6 +34,11 @@ key uniqueness.
 The implementation must verify this with party-specific queries; a centrally privileged
 backend view is not evidence of Canton privacy.
 
+Rejected funding commands do not receive a Canton transaction `updateId`, because no
+ledger transaction is committed. The backend returns the real generated command and
+submission IDs with the plain rejection message; the raw Canton error payload remains
+server-side.
+
 ## Settlement decision
 
 Status: **not decided until the spike**.

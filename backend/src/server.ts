@@ -252,7 +252,13 @@ function writeError(response: ServerResponse, error: unknown): void {
     return;
   }
   if (error instanceof TavrynConflictError) {
-    writeJson(response, error.status, { error: error.message, code: error.publicCode });
+    writeJson(response, error.status, {
+      error: error.message,
+      code: error.publicCode,
+      ...(error.submissionReference
+        ? { submissionReference: error.submissionReference }
+        : {}),
+    });
     return;
   }
   if (error instanceof LedgerApiError) {

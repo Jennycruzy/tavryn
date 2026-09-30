@@ -44,15 +44,26 @@ export interface SubmissionResult {
   createdContracts: CreatedEvent[];
 }
 
+export interface SubmissionReference {
+  commandId: string;
+  submissionId: string;
+}
+
 export class LedgerApiError extends Error {
   readonly status: number;
   readonly payload: unknown;
+  readonly submissionReference?: SubmissionReference;
 
-  constructor(status: number, payload: unknown) {
+  constructor(
+    status: number,
+    payload: unknown,
+    submissionReference?: SubmissionReference,
+  ) {
     super(`Canton Ledger API returned HTTP ${status}`);
     this.name = "LedgerApiError";
     this.status = status;
     this.payload = payload;
+    this.submissionReference = submissionReference;
   }
 }
 
@@ -195,11 +206,15 @@ export class LedgerApi {
       throw new Error("At least one acting party is required");
     }
 
+    const submissionReference: SubmissionReference = {
+      commandId: `tavryn-${randomUUID()}`,
+      submissionId: randomUUID(),
+    };
     const commandGroup: Record<string, unknown> = {
       commands,
-      commandId: `tavryn-${randomUUID()}`,
+      commandId: submissionReference.commandId,
       actAs,
-      submissionId: randomUUID(),
+      submissionId: submissionReference.submissionId,
     };
     if (this.config.userId) {
       commandGroup.userId = this.config.userId;
@@ -217,6 +232,7 @@ export class LedgerApi {
         method: "POST",
         body: JSON.stringify({ commands: commandGroup }),
       },
+      submissionReference,
     );
     const transaction = response.transaction;
     return {
@@ -230,7 +246,11 @@ export class LedgerApi {
     };
   }
 
-  private async request<T>(path: string, init: RequestInit): Promise<T> {
+  private async request<T>(
+    path: string,
+    init: RequestInit,
+    submissionReference?: SubmissionReference,
+  ): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set("Content-Type", "application/json");
     headers.set("Accept", "application/json");
@@ -258,7 +278,7 @@ export class LedgerApi {
       }
     }
     if (!response.ok) {
-      throw new LedgerApiError(response.status, payload);
+      throw new LedgerApiError(response.status, payload, submissionReference);
     }
     return payload as T;
   }
