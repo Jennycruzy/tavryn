@@ -61,10 +61,29 @@ spikes/      throwaway proofs for risky paths; not product code
 
 ## Clean-machine setup
 
-The exact commands will be pinned after the official DPM installation and starter
-materials are verified. Do not invent party IDs, package IDs, tokens, synchronizer IDs,
-fees, or endpoints: copy them from the applicable LocalNet/DevNet/MainNet setup into a
-local `.env` file. `.env` is ignored from the first commit.
+Install the official DPM release and Java runtime required by that release, then run the
+following from a clean checkout. The exact party IDs, participant URL, user ID,
+synchronizer ID, token-admin ID, symbol and fees must come from the participant/network
+setup; none are repository defaults.
+
+```sh
+export PATH="$DPM_BIN:$PATH"
+export JAVA_HOME="$JAVA_RUNTIME"
+dpm build
+dpm test
+dpm codegen-js .daml/dist/tavryn-0.1.0.dar -o backend/daml.js -s tavryn.js
+cp .env.example backend/.env
+# Fill backend/.env with values returned by the running participant.
+cd backend
+npm install
+npm run build
+npm run integration
+```
+
+`DPM_BIN` and `JAVA_RUNTIME` above are placeholders for paths installed on the machine;
+they are not values to copy into the repository. `backend/.env` is ignored from the first
+commit. The backend integration drives the real JSON Ledger API and records Canton update
+IDs; it does not replace the ledger with a mock.
 
 ## Honest limits
 

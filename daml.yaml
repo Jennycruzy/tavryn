@@ -6,3 +6,7 @@ dependencies:
   - daml-prim
   - daml-stdlib
   - daml-script
+codegen:
+  js:
+    output-directory: backend/daml.js
+    npm-scope: tavryn.js

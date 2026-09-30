@@ -1,0 +1,23 @@
+{
+  "name": "tavryn-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx src/server.ts",
+    "integration": "tsx src/integration.ts"
+  },
+  "dependencies": {
+    "@daml/types": "3.5.3",
+    "@tavryn.js/ghc-stdlib-DA-Internal-Template-1.0.0": "file:daml.js/ghc-stdlib-DA-Internal-Template-1.0.0",
+    "@mojotech/json-type-validation": "3.1.0",
+    "dotenv": "16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.30",
+    "tsx": "4.19.3",
+    "typescript": "5.8.3"
+  }
+}
