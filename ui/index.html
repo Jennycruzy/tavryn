@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#07111f" />
+    <title>Tavryn — single-financing ledger</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Tavryn home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40" role="img">
+              <path d="M20 4 34 12v16L20 36 6 28V12L20 4Z" fill="none" stroke="currentColor" stroke-width="2.6" />
+              <path d="m12 18 5 3 11-7M12 25l5 3 11-7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6" />
+            </svg>
+          </span>
+          <span>
+            <strong>TAVRYN</strong>
+            <small>PRIVATE FINANCE NETWORK</small>
+          </span>
+        </a>
+        <div class="topbar-status">
+          <span class="status-dot"></span>
+          <span>LEDGER CONNECTED</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">CANTON / SUPPLY-CHAIN FINANCE</p>
+            <h1>Every invoice can be<br /><em>pledged once.</em></h1>
+            <p class="hero-subtitle">Prove it without revealing it.</p>
+            <p class="hero-description">
+              A buyer-approved invoice becomes a one-use financing opportunity. The ledger
+              stops the second funder while each financier sees only its own book.
+            </p>
+          </div>
+          <div class="hero-proof" aria-label="Product proof">
+            <div class="proof-orbit"></div>
+            <div class="proof-core">
+              <span class="proof-kicker">ONE-USE STATE</span>
+              <strong>CONSUME<br />ONCE</strong>
+              <span class="proof-caption">CANTON-ENFORCED</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="role-switcher" aria-labelledby="role-heading">
+          <div class="section-label">
+            <span class="section-number">01</span>
+            <div>
+              <p class="eyebrow">PARTY-SCOPED WORKSPACE</p>
+              <h2 id="role-heading">View the network as</h2>
+            </div>
+          </div>
+          <div class="role-buttons" id="roleButtons" role="tablist" aria-label="Select party role">
+            <button class="role-button" data-role="supplier" role="tab">Supplier</button>
+            <button class="role-button" data-role="buyer" role="tab">Buyer</button>
+            <button class="role-button" data-role="financierA" role="tab">Financier A</button>
+            <button class="role-button" data-role="financierB" role="tab">Financier B</button>
+            <button class="role-button" data-role="auditor" role="tab">Auditor</button>
+          </div>
+          <div class="role-context" id="roleContext"></div>
+        </section>
+
+        <div class="content-grid">
+          <div class="main-column">
+            <section class="panel setup-panel" id="setupPanel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">NETWORK CONTROL</p>
+                  <h2>Start the ledger</h2>
+                </div>
+                <span class="pill" id="setupState">SETUP REQUIRED</span>
+              </div>
+              <p class="panel-intro">
+                Create the buyer approval registry and network advance rules once. They are
+                live Canton contracts, not demo state.
+              </p>
+              <div class="setup-row">
+                <div class="setup-fact">
+                  <span>Approval registry</span>
+                  <strong id="registryState">Not loaded</strong>
+                </div>
+                <div class="setup-fact">
+                  <span>Advance ceiling</span>
+                  <strong id="rulesState">Not loaded</strong>
+                </div>
+                <div class="setup-rate">
+                  <label for="maxAdvanceRate">Maximum advance rate</label>
+                  <input id="maxAdvanceRate" inputmode="decimal" placeholder="0.95" aria-label="Maximum advance rate" />
+                </div>
+                <button class="button button-primary" id="setupButton" type="button">
+                  Load / create setup
+                </button>
+              </div>
+            </section>
+
+            <section class="workflow-panel">
+              <div class="section-heading-row">
+                <div>
+                  <p class="eyebrow">LIVE WORKFLOW</p>
+                  <h2>One invoice. Five visible states.</h2>
+                </div>
+                <button class="button button-quiet" id="refreshButton" type="button">Refresh view</button>
+              </div>
+              <div class="workflow-rail" id="workflowRail" aria-label="Invoice workflow">
+                <div class="workflow-step" data-step="draft"><span>01</span><strong>Draft</strong></div>
+                <div class="rail-line"></div>
+                <div class="workflow-step" data-step="approved"><span>02</span><strong>Approved</strong></div>
+                <div class="rail-line"></div>
+                <div class="workflow-step" data-step="offered"><span>03</span><strong>Offered</strong></div>
+                <div class="rail-line"></div>
+                <div class="workflow-step" data-step="funded"><span>04</span><strong>Funded once</strong></div>
+                <div class="rail-line"></div>
+                <div class="workflow-step" data-step="repaid"><span>05</span><strong>Repaid</strong></div>
+              </div>
+            </section>
+
+            <section class="panel action-panel" id="actionPanel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">ROLE ACTION</p>
+                  <h2 id="actionTitle">Choose a role</h2>
+                </div>
+                <span class="action-role" id="actionRole"></span>
+              </div>
+              <div id="actionBody"></div>
+            </section>
+
+            <section class="panel contracts-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">LEDGER VIEW</p>
+                  <h2 id="contractsTitle">Visible contracts</h2>
+                </div>
+                <span class="contract-count" id="contractCount">0</span>
+              </div>
+              <div class="contracts-list" id="contractsList">
+                <div class="empty-state">Loading the selected party view…</div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="side-column">
+            <section class="panel result-panel" id="resultPanel" aria-live="polite">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="eyebrow">OPERATION LOG</p>
+                  <h2>Proof, not noise</h2>
+                </div>
+                <span class="log-icon">↗</span>
+              </div>
+              <div id="resultBody" class="result-body">
+                <div class="result-placeholder">
+                  <span class="placeholder-mark">✦</span>
+                  <p>Actions will return the real Canton update reference here.</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel privacy-panel">
+              <div class="privacy-header">
+                <span class="privacy-icon">◈</span>
+                <div>
+                  <p class="eyebrow">PRIVACY CHECK</p>
+                  <h2>What this role can see</h2>
+                </div>
+              </div>
+              <div class="privacy-list" id="privacyList"></div>
+            </section>
+
+            <section class="truth-card">
+              <p class="eyebrow">THE GUARANTEE</p>
+              <p>“The first financier consumes the one-use state. The second gets a clean rejection — without seeing the winning deal.”</p>
+              <span>— Tavryn ledger invariant</span>
+            </section>
+          </aside>
+        </div>
+      </main>
+
+      <footer class="footer">
+        <span>TAVRYN / HACKCANTON TRACK 1</span>
+        <span>Two-step Canton Coin settlement · non-atomic MVP path</span>
+      </footer>
+    </div>
+    <script type="module" src="/ui/app.js"></script>
+  </body>
+</html>

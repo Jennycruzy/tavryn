@@ -1,5 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { URL } from "node:url";
+import { resolve, sep } from "node:path";
 
 import { isRole, loadConfig, type Role } from "./config.js";
 import { CantonCoinSettlementError } from "./canton-coin.js";
@@ -32,6 +35,10 @@ async function route(
   const method = request.method ?? "GET";
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
   const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+
+  if (method === "GET" && await serveStatic(url.pathname, response)) {
+    return;
+  }
 
   if (method === "GET" && url.pathname === "/health") {
     const offset = await service.ledgerEnd();
@@ -212,6 +219,52 @@ async function route(
   }
 
   writeJson(response, 404, { error: "Route not found", code: "NOT_FOUND" });
+}
+
+const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
+
+async function serveStatic(pathname: string, response: ServerResponse): Promise<boolean> {
+  let root: string;
+  let relativePath: string;
+  if (pathname === "/") {
+    root = resolve(projectRoot, "ui");
+    relativePath = "index.html";
+  } else if (pathname.startsWith("/ui/")) {
+    root = resolve(projectRoot, "ui");
+    relativePath = pathname.slice("/ui/".length);
+  } else if (pathname.startsWith("/assets/")) {
+    root = resolve(projectRoot, "assets");
+    relativePath = pathname.slice("/assets/".length);
+  } else {
+    return false;
+  }
+
+  const filePath = resolve(root, relativePath);
+  if (filePath !== root && !filePath.startsWith(`${root}${sep}`)) {
+    writeJson(response, 400, { error: "Invalid static path", code: "INVALID_PATH" });
+    return true;
+  }
+  try {
+    const body = await readFile(filePath);
+    response.writeHead(200, {
+      "Content-Type": contentType(filePath),
+      "Cache-Control": "no-store",
+      "Content-Length": body.byteLength,
+    });
+    response.end(body);
+  } catch {
+    writeJson(response, 404, { error: "Static asset not found", code: "NOT_FOUND" });
+  }
+  return true;
+}
+
+function contentType(filePath: string): string {
+  if (filePath.endsWith(".html")) return "text/html; charset=utf-8";
+  if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
+  if (filePath.endsWith(".js")) return "text/javascript; charset=utf-8";
+  if (filePath.endsWith(".png")) return "image/png";
+  if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) return "image/jpeg";
+  return "application/octet-stream";
 }
 
 export async function startTavrynServer(service: TavrynService, port: number) {

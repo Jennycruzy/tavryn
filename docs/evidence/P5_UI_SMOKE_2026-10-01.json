@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-01",
+  "localChecks": {
+    "backendNpmRunBuild": "passed",
+    "uiJavaScriptSyntax": "passed",
+    "gitDiffCheck": "passed"
+  },
+  "vpsSmoke": {
+    "environment": "selected VPS Tavryn backend",
+    "backendPort": 18787,
+    "staticRoutes": {
+      "/": { "httpStatus": 200, "bytes": 8533 },
+      "/ui/app.js": { "httpStatus": 200, "bytes": 23353 },
+      "/ui/styles.css": { "httpStatus": 200, "bytes": 16150 }
+    },
+    "health": {
+      "httpStatus": 200,
+      "service": "tavryn-backend",
+      "ledgerEndOffset": 416
+    },
+    "roleScopedApi": {
+      "path": "/api/v1/roles/buyer/contracts",
+      "httpStatus": 200
+    },
+    "checks": [
+      "Promise line is present in the served landing page",
+      "Second-funding rejection presentation is present in the served client",
+      "Role-scoped API remains reachable from the served backend"
+    ]
+  },
+  "scope": {
+    "passed": "The role-switching UI is built, served by the backend, and connected to the live role-scoped API routes.",
+    "notClaimed": "The complete lifecycle has not yet been recorded through a real browser session; the P5 gate remains pending until that screenshot/video evidence exists."
+  }
+}

@@ -91,6 +91,13 @@ they are not values to copy into the repository. `backend/.env` is ignored from 
 commit. The backend integration drives the real JSON Ledger API and records Canton update
 IDs; it does not replace the ledger with a mock.
 
+When the backend is running, open its root URL in a browser to use the Tavryn UI. The page
+switches between the configured party views, reads contracts through the matching role
+route, and submits the same create, approve, offer, fund, rejection, and repayment
+operations as the integration client. The UI intentionally shows safe operation and
+submission references instead of raw ledger errors. A browser recording is still required
+before the P5 gate is claimed complete.
+
 ## Honest limits
 
 - Duplicate creation is prevented by the buyer approval service checking each external
