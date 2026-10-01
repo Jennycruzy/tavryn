@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
-    "integration": "tsx src/integration.ts"
+    "integration": "tsx src/integration.ts",
+    "settlement-integration": "tsx src/settlement-integration.ts"
   },
   "dependencies": {
     "@daml/types": "3.5.3",
