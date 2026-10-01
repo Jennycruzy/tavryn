@@ -1,8 +1,11 @@
 # Tavryn backend
 
 This service submits each workflow action through Canton’s JSON Ledger API and reads
-active contracts through the selected role’s party view. It uses the generated Daml
-bindings in `daml.js/`; template and choice identifiers are not hand-written.
+active contracts through the selected role’s party view. Existing workflow declarations
+use the generated Daml bindings in `daml.js/`. The P3 settlement choices have a narrow
+source-matched compatibility binding in `src/settlement-contracts.ts` because the host
+Java runtime is currently unavailable for `dpm codegen-js`; final clean-machine setup
+must regenerate bindings from the DAR before reproducibility is claimed.
 
 ## Local run
 
@@ -32,6 +35,18 @@ npm run integration
 It creates an invoice, approves it, creates offers for both financiers, funds it with A,
 proves B’s ledger rejection and party-scoped view, repays it, and attempts a duplicate
 buyer approval. Successful actions print real Canton update IDs.
+
+When a Splice-backed validator is configured, settlement uses the real token-standard
+wallet API rather than the ledger-only proof path:
+
+```text
+POST /api/v1/offers/:offerCid/fund
+POST /api/v1/financed/:financedCid/settle-repay
+```
+
+Funding first consumes the ledger `FundingSlot`, transfers Canton Coin, then completes
+`PendingFunding` with the wallet update reference. This is deliberately two-step and
+non-atomic; a failed follow-up remains visible for reconciliation.
 
 For the hackathon demo one local process can submit on behalf of the configured parties.
 Production deployment must give each organization its own participant or wallet and

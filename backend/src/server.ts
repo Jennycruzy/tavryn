@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { URL } from "node:url";
 
 import { isRole, loadConfig, type Role } from "./config.js";
+import { CantonCoinSettlementError } from "./canton-coin.js";
 import {
   LedgerApiError,
   type SubmissionResult,
@@ -9,6 +10,7 @@ import {
 import {
   TavrynConflictError,
   TavrynInputError,
+  TavrynSettlementError,
   TavrynService,
 } from "./tavryn-service.js";
 
@@ -103,6 +105,40 @@ async function route(
 
   if (
     method === "POST" &&
+    parts.length === 5 &&
+    parts[0] === "api" &&
+    parts[1] === "v1" &&
+    parts[2] === "offers" &&
+    parts[4] === "fund"
+  ) {
+    const body = await readJson(request);
+    const result = await service.fundOffer(
+      parts[3],
+      parseFinancierRole(stringField(body, "financierRole")),
+    );
+    writeSettledSubmission(response, 200, result);
+    return;
+  }
+
+  if (
+    method === "POST" &&
+    parts.length === 5 &&
+    parts[0] === "api" &&
+    parts[1] === "v1" &&
+    parts[2] === "pending-funding" &&
+    parts[4] === "cancel"
+  ) {
+    const body = await readJson(request);
+    const result = await service.cancelPendingFunding(
+      parts[3],
+      parseFinancierRole(stringField(body, "financierRole")),
+    );
+    writeSubmission(response, 200, result);
+    return;
+  }
+
+  if (
+    method === "POST" &&
     parts.length === 6 &&
     parts[0] === "api" &&
     parts[1] === "v1" &&
@@ -118,6 +154,24 @@ async function route(
       stringField(body, "advanceRate"),
     );
     writeSubmission(response, 201, result);
+    return;
+  }
+
+  if (
+    method === "POST" &&
+    parts.length === 5 &&
+    parts[0] === "api" &&
+    parts[1] === "v1" &&
+    parts[2] === "financed" &&
+    parts[4] === "settle-repay"
+  ) {
+    const body = await readJson(request);
+    const result = await service.repayWithSettlement(
+      parts[3],
+      parseFinancierRole(stringField(body, "financierRole")),
+      stringField(body, "repaymentDate"),
+    );
+    writeSettledSubmission(response, 200, result);
     return;
   }
 
@@ -242,6 +296,20 @@ function writeSubmission(
   });
 }
 
+function writeSettledSubmission(
+  response: ServerResponse,
+  status: number,
+  result: Awaited<ReturnType<TavrynService["fundOffer"]>>,
+): void {
+  writeJson(response, status, {
+    updateId: result.ledger.transaction.updateId,
+    offset: result.ledger.transaction.offset,
+    synchronizerId: result.ledger.transaction.synchronizerId,
+    createdContracts: result.ledger.createdContracts,
+    cashTransfer: result.cash,
+  });
+}
+
 function writeError(response: ServerResponse, error: unknown): void {
   if (response.headersSent) {
     response.destroy();
@@ -257,6 +325,26 @@ function writeError(response: ServerResponse, error: unknown): void {
       code: error.publicCode,
       ...(error.submissionReference
         ? { submissionReference: error.submissionReference }
+        : {}),
+    });
+    return;
+  }
+  if (error instanceof CantonCoinSettlementError) {
+    writeJson(response, error.status, {
+      error: error.message,
+      code: error.publicCode,
+    });
+    return;
+  }
+  if (error instanceof TavrynSettlementError) {
+    writeJson(response, error.status, {
+      error: error.message,
+      code: error.publicCode,
+      ...(error.paymentReference
+        ? { paymentReference: error.paymentReference }
+        : {}),
+      ...(error.pendingFundingCid
+        ? { pendingFundingCid: error.pendingFundingCid }
         : {}),
     });
     return;

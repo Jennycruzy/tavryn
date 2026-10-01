@@ -41,12 +41,31 @@ server-side.
 
 ## Settlement decision
 
-Status: **not decided until the spike**.
+Status: **two-step settlement selected for the MVP; it is not atomic**.
 
-1. Prove a plain Canton Coin transfer between two LocalNet parties.
-2. Prove the documented allocation/settlement path inside a Tavryn funding choice.
-3. If the allocation path fails by the phase gate, implement the documented two-step
-   `PendingFunding` flow with real coin movement, and label it non-atomic everywhere.
+The local Splice-backed network accepted the documented V2 allocation request, but the
+complete allocation settlement choice was not captured as a Tavryn funding transaction.
+The implementation therefore uses the documented fallback:
+
+1. `FinancingOffer.BeginFunding` consumes the opaque `FundingSlot` and creates
+   `PendingFunding`.
+2. The backend submits a real Canton Coin token-standard transfer from the financier's
+   wallet to the supplier's wallet.
+3. After the wallet history exposes the transfer event/update reference,
+   `PendingFunding.Complete` consumes the approved invoice and creates `FinancedInvoice`
+   plus an auditor-visible `FundingReceipt` containing that reference.
+4. Repayment follows the same external-transfer-then-ledger-record pattern. The buyer's
+   transfer reference is stored in `RepaymentReceipt`.
+
+This preserves the single-financing invariant while cash is in flight, but the cash move
+and the ledger transition are separate transactions. If a wallet transfer succeeds and
+the follow-up ledger command fails, the `PendingFunding` contract remains for explicit
+reconciliation; the service never silently marks it complete.
+
+The atomic allocation spike and the two-step path are both recorded in
+`docs/FINDINGS.md`. P3 remains pending until the new backend endpoints are rerun end to
+end against the Splice participant and their update IDs are recorded here and in
+`docs/PROGRESS.md`.
 
 ## Governance decision
 

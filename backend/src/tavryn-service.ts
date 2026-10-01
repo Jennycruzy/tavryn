@@ -12,6 +12,17 @@ import {
   type SubmissionReference,
   type SubmissionResult,
 } from "./ledger-api.js";
+import {
+  CantonCoinSettlement,
+  CantonCoinSettlementError,
+  type CantonCoinTransfer,
+} from "./canton-coin.js";
+import {
+  FinancingOfferBeginFunding,
+  PendingFunding,
+  PendingFundingCancel,
+  PendingFundingComplete,
+} from "./settlement-contracts.js";
 
 const { Contracts, Types } = TavrynBindings;
 
@@ -26,6 +37,11 @@ export interface InvoiceTermsInput {
 export interface InvoiceDraftInput {
   invoiceCommitment: string;
   terms: InvoiceTermsInput;
+}
+
+export interface SettledSubmission {
+  ledger: SubmissionResult;
+  cash: CantonCoinTransfer;
 }
 
 export class TavrynInputError extends Error {
@@ -50,11 +66,33 @@ export class TavrynConflictError extends Error {
   }
 }
 
+export class TavrynSettlementError extends Error {
+  readonly status = 502;
+  readonly publicCode: string;
+  readonly paymentReference?: string;
+  readonly pendingFundingCid?: string;
+
+  constructor(
+    message: string,
+    publicCode: string,
+    paymentReference?: string,
+    pendingFundingCid?: string,
+  ) {
+    super(message);
+    this.name = "TavrynSettlementError";
+    this.publicCode = publicCode;
+    this.paymentReference = paymentReference;
+    this.pendingFundingCid = pendingFundingCid;
+  }
+}
+
 export class TavrynService {
   readonly ledger: LedgerApi;
+  readonly settlement: CantonCoinSettlement;
 
   constructor(private readonly config: TavrynConfig) {
     this.ledger = new LedgerApi(config);
+    this.settlement = new CantonCoinSettlement(config);
   }
 
   ledgerEnd(): Promise<number> {
@@ -185,6 +223,94 @@ export class TavrynService {
       });
   }
 
+  async fundOffer(
+    offerContractId: string,
+    financierRole: "financierA" | "financierB",
+  ): Promise<SettledSubmission> {
+    requireContractId(offerContractId, "offerContractId");
+    this.settlement.assertConfigured(financierRole);
+    const financier = partyForRole(this.config, financierRole);
+    const offer = await this.activeContractForRole(
+      financierRole,
+      offerContractId,
+      "FinancingOffer",
+    );
+    const offerArgument = record(offer.createArgument, "FinancingOffer");
+    const amount = decimalField(offerArgument, "advance", "FinancingOffer.advance");
+
+    const pending = await this.ledger
+      .exercise(
+        Contracts.FinancingOffer,
+        FinancingOfferBeginFunding,
+        offerContractId,
+        {},
+        [this.config.parties.buyer, this.config.parties.supplier, financier],
+      )
+      .catch((error) => {
+        if (error instanceof LedgerApiError) {
+          throw new TavrynConflictError(
+            "This invoice is no longer available for funding.",
+            "INVOICE_UNAVAILABLE",
+            error.submissionReference,
+          );
+        }
+        throw error;
+      });
+    const pendingFundingCid = createdContractId(pending, "PendingFunding");
+
+    let cash: CantonCoinTransfer;
+    try {
+      cash = await this.settlement.transfer(
+        financierRole,
+        this.config.parties.supplier,
+        amount,
+        "funding",
+      );
+    } catch (error) {
+      if (error instanceof CantonCoinSettlementError && error.safeToCancel) {
+        await this.cancelPendingFundingAfterFailedTransfer(
+          pendingFundingCid,
+          financier,
+        );
+      }
+      throw error;
+    }
+
+    let completed: SubmissionResult;
+    try {
+      completed = await this.ledger.exercise(
+        PendingFunding,
+        PendingFundingComplete,
+        pendingFundingCid,
+        { paymentReference: cash.updateId },
+        [this.config.parties.buyer, this.config.parties.supplier, financier],
+      );
+    } catch (error) {
+      throw new TavrynSettlementError(
+        "Canton Coin moved, but the ledger could not finalize funding. The PendingFunding contract is retained for reconciliation.",
+        "SETTLEMENT_LEDGER_FINALIZATION_FAILED",
+        cash.updateId,
+        pendingFundingCid,
+      );
+    }
+    return { ledger: completed, cash };
+  }
+
+  async cancelPendingFunding(
+    pendingFundingCid: string,
+    financierRole: "financierA" | "financierB",
+  ): Promise<SubmissionResult> {
+    requireContractId(pendingFundingCid, "pendingFundingCid");
+    const financier = partyForRole(this.config, financierRole);
+    return this.ledger.exercise(
+      PendingFunding,
+      PendingFundingCancel,
+      pendingFundingCid,
+      {},
+      [this.config.parties.buyer, this.config.parties.supplier, financier],
+    );
+  }
+
   repay(
     financedContractId: string,
     financierRole: "financierA" | "financierB",
@@ -208,6 +334,56 @@ export class TavrynService {
     );
   }
 
+  async repayWithSettlement(
+    financedContractId: string,
+    financierRole: "financierA" | "financierB",
+    repaymentDate: string,
+  ): Promise<SettledSubmission> {
+    requireContractId(financedContractId, "financedContractId");
+    validateDate(repaymentDate, "repaymentDate");
+    this.settlement.assertConfigured("buyer");
+    const financier = partyForRole(this.config, financierRole);
+    const financed = await this.activeContractForRole(
+      financierRole,
+      financedContractId,
+      "FinancedInvoice",
+    );
+    const financedArgument = record(financed.createArgument, "FinancedInvoice");
+    const terms = record(financedArgument.terms, "FinancedInvoice.terms");
+    const dueDate = stringFieldValue(terms.dueDate, "FinancedInvoice.terms.dueDate");
+    if (repaymentDate < dueDate) {
+      throw new TavrynInputError("repaymentDate must be on or after the invoice due date");
+    }
+    const faceValue = decimalField(
+      terms,
+      "faceValue",
+      "FinancedInvoice.terms.faceValue",
+    );
+    const cash = await this.settlement.transfer(
+      "buyer",
+      financier,
+      faceValue,
+      "repayment",
+    );
+    let ledger: SubmissionResult;
+    try {
+      ledger = await this.ledger.exercise(
+        Contracts.FinancedInvoice,
+        Contracts.FinancedInvoice.Repay,
+        financedContractId,
+        { repaymentDate, paymentReference: cash.updateId },
+        [this.config.parties.buyer, financier],
+      );
+    } catch {
+      throw new TavrynSettlementError(
+        "Canton Coin moved, but the ledger could not record repayment. The payment reference must be reconciled before retrying.",
+        "SETTLEMENT_LEDGER_REPAYMENT_FAILED",
+        cash.updateId,
+      );
+    }
+    return { ledger, cash };
+  }
+
   contractsForRole(role: Role): Promise<ActiveContract[]> {
     return this.ledger.activeContracts(partyForRole(this.config, role));
   }
@@ -220,6 +396,42 @@ export class TavrynService {
       this.config.parties.financierB,
       this.config.parties.auditor,
     ];
+  }
+
+  private async activeContractForRole(
+    role: Role,
+    contractId: string,
+    templateName: string,
+  ): Promise<ActiveContract> {
+    const contract = (await this.contractsForRole(role)).find(
+      (candidate) =>
+        candidate.contractId === contractId && candidate.templateId.includes(templateName),
+    );
+    if (!contract) {
+      throw new TavrynInputError(
+        `${templateName} contract is not visible to the selected role or is no longer active`,
+      );
+    }
+    return contract;
+  }
+
+  private async cancelPendingFundingAfterFailedTransfer(
+    pendingFundingCid: string,
+    financier: string,
+  ): Promise<void> {
+    try {
+      await this.ledger.exercise(
+        PendingFunding,
+        PendingFundingCancel,
+        pendingFundingCid,
+        {},
+        [this.config.parties.buyer, this.config.parties.supplier, financier],
+      );
+    } catch {
+      console.error("PendingFunding cancellation failed after a rejected cash transfer", {
+        pendingFundingCid,
+      });
+    }
   }
 }
 
@@ -258,6 +470,12 @@ function assertDecimal(value: string, name: string): void {
   }
 }
 
+function validateDate(value: string, name: string): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new TavrynInputError(`${name} must be YYYY-MM-DD`);
+  }
+}
+
 function requireContractId(value: string, name: string): void {
   if (typeof value !== "string" || !value.trim()) {
     throw new TavrynInputError(`${name} is required`);
@@ -272,4 +490,43 @@ function encodeTerms(input: InvoiceTermsInput): unknown {
     issuedDate: input.issuedDate,
     dueDate: input.dueDate,
   });
+}
+
+function createdContractId(result: SubmissionResult, templateName: string): string {
+  const created = result.createdContracts.find((event) =>
+    event.templateId.includes(templateName),
+  );
+  if (!created?.contractId) {
+    throw new Error(`Canton did not return a ${templateName} contract`);
+  }
+  return created.contractId;
+}
+
+function record(value: unknown, name: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${name} was not a Daml record`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function decimalField(
+  value: Record<string, unknown>,
+  field: string,
+  name: string,
+): string {
+  const raw = value[field];
+  if (typeof raw === "string" && /^\d+(?:\.\d{1,10})?$/.test(raw)) {
+    return raw;
+  }
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return String(raw);
+  }
+  throw new Error(`${name} was not a decimal value`);
+}
+
+function stringFieldValue(value: unknown, name: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`${name} was not a text value`);
+  }
+  return value;
 }

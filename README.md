@@ -44,9 +44,13 @@ or governance result is implied. Source-backed decisions and open discrepancies 
 [`docs/FINDINGS.md`](docs/FINDINGS.md). Phase gates and evidence live in
 [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
-Settlement is not yet claimed. The implementation will first prove plain Canton Coin
-transfer and then test allocation inside the funding choice. The README will be updated
-with the actual atomic or two-step path only after a real update ID is captured.
+Settlement now has a real two-step implementation against the Splice token-standard
+wallet API. `FinancingOffer.BeginFunding` consumes the one-use slot, the backend moves
+Canton Coin, and `PendingFunding.Complete` records the wallet update reference in an
+auditor-visible `FundingReceipt`. Repayment follows the same pattern. This is not atomic;
+the cash transfer and Tavryn ledger update are separate transactions. The local transfer
+evidence and the still-open end-to-end Tavryn gate are recorded in
+[`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Repository layout
 

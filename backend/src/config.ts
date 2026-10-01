@@ -26,6 +26,17 @@ export interface TavrynConfig {
   packageId?: string;
   httpPort: number;
   parties: PartyConfig;
+  settlement: SettlementConfig;
+}
+
+export interface SettlementConfig {
+  validatorApiUrl?: string;
+  walletTokens: {
+    buyer?: string;
+    financierA?: string;
+    financierB?: string;
+  };
+  transferExpirySeconds: number;
 }
 
 function required(name: string): string {
@@ -50,6 +61,18 @@ function requiredPort(name: string): number {
   return port;
 }
 
+function optionalPositiveInteger(name: string, fallback: number): number {
+  const value = optional(name);
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return parsed;
+}
+
 export function loadConfig(): TavrynConfig {
   return {
     ledgerApiUrl: required("CANTON_LEDGER_API_URL").replace(/\/+$/, ""),
@@ -66,6 +89,18 @@ export function loadConfig(): TavrynConfig {
       financierB: required("FINANCIER_B_PARTY_ID"),
       auditor: required("AUDITOR_PARTY_ID"),
       governance: required("GOVERNANCE_PARTY_ID"),
+    },
+    settlement: {
+      validatorApiUrl: optional("CANTON_VALIDATOR_API_URL")?.replace(/\/+$/, ""),
+      walletTokens: {
+        buyer: optional("CANTON_WALLET_TOKEN_BUYER"),
+        financierA: optional("CANTON_WALLET_TOKEN_FINANCIER_A"),
+        financierB: optional("CANTON_WALLET_TOKEN_FINANCIER_B"),
+      },
+      transferExpirySeconds: optionalPositiveInteger(
+        "CANTON_TRANSFER_EXPIRY_SECONDS",
+        300,
+      ),
     },
   };
 }

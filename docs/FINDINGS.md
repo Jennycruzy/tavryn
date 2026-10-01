@@ -24,8 +24,12 @@ each fact before it is treated as a local capability.
 
 | Finding | Source | Local status |
 |---|---|---|
-| Canton Coin workflows require receiver transfer preapproval for one-step transfers in the documented integration workflow. | [Digital Asset integration workflows](https://archived.docs.digitalasset.com/integrate/devnet/exchange-integration/workflows.html) | Must be proven against installed Splice/token-standard version |
-| Allocation/disclosed-contract fields must be taken from the installed Splice/token-standard source, not inferred from this specification. | [Splice repository](https://github.com/canton-network/splice) | Not yet pinned or executed |
+| Canton Coin token-standard transfers use `POST /v0/wallet/token-standard/transfers` with `receiver_party_id`, `amount`, `description`, `expires_at` in microseconds, and `tracking_id`; completed output contains `receiver_holding_cids`, while pending output contains a transfer-instruction CID. | [Splice wallet API source](https://raw.githubusercontent.com/canton-network/splice/refs/heads/main/apps/wallet/src/main/openapi/wallet-internal.yaml) | Verified against the installed Splice 0.6.11 validator; Tavryn now calls this endpoint from `backend/src/canton-coin.ts` |
+| Canton Coin transfers require receiver preapproval when the receiver is to accept incoming funds automatically. | [Splice wallet API source](https://raw.githubusercontent.com/canton-network/splice/refs/heads/main/apps/wallet/src/main/openapi/wallet-internal.yaml) | Preapprovals were created for the local supplier, buyer, and Financier A wallets; the backend assumes this is configured and does not fake acceptance |
+| Wallet transaction history is `POST /v0/wallet/transactions` with `page_size`; completed transfer items expose `event_id`, `sender`, `receivers`, and `description`. | [Splice wallet API source](https://raw.githubusercontent.com/canton-network/splice/refs/heads/main/apps/wallet/src/main/openapi/wallet-internal.yaml) | The backend correlates the transfer description to the real event ID and stores the derived update ID on the ledger receipt |
+| The installed Splice-backed local network is version 0.6.11. Its local amulet-rules response reports wallet 0.1.22, amulet 0.1.21, token allocation/transfer v2 DARs, and zero transfer fee in this local configuration. | Installed validator package list and `/api/validator/v0/scan-proxy/amulet-rules` response (2026-10-01) | Local evidence only; fees and package IDs remain environment values, not repository constants |
+| A real role-mapped transfer sequence completed on the local Splice network: Financier A → supplier for funding and buyer → Financier A for repayment. | Wallet transaction history, 2026-10-01: funding event `#122091ae058ab59fa57a9fd46a014ee8b941e93a71e871cc9db3f3066ce1ed75b7bd:0`; repayment event `#12207125f187c3c3ee3d9f6127991715f5d05f13995170ea3b89c81a375cdcc138ce:0` | Real token movement proven; not yet joined to a Tavryn `PendingFunding`/`Complete` transaction, so P3 remains pending |
+| A V2 allocation request was accepted by the local validator with a 0.10 Amulet transfer leg and then expired without a captured settlement choice. | Local validator `POST /api/validator/v2/allocations` response and subsequent empty allocation list, 2026-10-01 | Atomic path not claimed; the MVP uses the real two-step alternative |
 
 ## Decentralization Manager
 
@@ -43,9 +47,10 @@ each fact before it is treated as a local capability.
 2. The specification states an exact Grofty SDK behavior, but no Grofty SDK or access
    response is present locally. It remains an optional last phase and cannot shape the
    core model.
-3. The specification names CIP-0056 and Canton Coin allocation behavior. The exact
-   versioned token-standard API and package IDs are not yet locally verified; no funding
-   choice will claim atomic settlement until that spike succeeds.
+3. The specification names CIP-0056 and Canton Coin allocation behavior. The installed
+   Splice 0.6.11 token-standard transfer API is now verified, but the full atomic
+   allocation settlement choice was not completed. Tavryn therefore claims the real
+   two-step path only and does not call it atomic.
 4. The specification's direct `FinancingOffer.Accept -> ApprovedInvoice` shape conflicts
    with the current Daml visibility rule if the financier is not an `ApprovedInvoice`
    stakeholder. Making the invoice disclosed would reveal its full payload. Tavryn
@@ -56,3 +61,8 @@ each fact before it is treated as a local capability.
    creating `FinancedInvoice`. There is no `FundingAuthorization` template in the current
    model. This is a material source-over-spec deviation and is called out in the
    README/demo.
+5. The host Java runtime became unavailable while regenerating TypeScript bindings. The
+   Daml package build succeeds, while the Daml Script runner and `dpm codegen-js` require
+   Java. The settlement additions use a narrow compatibility binding whose template and
+   choice names match the source declarations; it must be replaced by generated output
+   on a clean machine before final reproducibility is claimed.

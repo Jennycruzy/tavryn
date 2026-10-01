@@ -172,6 +172,21 @@ template ApprovedInvoice
           advance
           advanceRate
 
+    -- This choice is used when cash settlement is an external, real Canton Coin
+    -- transfer. It consumes the shared slot before cash moves, so another offer
+    -- cannot begin funding while this payment is in flight. The ApprovedInvoice
+    -- remains active until CompleteFunding records the payment and creates the
+    -- receivable.
+    choice ReopenFunding : ContractId ApprovedInvoice
+      controller buyer, supplier
+      do
+        slotCid <- create FundingSlot with
+          supplier
+          buyer
+          invoiceCommitment
+          eligibleFinanciers
+        create this with fundingSlot = slotCid
+
     -- This nested choice is reached from a winning offer acceptance. The winner is an
     -- actor of the enclosing three-party choice, so it signs the receivable; the losing
     -- financier is never an actor and never sees this subtransaction.
@@ -233,10 +248,94 @@ template FinancingOffer
           advance
           advanceRate
 
+    -- Two-step settlement alternative: lock the invoice on-ledger, move real cash
+    -- through the token-standard wallet API, then call PendingFunding.Complete.
+    choice BeginFunding : ContractId PendingFunding
+      controller buyer, supplier, financier
+      do
+        slot <- fetch fundingSlot
+        assert (slot.invoiceCommitment == invoiceCommitment)
+        assert (elem financier slot.eligibleFinanciers)
+        rules <- fetch networkRules
+        assert (advanceRate <= rules.maxAdvanceRate)
+        approved <- fetch approvedInvoice
+        _ <- exercise fundingSlot Claim with claimant = financier
+        create PendingFunding with
+          buyer
+          supplier
+          financier
+          auditor = approved.auditor
+          approvedInvoice
+          invoiceCommitment
+          terms
+          networkRules
+          advance
+          advanceRate
+
     choice Withdraw : ()
       controller supplier
       do
         pure ()
+
+template PendingFunding
+  with
+    buyer : Party
+    supplier : Party
+    financier : Party
+    auditor : Party
+    approvedInvoice : ContractId ApprovedInvoice
+    invoiceCommitment : Text
+    terms : InvoiceTerms
+    networkRules : ContractId NetworkRules
+    advance : Decimal
+    advanceRate : Decimal
+  where
+    ensure invoiceCommitment /= ""
+      && advance > 0.0 && advance <= terms.faceValue
+      && advanceRate >= 0.0 && advanceRate <= 1.0
+    signatory buyer, supplier, financier
+    observer auditor
+
+    choice Complete : ContractId FinancedInvoice
+      with
+        paymentReference : Text
+      controller buyer, supplier, financier
+      do
+        assert (paymentReference /= "")
+        financedCid <- exercise approvedInvoice FinalizeFunding with
+          financier
+          advance
+          advanceRate
+        _ <- create FundingReceipt with
+          buyer
+          supplier
+          financier
+          auditor
+          financedInvoice = financedCid
+          invoiceCommitment
+          paymentReference
+        pure financedCid
+
+    -- This is only safe before the external transfer succeeds. The service invokes
+    -- it when the wallet transfer fails, restoring a fresh one-use FundingSlot.
+    choice Cancel : ContractId ApprovedInvoice
+      controller buyer, supplier, financier
+      do
+        exercise approvedInvoice ReopenFunding
+
+template FundingReceipt
+  with
+    buyer : Party
+    supplier : Party
+    financier : Party
+    auditor : Party
+    financedInvoice : ContractId FinancedInvoice
+    invoiceCommitment : Text
+    paymentReference : Text
+  where
+    ensure invoiceCommitment /= "" && paymentReference /= ""
+    signatory buyer, supplier, financier
+    observer auditor
 
 template FinancedInvoice
   with
