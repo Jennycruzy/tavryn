@@ -304,5 +304,5 @@ function qualifyTemplateId(packageId: string | undefined, templateId: string): s
   if (separator < 0) {
     return templateId;
   }
-  return `#${packageId}${templateId.slice(separator)}`;
+  return `${packageId}${templateId.slice(separator)}`;
 }
