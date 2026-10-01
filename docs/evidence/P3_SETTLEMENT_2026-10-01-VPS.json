@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-01",
+  "sourceCommit": "a017ec2",
+  "environment": {
+    "network": "Canton Builder LocalNet on the selected VPS",
+    "builderToolCommit": "4f4eb4f16b545ee4b8c0cb7b360a484be1278b13",
+    "cnqsRef": "93f97b34eb47709e6484eb2e3dc6f722d328063b",
+    "spliceVersion": "0.6.11",
+    "appProviderJsonApiPort": 3975,
+    "validatorApiPort": 3903,
+    "darSha256": "8280654be0c23d63f52f13a3453c65639bec224f4d7b7c8e273147c1160d7b0e",
+    "packageId": "ef9391a48163946a5c3fe26f92e5e9c980be5aab8b30a4891e4312b97db1fe05"
+  },
+  "build": {
+    "npmCi": "passed",
+    "npmRunBuild": "passed",
+    "secretsTransferred": false,
+    "runtimeEnv": "generated on the VPS as a root-only ignored file"
+  },
+  "coreLifecycle": {
+    "invoiceNumber": "TVN-2CC32A92",
+    "fundingUpdateId": "1220e9cc86487aae412de0251ef195d9e4399a00ca8cfd327ff5fda795079754a8f6",
+    "repaymentUpdateId": "1220e465bbdcc3a7be5ef8983172b80520fa626249f2e3d2796bdac490b8c2939080",
+    "financierBRejection": {
+      "httpStatus": 409,
+      "code": "INVOICE_UNAVAILABLE",
+      "commandId": "tavryn-e6336590-f55a-42c3-bdda-7b6dde40ffe1",
+      "submissionId": "e87c855f-9b3c-4cf3-a9e5-12f5a5ab3105"
+    },
+    "duplicateApproval": {
+      "httpStatus": 409,
+      "code": "DUPLICATE_OR_INVALID_APPROVAL"
+    },
+    "privacyCheck": "Financier B saw its own offer but no Financier A deal or financed invoice"
+  },
+  "settlement": {
+    "mode": "two-step, non-atomic",
+    "invoiceNumber": "TVN-SETTLED-AE25781E",
+    "receiverPreapprovals": ["supplier", "buyer", "financierA", "financierB"],
+    "funding": {
+      "ledgerUpdateId": "1220f327c647b398431615eb3a1af064b238dc3320e1773a83d06b578b652cd0c7c4",
+      "cashUpdateId": "1220193240750b7a03bfa1cabcfbc407171851c21fd0d0a51226245726c8fdfddefc",
+      "cashEventId": "#1220193240750b7a03bfa1cabcfbc407171851c21fd0d0a51226245726c8fdfddefc:0"
+    },
+    "financierBRejection": {
+      "httpStatus": 409,
+      "code": "INVOICE_UNAVAILABLE",
+      "commandId": "tavryn-5bdcdf89-d64f-4716-89c8-d6de6d2ecb83",
+      "submissionId": "ed7ca124-ec1d-4e4f-9f39-f543860bc4aa"
+    },
+    "repayment": {
+      "ledgerUpdateId": "122045815d76bf2186f9b6aa495890eb279a1299b532ccc6f45479e3f32aa8071785",
+      "cashUpdateId": "122075a7def5a36e55cae120a0294bb73417bd51e983720d49eeae8c0603695004e1",
+      "cashEventId": "#122075a7def5a36e55cae120a0294bb73417bd51e983720d49eeae8c0603695004e1:0"
+    },
+    "auditorTrail": ["FundingReceipt", "RepaymentReceipt"],
+    "financierBSettlementReceiptsVisible": false
+  }
+}

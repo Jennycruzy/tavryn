@@ -18,6 +18,20 @@ exists and can be reproduced. `Pending` is not a pass.
 | P10 | Reproducible sub-five-minute demo | Pending | Video path and checksum | DevNet lifecycle |
 | P11 | Private-window link check and submission | Pending | Checklist and screenshots | Public repo, project profile, Mana requirement |
 
+## Remote VPS milestone
+
+- Date: 2026-10-01 (Africa/Lagos).
+- The clean pushed source at commit `a017ec2` was transferred to the selected VPS without
+  copying `.env`, wallet tokens, keys, or local build caches.
+- The pinned Canton Builder Tool started LocalNet with Splice 0.6.11, and the App Provider
+  validator reached ready state. The DAR SHA-256 and package ID are recorded in
+  `docs/evidence/P3_SETTLEMENT_2026-10-01-VPS.json`.
+- `npm ci`, `npm run build`, `npm run integration`, and `npm run settlement-integration`
+  passed against the remote participant. The remote run reproduced the P2 privacy/rejection
+  gate and the P3 real two-step Canton Coin funding and repayment gate.
+- The runtime `.env` exists only on the VPS as a root-only ignored file. No credential or
+  wallet token is part of this evidence or the repository.
+
 ## Day 1 log
 
 - Date: 2026-09-29 (Africa/Lagos; deadline facts remain UTC).
