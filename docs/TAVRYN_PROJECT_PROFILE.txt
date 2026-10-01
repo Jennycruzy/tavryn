@@ -1,0 +1,50 @@
+PROJECT NAME
+Tavryn
+
+TRACK
+RWA & Business Workflows
+
+CHALLENGE
+BitSafe Challenge — Contribution Pool: Decentralizing Apps on Canton
+
+TAGLINE
+Every invoice can be pledged once. Prove it without revealing it.
+
+ELEVATOR PITCH
+Every invoice can be pledged once. Prove it without revealing it. Tavryn stops the same invoice from being financed twice—enforced by the Canton ledger—and no financier ever sees a rival's clients, prices, or volumes. A buyer approves the invoice, lenders receive private offers, the first lender funds it, and every later attempt fails.
+
+THE PROBLEM
+The same invoice can be financed by several lenders because each lender sees only its own deal. A shared registry could stop this, but it would expose every lender's clients, prices, and volumes.
+
+THE SOLUTION
+Tavryn lets lenders compete privately for a buyer-approved invoice while the Canton ledger allows only one lender to fund it.
+
+WHY CANTON
+Canton lets lenders share one fact—whether an invoice is still available—without sharing their clients, prices, volumes, or deal terms.
+
+HOW IT WORKS
+A buyer approves an invoice. The supplier sends private offers to multiple lenders. The first lender funds it, consuming the invoice's one-use funding state. Every later attempt fails.
+
+WHAT THE LOSING LENDER SEES
+Its own offer and: "This invoice is no longer available."
+
+WHAT THE LOSING LENDER DOES NOT SEE
+The winning lender, funded amount, price, terms, receivable, clients, or volumes.
+
+WORKING PROOF
+Financier A funds successfully. Financier B's real ledger submission fails. B's party-scoped view contains none of A's offer, financed invoice, or private invoice details. The complete Daml lifecycle and role-scoped backend run on LocalNet, with recorded Canton update IDs for funding and repayment.
+
+WHY NOT A SHARED DATABASE?
+A shared database needs an operator who sees every financier's book, and no financier will hand its client list to a rival or a startup. Tavryn provides the guarantee without exposing the books.
+
+WHO USES IT
+Large buyers running supplier-finance programmes, their suppliers, and the financiers funding those programmes.
+
+WHO PAYS
+Financiers pay per invoice financed because they bear the risk and cost of double financing.
+
+CURRENT STATUS
+The single-financing and privacy mechanism works on LocalNet. Real Canton Coin wallet transfers are proven on the Splice-backed local network, and Tavryn now wires them through a deliberately non-atomic two-step settlement path; the end-to-end P3 gate remains open. Governed membership, the role-switching UI, DevNet deployment, and customer interviews remain in progress.
+
+CLOSING LINE
+Every invoice can be pledged once. Prove it without revealing it.
