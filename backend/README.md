@@ -22,9 +22,11 @@ npm start
 ```
 
 Required values are listed in the root `.env.example`: the JSON Ledger API URL, the
-participant user ID when the participant requires one, all six party IDs, and the local
-HTTP port. Party IDs are allocated by the actual participant setup; this repository does
-not provide defaults.
+deployed Tavryn package ID, the participant user ID when the participant requires one,
+all six party IDs, and the local HTTP port. The backend qualifies every create/exercise
+command with `CANTON_PACKAGE_ID` when it is provided; this matters when an older DAR
+with the same package name remains installed. Party IDs and package IDs are allocated
+by the actual participant setup; this repository does not provide defaults.
 
 The integration test is an actual HTTP-to-ledger run, not a Daml Script substitute:
 

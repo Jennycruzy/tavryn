@@ -66,3 +66,8 @@ each fact before it is treated as a local capability.
    Java. The settlement additions use a narrow compatibility binding whose template and
    choice names match the source declarations; it must be replaced by generated output
    on a clean machine before final reproducibility is claimed.
+6. The local participant retained an older Tavryn DAR after the settlement DAR was
+   deployed. Unqualified `#tavryn:...` commands continued to resolve to the older
+   package, so the backend now qualifies command template IDs with the configured
+   `CANTON_PACKAGE_ID`. The package ID is intentionally an environment value and must
+   be read from the deployed DAR/participant for each environment.

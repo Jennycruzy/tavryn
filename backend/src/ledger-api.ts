@@ -160,7 +160,7 @@ export class LedgerApi {
       [
         {
           CreateCommand: {
-            templateId: template.templateId,
+            templateId: qualifyTemplateId(this.config.packageId, template.templateId),
             createArguments: template.encode(payload),
           },
         },
@@ -182,7 +182,7 @@ export class LedgerApi {
       [
         {
           ExerciseCommand: {
-            templateId: template.templateId,
+            templateId: qualifyTemplateId(this.config.packageId, template.templateId),
             contractId,
             choice: choice.choiceName,
             choiceArgument: choice.argumentEncode(payload),
@@ -294,4 +294,15 @@ function isCreatedEvent(
     typeof (event as { CreatedEvent?: unknown }).CreatedEvent === "object" &&
     (event as { CreatedEvent?: unknown }).CreatedEvent !== null
   );
+}
+
+function qualifyTemplateId(packageId: string | undefined, templateId: string): string {
+  if (!packageId || !templateId.startsWith("#")) {
+    return templateId;
+  }
+  const separator = templateId.indexOf(":");
+  if (separator < 0) {
+    return templateId;
+  }
+  return `#${packageId}${templateId.slice(separator)}`;
 }
