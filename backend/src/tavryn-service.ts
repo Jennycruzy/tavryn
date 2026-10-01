@@ -1,4 +1,4 @@
-import { Tavryn as TavrynBindings } from "../daml.js/tavryn-0.1.0/lib/index.js";
+import { Tavryn as TavrynBindings } from "../daml.js/tavryn-0.1.1/lib/index.js";
 
 import {
   type Role,

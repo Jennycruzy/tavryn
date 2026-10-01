@@ -63,9 +63,10 @@ the follow-up ledger command fails, the `PendingFunding` contract remains for ex
 reconciliation; the service never silently marks it complete.
 
 The atomic allocation spike and the two-step path are both recorded in
-`docs/FINDINGS.md`. P3 remains pending until the new backend endpoints are rerun end to
-end against the Splice participant and their update IDs are recorded here and in
-`docs/PROGRESS.md`.
+`docs/FINDINGS.md`. P3 passed end to end against the Splice participant on 2026-10-01:
+funding and repayment each produced a real wallet event/update reference and a Tavryn
+ledger update, while the losing financier received `INVOICE_UNAVAILABLE`. Exact evidence
+is recorded in `docs/PROGRESS.md` and `docs/evidence/P3_SETTLEMENT_2026-10-01.json`.
 
 ## Governance decision
 

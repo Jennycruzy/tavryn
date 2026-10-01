@@ -18,7 +18,7 @@ each fact before it is treated as a local capability.
 | The official DPM codegen component installed here is 3.5.3, and the published npm registry provides `@daml/types` 3.5.3 but not 3.5.12. The generated binding package metadata says 3.5.12, so the backend pins the published 3.5.3 runtime and records the discrepancy rather than requesting an unavailable package. | [DPM codegen-js command](https://docs.digitalasset.com/build/3.4/component-howtos/application-development/daml-codegen-javascript.html), [Daml JavaScript bindings tutorial](https://docs.digitalasset.com/build/3.5/tutorials/json-api/canton_and_the_json_ledger_api_ts_websocket.html) | Verified with DPM `codegen-js 3.5.3`, npm registry lookup, and successful TypeScript build |
 | The local sandbox requires a Ledger API user ID for command submission; `GET /v2/users` returned the participant-provided `participant_admin` user. The value is kept only in the ignored local environment. | [Canton JSON Ledger API OpenAPI](https://docs.digitalasset.com/build/3.5/reference/json-api/openapi.html) | Used by the LocalNet integration; no user ID is committed |
 | The DPM sandbox participant currently running Tavryn exposes 33 package IDs, but a read-only scan of the package binaries found no Splice, Amulet, Canton Coin, token-standard, or allocation package. A Tavryn-only sandbox cannot prove real Canton Coin settlement. | [Canton Network Token Standard / CIP-0056](https://github.com/canton-foundation/cips/blob/main/cip-0056/cip-0056.md), [Splice token-standard source](https://github.com/canton-network/splice/tree/main/token-standard) | P3 requires a real Splice-backed DevNet/LocalNet participant; no fake token path will be added |
-| A full CN Quickstart LocalNet has materially higher operational requirements than a DPM sandbox; the official quickstart documents 8 GB minimum total Docker memory. | [Canton Network quickstart](https://github.com/digital-asset/cn-quickstart) | Docker daemon currently unavailable; capacity decision pending |
+| A full CN Quickstart LocalNet has materially higher operational requirements than a DPM sandbox; the official quickstart documents 8 GB minimum total Docker memory. | [Canton Network quickstart](https://github.com/digital-asset/cn-quickstart) | Local Canton, Splice and Postgres containers are running; moving persistent deployment to a VPS remains an operational option, not a correctness dependency |
 
 ## Canton Coin / settlement
 
@@ -28,7 +28,7 @@ each fact before it is treated as a local capability.
 | Canton Coin transfers require receiver preapproval when the receiver is to accept incoming funds automatically. | [Splice wallet API source](https://raw.githubusercontent.com/canton-network/splice/refs/heads/main/apps/wallet/src/main/openapi/wallet-internal.yaml) | Preapprovals were created for the local supplier, buyer, and Financier A wallets; the backend assumes this is configured and does not fake acceptance |
 | Wallet transaction history is `POST /v0/wallet/transactions` with `page_size`; completed transfer items expose `event_id`, `sender`, `receivers`, and `description`. | [Splice wallet API source](https://raw.githubusercontent.com/canton-network/splice/refs/heads/main/apps/wallet/src/main/openapi/wallet-internal.yaml) | The backend correlates the transfer description to the real event ID and stores the derived update ID on the ledger receipt |
 | The installed Splice-backed local network is version 0.6.11. Its local amulet-rules response reports wallet 0.1.22, amulet 0.1.21, token allocation/transfer v2 DARs, and zero transfer fee in this local configuration. | Installed validator package list and `/api/validator/v0/scan-proxy/amulet-rules` response (2026-10-01) | Local evidence only; fees and package IDs remain environment values, not repository constants |
-| A real role-mapped transfer sequence completed on the local Splice network: Financier A → supplier for funding and buyer → Financier A for repayment. | Wallet transaction history, 2026-10-01: funding event `#122091ae058ab59fa57a9fd46a014ee8b941e93a71e871cc9db3f3066ce1ed75b7bd:0`; repayment event `#12207125f187c3c3ee3d9f6127991715f5d05f13995170ea3b89c81a375cdcc138ce:0` | Real token movement proven; not yet joined to a Tavryn `PendingFunding`/`Complete` transaction, so P3 remains pending |
+| A real role-mapped Tavryn settlement completed on the local Splice network: Financier A → supplier for funding and buyer → Financier A for repayment, with each cash reference recorded by the ledger workflow. | `docs/evidence/P3_SETTLEMENT_2026-10-01.json`: funding cash event `#12208f304c109bc8b1c4dbc6c46e0c65e483c349c0f87e82868818277f7203bca8ea:0`; repayment cash event `#1220e2c317ea32580cbb7f03dda103d692d96d46315dd5efcbcc6b55db73a4c1adfa:0` | P3 passed through Tavryn's `PendingFunding.Complete` and repayment flow; settlement is real and explicitly non-atomic |
 | A V2 allocation request was accepted by the local validator with a 0.10 Amulet transfer leg and then expired without a captured settlement choice. | Local validator `POST /api/validator/v2/allocations` response and subsequent empty allocation list, 2026-10-01 | Atomic path not claimed; the MVP uses the real two-step alternative |
 
 ## Decentralization Manager
@@ -61,13 +61,19 @@ each fact before it is treated as a local capability.
    creating `FinancedInvoice`. There is no `FundingAuthorization` template in the current
    model. This is a material source-over-spec deviation and is called out in the
    README/demo.
-5. The host Java runtime became unavailable while regenerating TypeScript bindings. The
-   Daml package build succeeds, while the Daml Script runner and `dpm codegen-js` require
-   Java. The settlement additions use a narrow compatibility binding whose template and
-   choice names match the source declarations; it must be replaced by generated output
-   on a clean machine before final reproducibility is claimed.
+5. A project-local Temurin Java 17 runtime was selected explicitly to run `dpm build` and
+   `dpm codegen-js`. The service now imports generated Tavryn 0.1.1 bindings; its narrow
+   settlement-choice adapter remains explicit and matches those generated template and
+   choice names. A same-day `dpm test` rerun reached the Script service but timed out while
+   creating its script context; the participant-backed P3 integration passed independently
+   and is the P3 evidence.
 6. The local participant retained an older Tavryn DAR after the settlement DAR was
    deployed. Unqualified `#tavryn:...` commands continued to resolve to the older
    package, so the backend now qualifies command template IDs with the configured
    `CANTON_PACKAGE_ID`. The package ID is intentionally an environment value and must
    be read from the deployed DAR/participant for each environment.
+7. Canton rejected the changed DAR when it reused `tavryn` version `0.1.0`, reporting
+   `KNOWN_PACKAGE_VERSION` because a different package ID with that name/version was
+   already vetted. The project version was incremented to `0.1.1`; package
+   `ef9391a48163946a5c3fe26f92e5e9c980be5aab8b30a4891e4312b97db1fe05` was then
+   uploaded with `vetAllPackages=true` and verified in the package-vetting topology state.

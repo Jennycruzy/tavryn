@@ -9,9 +9,10 @@ offer and an opaque approval seal; it cannot read the winning financier's deal.
 
 ## Status
 
-This repository is a new build. The project name Tavryn was selected on 2026-09-29. No
-LocalNet, DevNet, MainNet, settlement, interview, or governance result is claimed until
-it has a recorded artifact in `docs/PROGRESS.md`.
+This repository is a new build. The project name Tavryn was selected on 2026-09-29.
+The core lifecycle, party-scoped backend flow, and real two-step Canton Coin settlement
+have passed on LocalNet. DevNet, MainNet, interview, and governance results remain open
+until each has a recorded artifact in `docs/PROGRESS.md`.
 
 ## What will be demonstrated
 
@@ -39,8 +40,9 @@ reason and evidence are recorded in [`docs/FINDINGS.md`](docs/FINDINGS.md).
 ## Current verification boundary
 
 The official DPM installer selected and installed SDK 3.5.12 on 2026-09-29. The project
-build and core Daml lifecycle test pass locally; no LocalNet, DevNet, MainNet, settlement,
-or governance result is implied. Source-backed decisions and open discrepancies live in
+builds, the core Daml lifecycle has a recorded test pass, and the backend has passed its
+LocalNet lifecycle and settlement integrations. No DevNet, MainNet, interview, or
+governance result is implied. Source-backed decisions and open discrepancies live in
 [`docs/FINDINGS.md`](docs/FINDINGS.md). Phase gates and evidence live in
 [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
@@ -48,8 +50,8 @@ Settlement now has a real two-step implementation against the Splice token-stand
 wallet API. `FinancingOffer.BeginFunding` consumes the one-use slot, the backend moves
 Canton Coin, and `PendingFunding.Complete` records the wallet update reference in an
 auditor-visible `FundingReceipt`. Repayment follows the same pattern. This is not atomic;
-the cash transfer and Tavryn ledger update are separate transactions. The local transfer
-evidence and the still-open end-to-end Tavryn gate are recorded in
+the cash transfer and Tavryn ledger update are separate transactions. The successful
+end-to-end LocalNet evidence is recorded in
 [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Repository layout
@@ -75,7 +77,7 @@ export PATH="$DPM_BIN:$PATH"
 export JAVA_HOME="$JAVA_RUNTIME"
 dpm build
 dpm test
-dpm codegen-js .daml/dist/tavryn-0.1.0.dar -o backend/daml.js -s tavryn.js
+dpm codegen-js .daml/dist/tavryn-0.1.1.dar -o backend/daml.js -s tavryn.js
 cp .env.example backend/.env
 # Fill backend/.env with values returned by the running participant.
 cd backend
@@ -96,8 +98,8 @@ IDs; it does not replace the ledger with a mock.
 - An invoice financed with a lender outside this network cannot be detected.
 - The MVP backend may submit demo roles centrally; production requires each organization
   to operate its own participant or wallet.
-- Settlement will be described as atomic or two-step according to the evidence, never by
-  aspiration.
+- Settlement is two-step and non-atomic in the current MVP. A successful cash transfer
+  followed by a failed ledger completion requires explicit reconciliation.
 
 ## Business materials
 
@@ -107,9 +109,9 @@ IDs; it does not replace the ledger with a mock.
 
 ## Demo and deployment
 
-Demo video, DevNet update IDs, repository URL, and project-profile links are pending real
-execution and will be added here before submission. A link is not considered delivered
-until it opens in a private browser window.
+LocalNet lifecycle and settlement update IDs are recorded in `docs/PROGRESS.md`. Demo
+video, DevNet update IDs, and project-profile links remain pending and will be added before
+submission. A link is not considered delivered until it opens in a private browser window.
 
 ## Pre-existing code and AI assistance
 
