@@ -1,0 +1,105 @@
+module Tavryn.Governance where
+
+import DA.Foldable (forA_)
+
+import Tavryn.Contracts
+
+-- This is the shared-control fallback for the Decentralization Manager integration.
+-- Each operator signs its own vote. The governance party can execute only after it
+-- presents distinct operator votes meeting the committee threshold.
+template GovernanceCommittee
+  with
+    governanceParty : Party
+    operators : [Party]
+    threshold : Int
+    networkRules : ContractId NetworkRules
+  where
+    ensure threshold > 0
+      && threshold <= length operators
+      && allDistinct operators
+      && not (elem governanceParty operators)
+    signatory governanceParty
+    observer operators
+
+    nonconsuming choice ProposeFinancierAdmission : ContractId FinancierAdmissionProposal
+      with
+        proposer : Party
+        candidate : Party
+      controller proposer
+      do
+        assert (elem proposer operators)
+        assert (candidate /= proposer)
+        create FinancierAdmissionProposal with
+          governanceParty
+          operators
+          threshold
+          committee = self
+          networkRules
+          proposer
+          candidate
+
+    choice ReplaceNetworkRules : ContractId GovernanceCommittee
+      with
+        newRules : ContractId NetworkRules
+      controller governanceParty
+      do
+        create this with networkRules = newRules
+
+template FinancierAdmissionProposal
+  with
+    governanceParty : Party
+    operators : [Party]
+    threshold : Int
+    committee : ContractId GovernanceCommittee
+    networkRules : ContractId NetworkRules
+    proposer : Party
+    candidate : Party
+  where
+    ensure elem proposer operators
+    signatory proposer
+    observer governanceParty, operators
+
+    nonconsuming choice Confirm : ContractId GovernanceVote
+      with
+        operator : Party
+      controller operator
+      do
+        assert (elem operator operators)
+        create GovernanceVote with
+          governanceParty
+          proposal = self
+          operator
+
+    choice Execute : ContractId NetworkRules
+      with
+        votes : [ContractId GovernanceVote]
+      controller governanceParty
+      do
+        assert (length votes >= threshold)
+        voteRecords <- mapA fetch votes
+        let votedOperators = map (\vote -> vote.operator) voteRecords
+        assert (allDistinct votedOperators)
+        assert (all (\operator -> elem operator operators) votedOperators)
+        assert (all (\vote -> vote.proposal == self) voteRecords)
+        forA_ votes (\voteCid -> exercise voteCid Consume)
+        newRules <- exercise networkRules AddFinancier with financier = candidate
+        _ <- exercise committee ReplaceNetworkRules with newRules
+        pure newRules
+
+template GovernanceVote
+  with
+    governanceParty : Party
+    proposal : ContractId FinancierAdmissionProposal
+    operator : Party
+  where
+    signatory operator
+    observer governanceParty
+
+    choice Consume : ()
+      controller governanceParty
+      do pure ()
+
+allDistinct : [Party] -> Bool
+allDistinct parties = case parties of
+  [] -> True
+  first :: rest -> not (elem first rest) && allDistinct rest

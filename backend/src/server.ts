@@ -75,6 +75,75 @@ async function route(
     return;
   }
 
+  if (method === "POST" && parts.join("/") === "api/v1/governance/committee") {
+    const body = await readJson(request);
+    const result = await service.createGovernanceCommittee(
+      stringField(body, "networkRulesCid"),
+      stringField(body, "threshold"),
+    );
+    writeSubmission(response, 201, result);
+    return;
+  }
+
+  if (
+    method === "POST" &&
+    parts.length === 6 &&
+    parts[0] === "api" &&
+    parts[1] === "v1" &&
+    parts[2] === "governance" &&
+    parts[3] === "committees" &&
+    parts[5] === "admissions"
+  ) {
+    const body = await readJson(request);
+    const candidate = body.candidatePartyId;
+    if (candidate !== undefined && typeof candidate !== "string") {
+      throw new TavrynInputError("candidatePartyId must be a string");
+    }
+    const result = await service.proposeFinancierAdmission(
+      parts[4],
+      stringField(body, "operatorIndex"),
+      candidate,
+    );
+    writeSubmission(response, 201, result);
+    return;
+  }
+
+  if (
+    method === "POST" &&
+    parts.length === 6 &&
+    parts[0] === "api" &&
+    parts[1] === "v1" &&
+    parts[2] === "governance" &&
+    parts[3] === "admissions" &&
+    parts[5] === "confirm"
+  ) {
+    const body = await readJson(request);
+    const result = await service.confirmFinancierAdmission(
+      parts[4],
+      stringField(body, "operatorIndex"),
+    );
+    writeSubmission(response, 201, result);
+    return;
+  }
+
+  if (
+    method === "POST" &&
+    parts.length === 6 &&
+    parts[0] === "api" &&
+    parts[1] === "v1" &&
+    parts[2] === "governance" &&
+    parts[3] === "admissions" &&
+    parts[5] === "execute"
+  ) {
+    const body = await readJson(request);
+    const result = await service.executeFinancierAdmission(
+      parts[4],
+      stringArrayField(body, "voteContractIds"),
+    );
+    writeSubmission(response, 200, result);
+    return;
+  }
+
   if (method === "POST" && parts.join("/") === "api/v1/invoices/drafts") {
     const body = await readJson(request);
     const result = await service.createInvoiceDraft({
@@ -320,6 +389,14 @@ function stringNestedField(
     throw new TavrynInputError(`${parent} must be an object`);
   }
   return stringField(value as Record<string, unknown>, field);
+}
+
+function stringArrayField(body: Record<string, unknown>, field: string): string[] {
+  const value = body[field];
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    throw new TavrynInputError(`${field} must be an array of strings`);
+  }
+  return value as string[];
 }
 
 function parseRole(value: string): Role {

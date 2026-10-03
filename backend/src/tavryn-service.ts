@@ -23,6 +23,13 @@ import {
   PendingFundingCancel,
   PendingFundingComplete,
 } from "./settlement-contracts.js";
+import {
+  FinancierAdmissionProposal,
+  FinancierAdmissionProposalConfirm,
+  FinancierAdmissionProposalExecute,
+  GovernanceCommittee,
+  GovernanceCommitteeProposeFinancierAdmission,
+} from "./governance-contracts.js";
 
 const { Contracts, Types } = TavrynBindings;
 
@@ -110,6 +117,93 @@ export class TavrynService {
       },
       [this.config.parties.governance],
     );
+  }
+
+  createGovernanceCommittee(
+    networkRulesContractId: string,
+    threshold: string,
+  ): Promise<SubmissionResult> {
+    requireContractId(networkRulesContractId, "networkRulesContractId");
+    const parsedThreshold = positiveInteger(threshold, "threshold");
+    this.assertGovernanceConfigured(parsedThreshold);
+    return this.ledger.create(
+      GovernanceCommittee,
+      {
+        governanceParty: this.config.parties.governance,
+        operators: this.config.governance.operatorPartyIds,
+        threshold: parsedThreshold,
+        networkRules: networkRulesContractId,
+      },
+      [this.config.parties.governance],
+    );
+  }
+
+  proposeFinancierAdmission(
+    committeeContractId: string,
+    operatorIndex: string,
+    candidatePartyId?: string,
+  ): Promise<SubmissionResult> {
+    requireContractId(committeeContractId, "committeeContractId");
+    const operator = this.governanceOperator(operatorIndex);
+    const candidate = candidatePartyId?.trim() || this.config.governance.candidatePartyId;
+    if (!candidate) {
+      throw new TavrynInputError(
+        "A governance candidate party must be configured or supplied",
+      );
+    }
+    return this.ledger.exercise(
+      GovernanceCommittee,
+      GovernanceCommitteeProposeFinancierAdmission,
+      committeeContractId,
+      { proposer: operator, candidate },
+      [operator],
+    );
+  }
+
+  confirmFinancierAdmission(
+    proposalContractId: string,
+    operatorIndex: string,
+  ): Promise<SubmissionResult> {
+    requireContractId(proposalContractId, "proposalContractId");
+    const operator = this.governanceOperator(operatorIndex);
+    return this.ledger.exercise(
+      FinancierAdmissionProposal,
+      FinancierAdmissionProposalConfirm,
+      proposalContractId,
+      { operator },
+      [operator],
+    );
+  }
+
+  executeFinancierAdmission(
+    proposalContractId: string,
+    voteContractIds: string[],
+  ): Promise<SubmissionResult> {
+    requireContractId(proposalContractId, "proposalContractId");
+    if (!Array.isArray(voteContractIds) || voteContractIds.length === 0) {
+      throw new TavrynInputError("voteContractIds must contain at least one contract ID");
+    }
+    voteContractIds.forEach((voteContractId, index) =>
+      requireContractId(voteContractId, `voteContractIds[${index}]`),
+    );
+    return this.ledger
+      .exercise(
+        FinancierAdmissionProposal,
+        FinancierAdmissionProposalExecute,
+        proposalContractId,
+        { votes: voteContractIds },
+        [this.config.parties.governance],
+      )
+      .catch((error) => {
+        if (error instanceof LedgerApiError) {
+          throw new TavrynConflictError(
+            "Governance threshold not met; the financier has not been admitted.",
+            "GOVERNANCE_THRESHOLD_NOT_MET",
+            error.submissionReference,
+          );
+        }
+        throw error;
+      });
   }
 
   createBuyerRegistry(): Promise<SubmissionResult> {
@@ -398,6 +492,28 @@ export class TavrynService {
     ];
   }
 
+  private assertGovernanceConfigured(threshold: number): void {
+    if (this.config.governance.operatorPartyIds.length < 2) {
+      throw new TavrynInputError(
+        "At least two governance operator parties must be configured",
+      );
+    }
+    if (threshold > this.config.governance.operatorPartyIds.length) {
+      throw new TavrynInputError(
+        "Governance threshold cannot exceed the configured operator count",
+      );
+    }
+  }
+
+  private governanceOperator(operatorIndex: string): string {
+    const parsedIndex = positiveInteger(operatorIndex, "operatorIndex");
+    const operator = this.config.governance.operatorPartyIds[parsedIndex - 1];
+    if (!operator) {
+      throw new TavrynInputError("operatorIndex is outside the configured operator set");
+    }
+    return operator;
+  }
+
   private async activeContractForRole(
     role: Role,
     contractId: string,
@@ -468,6 +584,17 @@ function assertDecimal(value: string, name: string): void {
   ) {
     throw new TavrynInputError(`${name} must be a non-negative decimal string`);
   }
+}
+
+function positiveInteger(value: string, name: string): number {
+  if (!/^\d+$/.test(value)) {
+    throw new TavrynInputError(`${name} must be a positive integer`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new TavrynInputError(`${name} must be a positive integer`);
+  }
+  return parsed;
 }
 
 function validateDate(value: string, name: string): void {

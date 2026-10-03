@@ -1,0 +1,53 @@
+module Test.Governance where
+
+import Daml.Script
+
+import Tavryn.Contracts
+import Tavryn.Governance
+
+testGovernanceThreshold : Script ()
+testGovernanceThreshold = script do
+  governance <- allocatePartyByHint (PartyIdHint "Governance")
+  operatorOne <- allocatePartyByHint (PartyIdHint "OperatorOne")
+  operatorTwo <- allocatePartyByHint (PartyIdHint "OperatorTwo")
+  operatorThree <- allocatePartyByHint (PartyIdHint "OperatorThree")
+  financierA <- allocatePartyByHint (PartyIdHint "FinancierA")
+  financierB <- allocatePartyByHint (PartyIdHint "FinancierB")
+  financierC <- allocatePartyByHint (PartyIdHint "FinancierC")
+
+  rulesCid <- submit governance do
+    createCmd NetworkRules with
+      governanceParty = governance
+      members = [financierA, financierB]
+      maxAdvanceRate = 0.90
+
+  committeeCid <- submit governance do
+    createCmd GovernanceCommittee with
+      governanceParty = governance
+      operators = [operatorOne, operatorTwo, operatorThree]
+      threshold = 2
+      networkRules = rulesCid
+
+  proposalCid <- submit operatorOne do
+    exerciseCmd committeeCid ProposeFinancierAdmission with
+      proposer = operatorOne
+      candidate = financierC
+
+  voteOneCid <- submit operatorOne do
+    exerciseCmd proposalCid Confirm with operator = operatorOne
+
+  -- One operator is not enough to admit a new financier.
+  submitMustFail governance do
+    exerciseCmd proposalCid Execute with votes = [voteOneCid]
+
+  voteTwoCid <- submit operatorTwo do
+    exerciseCmd proposalCid Confirm with operator = operatorTwo
+
+  newRulesCid <- submit governance do
+    exerciseCmd proposalCid Execute with votes = [voteOneCid, voteTwoCid]
+
+  Some newRules <- queryContractId governance newRulesCid
+  assert (elem financierC newRules.members)
+  None <- queryContractId governance rulesCid
+  None <- queryContractId governance committeeCid
+  pure ()

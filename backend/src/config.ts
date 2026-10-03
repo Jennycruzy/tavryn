@@ -26,7 +26,14 @@ export interface TavrynConfig {
   packageId?: string;
   httpPort: number;
   parties: PartyConfig;
+  governance: GovernanceConfig;
   settlement: SettlementConfig;
+}
+
+export interface GovernanceConfig {
+  operatorPartyIds: string[];
+  threshold?: number;
+  candidatePartyId?: string;
 }
 
 export interface SettlementConfig {
@@ -73,6 +80,18 @@ function optionalPositiveInteger(name: string, fallback: number): number {
   return parsed;
 }
 
+function optionalPositiveIntegerOrUndefined(name: string): number | undefined {
+  const value = optional(name);
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return parsed;
+}
+
 export function loadConfig(): TavrynConfig {
   return {
     ledgerApiUrl: required("CANTON_LEDGER_API_URL").replace(/\/+$/, ""),
@@ -89,6 +108,15 @@ export function loadConfig(): TavrynConfig {
       financierB: required("FINANCIER_B_PARTY_ID"),
       auditor: required("AUDITOR_PARTY_ID"),
       governance: required("GOVERNANCE_PARTY_ID"),
+    },
+    governance: {
+      operatorPartyIds: [
+        optional("GOVERNANCE_OPERATOR_ONE_PARTY_ID"),
+        optional("GOVERNANCE_OPERATOR_TWO_PARTY_ID"),
+        optional("GOVERNANCE_OPERATOR_THREE_PARTY_ID"),
+      ].filter((value): value is string => Boolean(value)),
+      threshold: optionalPositiveIntegerOrUndefined("GOVERNANCE_THRESHOLD"),
+      candidatePartyId: optional("GOVERNANCE_CANDIDATE_PARTY_ID"),
     },
     settlement: {
       validatorApiUrl: optional("CANTON_VALIDATOR_API_URL")?.replace(/\/+$/, ""),

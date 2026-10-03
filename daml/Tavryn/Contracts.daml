@@ -22,6 +22,14 @@ template NetworkRules
         assert (newRate >= 0.0 && newRate <= 1.0)
         create this with maxAdvanceRate = newRate
 
+    choice AddFinancier : ContractId NetworkRules
+      with
+        financier : Party
+      controller governanceParty
+      do
+        assert (not (elem financier members))
+        create this with members = members ++ [financier]
+
 -- | The buyer-side single maintainer record for external invoice numbers. This is not a
 -- unique contract key: the buyer consumes and recreates one registry contract per
 -- approval, so a duplicate approval is rejected by ordinary Daml authorization/state.
