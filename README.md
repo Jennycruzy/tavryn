@@ -77,7 +77,7 @@ export PATH="$DPM_BIN:$PATH"
 export JAVA_HOME="$JAVA_RUNTIME"
 dpm build
 dpm test
-dpm codegen-js .daml/dist/tavryn-0.1.1.dar -o backend/daml.js -s tavryn.js
+dpm codegen-js .daml/dist/tavryn-0.1.3.dar -o backend/daml.js -s tavryn.js
 cp .env.example backend/.env
 # Fill backend/.env with values returned by the running participant.
 cd backend

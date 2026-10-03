@@ -1,6 +1,6 @@
 {
   "date": "2026-10-03",
-  "sourceCommit": "f9e28a7",
+  "sourceCommit": "30ec3c1",
   "gate": "Governance threshold fails below and succeeds at threshold",
   "package": {
     "version": "0.1.3",
@@ -10,13 +10,14 @@
   "localChecks": {
     "dpmBuild": "passed",
     "backendNpmRunBuild": "passed",
-    "governanceDamlTest": "daml/Test/Governance.daml:testGovernanceThreshold: ok, 2 active contracts, 7 transactions"
+    "governanceDamlTest": "daml/Test/Governance.daml:testGovernanceThreshold: ok, 2 active contracts, 7 transactions",
+    "fullDpmTest": "passed: CoreLifecycle and Governance both passed"
   },
   "vps": {
     "backendService": "tavryn-backend.service active and enabled",
     "health": {
       "httpStatus": 200,
-      "ledgerEndOffset": 9971
+      "ledgerEndOffset": 10165
     },
     "operatorAuthorization": "ledger-api-user granted CanActAs for the two configured governance operators",
     "integration": {
@@ -28,12 +29,12 @@
       },
       "atThreshold": {
         "httpStatus": 200,
-        "updateId": "122086bd77d3e3c94d600194d9c6d85d8f3ba0f7fb8cce9e7e0f8cece0c53e253c0d",
-        "offset": 9963,
+        "updateId": "12200024ea2fdc2adda3c4172492f1c5d106e3134812270dcfc333f9c43ac40ca436",
+        "offset": 10151,
         "candidatePresentInReplacementNetworkRules": true,
-        "replacementRulesContractId": "00628435d5d4f601a3d26a034825235b71f18d4d1d2655eaaeb644e8668ecc8fc1ca121220032e6eff361d98644d6cb32ebce2f5d0e5baad451fad4b37aa6d2ac4532d1686"
+        "replacementRulesContractId": "00e94f783c892ec2393097a116a4112949cea41b1786d7a47eb8acca0b28136e0eca121220cbb451959f68178178f7d65194c0f039e8c6223ec529e1a6f715420bad791212"
       }
     }
   },
-  "reproduction": "cd backend && TAVRYN_HTTP_PORT=18788 npm run governance-integration"
+  "reproduction": "cd backend && npm run governance-integration"
 }
