@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { loadConfig } from "./config.js";
+import { integrationPort } from "./integration-port.js";
 import { startTavrynServer } from "./server.js";
 import { TavrynService } from "./tavryn-service.js";
 
@@ -11,8 +12,9 @@ interface JsonResponse {
 
 const config = loadConfig();
 const service = new TavrynService(config);
-const server = await startTavrynServer(service, config.httpPort);
-const baseUrl = `http://127.0.0.1:${config.httpPort}`;
+const port = integrationPort(config.httpPort);
+const server = await startTavrynServer(service, port);
+const baseUrl = `http://127.0.0.1:${port}`;
 const invoiceNumber = `TVN-SETTLED-${randomUUID().slice(0, 8).toUpperCase()}`;
 
 try {
