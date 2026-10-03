@@ -132,7 +132,7 @@ export class LedgerApi {
       },
     );
 
-    return responses.flatMap((response) => {
+    const contracts = responses.flatMap((response) => {
       const active = response.contractEntry?.JsActiveContract;
       if (!active) {
         return [];
@@ -148,6 +148,13 @@ export class LedgerApi {
         },
       ];
     });
+
+    if (!this.config.packageId) {
+      throw new Error("CANTON_PACKAGE_ID is required for active-contract reads");
+    }
+    return contracts.filter(
+      (contract) => contract.templateId.split(":", 1)[0] === this.config.packageId,
+    );
   }
 
   async create(

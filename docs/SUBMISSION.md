@@ -31,10 +31,11 @@ Grofty in Tavryn's working core flow.
 
 ### Elevator pitch
 
-Every invoice can be pledged once. Prove it without revealing it. Tavryn stops the same
-invoice from being financed twice — enforced by the Canton ledger — and no financier ever
-sees a rival's clients, prices, or volumes. A buyer approves the invoice, lenders receive
-private offers, the first lender funds it, and every later attempt fails.
+Every invoice can be pledged once. Prove it without exposing competing bids. Tavryn stops
+the same invoice from being financed twice — enforced by the Canton ledger. A lender
+offered an invoice sees that invoice's terms, but never another lender's offer, price, or
+win. The current model exposes which lenders were eligible for that invoice; removing
+those names remains explicit-disclosure roadmap work.
 
 ### Compact elevator pitch
 
@@ -98,7 +99,7 @@ progress and must not be described as complete.
 | Is it technically non-trivial? | Competing private offers contend for one terms-free funding right without revealing invoice terms. | Daml contracts, role-scoped backend, real update IDs |
 | Does it work? | The core lifecycle runs on LocalNet through the real JSON Ledger API. | Reproducible integration output and short demo |
 | Can it become a business? | Buyers sponsor reverse-factoring programmes; financiers pay per verified invoice because they carry the duplicate-financing risk. | Pilot design, integrations, and interview evidence |
-| Is it complete? | Core invariant is complete; non-atomic settlement is implemented with its end-to-end gate open, while governance, UI, and DevNet remain explicit gates. | Progress matrix with no inflated claims |
+| Is it complete? | Core invariant has prior evidence; the 2026-10-03 rerun found expired LocalNet wallet authentication, so P3 is not currently reproducible. Governance hardening, UI, and DevNet remain explicit gates. | Progress matrix with no inflated claims |
 
 ## Language discipline
 

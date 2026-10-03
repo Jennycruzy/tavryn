@@ -31,11 +31,12 @@ single-consumption rule enforces the single financing attempt after approval.
 
 Because a non-stakeholder cannot exercise a hidden contract without disclosure, the
 implementation separates private `InvoiceDetails` from a terms-free `ApprovedInvoice`
-seal. Eligible financiers can see the seal and compete for one `FundingSlot`, but they
-cannot see the amount, currency, dates, or another financier's offer. The winning
-financier joins the consuming choice and receives the resulting receivable. This is a
-source-driven deviation from the literal template shape in the build specification; the
-reason and evidence are recorded in [`docs/FINDINGS.md`](docs/FINDINGS.md).
+seal. A financier offered an invoice sees that invoice's terms so it can price the deal,
+but never sees another financier's offer, price, or win. In the current model, every
+eligible financier can see which other financiers were eligible for the same invoice;
+removing those rival names requires the explicit-disclosure design tracked in
+[`docs/REMAINING.md`](docs/REMAINING.md). The winning financier joins the consuming choice
+and receives the resulting receivable.
 
 ## Current verification boundary
 

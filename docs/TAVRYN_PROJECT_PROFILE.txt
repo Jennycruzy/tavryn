@@ -11,7 +11,7 @@ TAGLINE
 Every invoice can be pledged once. Prove it without revealing it.
 
 ELEVATOR PITCH
-Every invoice can be pledged once. Prove it without revealing it. Tavryn stops the same invoice from being financed twice—enforced by the Canton ledger—and no financier ever sees a rival's clients, prices, or volumes. A buyer approves the invoice, lenders receive private offers, the first lender funds it, and every later attempt fails.
+Every invoice can be pledged once. Prove it without exposing competing bids. Tavryn stops the same invoice from being financed twice—enforced by the Canton ledger. A lender offered an invoice sees that invoice's terms, but never another lender's offer, price, or win. The current model exposes which lenders were eligible for the same invoice; removing those names is roadmap work.
 
 THE PROBLEM
 The same invoice can be financed by several lenders because each lender sees only its own deal. A shared registry could stop this, but it would expose every lender's clients, prices, and volumes.
@@ -44,7 +44,7 @@ WHO PAYS
 Financiers pay per invoice financed because they bear the risk and cost of double financing.
 
 CURRENT STATUS
-The single-financing and privacy mechanism works on LocalNet. Real Canton Coin wallet transfers are proven on the Splice-backed local network, and Tavryn now wires them through a deliberately non-atomic two-step settlement path; the end-to-end P3 gate remains open. Governed membership, the role-switching UI, DevNet deployment, and customer interviews remain in progress.
+The single-financing mechanism has recorded LocalNet evidence. Real Canton Coin wallet transfers were previously proven on the Splice-backed local network through a deliberately non-atomic two-step settlement path, but the 2026-10-03 rerun is blocked by expired wallet authentication, so P3 is not currently reproducible. Governance hardening, the UI click-through, DevNet deployment, and customer interviews remain in progress.
 
 CLOSING LINE
 Every invoice can be pledged once. Prove it without revealing it.

@@ -4,9 +4,11 @@
 
 The full invoice terms live in private `InvoiceDetails`, signed by the buyer and supplier
 and observed by the auditor. `ApprovedInvoice` is a terms-free approval seal, observed by
-the eligible financiers, and `FundingSlot` is the shared one-use semaphore. The current
-Daml visibility rule does not permit a non-stakeholder financier to exercise a hidden
-`ApprovedInvoice` choice; explicit disclosure would reveal the invoice payload.
+the eligible financiers, and `FundingSlot` is the shared one-use semaphore. A financier's
+private `FinancingOffer` carries that invoice's terms so it can price the deal, but it
+never sees another financier's offer, price, or win. The current seal and slot expose the
+names of all eligible financiers to each eligible financier; removing rival names requires
+explicit disclosure plus a multi-participant proof and remains roadmap work.
 
 Each `FinancingOffer` is signed by the buyer and supplier, observed by its named
 financier, and carries only that financier's proposed terms. `Accept` is controlled by
