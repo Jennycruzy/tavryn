@@ -73,8 +73,10 @@ lenders.
 - A role-scoped JSON Ledger API backend drives the same lifecycle on LocalNet.
 - Successful funding and repayment have recorded Canton update IDs.
 - Real Canton Coin wallet transfers have been proven for the supplier funding and buyer
-  repayment legs on a Splice-backed local network; Tavryn's P3 end-to-end rerun is still
-  open.
+  repayment legs on a Splice-backed local network; the two-step P3 path also passes on the
+  selected VPS, and remains explicitly non-atomic.
+- Shared governance is live on the selected VPS: one vote is rejected below the threshold,
+  while two votes replace `NetworkRules` and admit the candidate financier.
 - The losing lender receives `409 INVOICE_UNAVAILABLE` with the failed command and
   submission references.
 - Party-scoped reads prove the losing lender cannot see the winner's offer, financed
@@ -82,10 +84,10 @@ lenders.
 
 ### Honest current boundary
 
-The single-financing and privacy invariant works. Tavryn now contains a real, two-step
-Canton Coin settlement path, but it is not atomic and its end-to-end P3 gate remains open.
-Governed membership, the user interface, DevNet evidence, and customer interviews remain
-in progress and must not be described as complete.
+The single-financing and privacy invariant works. Tavryn contains a real, two-step Canton
+Coin settlement path, but it is not atomic. Governed membership is proven on the selected
+VPS; browser lifecycle evidence, DevNet evidence, and customer interviews remain in
+progress and must not be described as complete.
 
 ## Judge-facing positioning
 
@@ -167,9 +169,9 @@ Canton Coin path end to end and record both wallet and ledger references.
 - [x] Rival rejection and privacy proof
 - [ ] Project page created with first-screen copy
 - [ ] Daily diary entries posted with artifacts
-- [ ] Tavryn end-to-end two-step Canton Coin funding and repayment
-- [ ] Governance threshold proof
-- [ ] Role-switching UI
+- [x] Tavryn end-to-end two-step Canton Coin funding and repayment
+- [x] Governance threshold proof
+- [x] Role-switching UI (served/static smoke proof; browser lifecycle capture remains open)
 - [ ] DevNet lifecycle evidence
 - [ ] Customer interview evidence
 - [ ] Under-five-minute demo video

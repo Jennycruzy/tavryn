@@ -9,7 +9,7 @@ exists and can be reproduced. `Pending` is not a pass.
 | P1 | A funds; B fails; B cannot see A; duplicate approval refused | Passed | `dpm test` on SDK 3.5.12: `testCoreLifecycle: ok, 6 active contracts, 11 transactions` (2026-09-29) | Backend proof is recorded separately in P2 |
 | P2 | Backend drives P1 with party-scoped reads | Passed | `backend/npm run integration` on LocalNet (2026-09-30): funding update `1220f10925f78f7741e2c58ec4ca042448278f17390b1045ab98c15b4389af95848e`, offset 152; repayment update `12207d8db06577a3b5ac37280b93ec895d946f8e5f26c64ceb04430a71ddf0fc4d6a`, offset 155; Financier B received HTTP 409 `INVOICE_UNAVAILABLE` with failed command `tavryn-8b959286-b713-4430-8f5b-ad7ce072b129` and submission `88b1a60f-f281-4f31-a20b-0be1a8464eb7`; duplicate approval received HTTP 409 `DUPLICATE_OR_INVALID_APPROVAL`; B view had no `InvoiceDetails`, `FinancedInvoice`, or A offer | Settlement is not part of this backend gate |
 | P3 | Real Canton Coin funding and repayment | Passed | `backend/npm run settlement-integration` on Splice 0.6.11 LocalNet (2026-10-01), recorded in `docs/evidence/P3_SETTLEMENT_2026-10-01.json`: funding ledger update `122014f48009724b25034c677ffc34595f0ecae10457e5cd2f205503b91ffdcf3c34`, cash update `12208f304c109bc8b1c4dbc6c46e0c65e483c349c0f87e82868818277f7203bca8ea`; repayment ledger update `122025c4e4a1092f56b7898ced393ece545d87915cb8c3cb7e3eb11691de9d4c9000`, cash update `1220e2c317ea32580cbb7f03dda103d692d96d46315dd5efcbcc6b55db73a4c1adfa`; B received HTTP 409 `INVOICE_UNAVAILABLE`; auditor saw both settlement receipts and B saw neither | DevNet reproduction remains P7, not part of this LocalNet gate |
-| P4 | Governance threshold fails below and succeeds at threshold | Pending | Clean-environment run and update IDs | Decentralization Manager example, machine capacity |
+| P4 | Governance threshold fails below and succeeds at threshold | Passed | `docs/evidence/P4_GOVERNANCE_2026-10-03.json`: local governance test passed; live VPS run returned HTTP 409 below threshold and admitted `tavryn-financier-c` at threshold in update `122086bd77d3e3c94d600194d9c6d85d8f3ba0f7fb8cce9e7e0f8cece0c53e253c0d` | DevNet reproduction remains P7 |
 | P5 | Full lifecycle plus rejection from UI | Pending | `ui/` is served by the backend; local build and VPS static smoke passed in `docs/evidence/P5_UI_SMOKE_2026-10-01.json`; browser lifecycle evidence still pending | P2 backend and P3 settlement; browser capture |
 | P6 | Three real-looking invoice layouts extracted and corrected | Pending | Fixture paths and correction records | User-provided or legally usable invoice fixtures |
 | P7 | Full lifecycle on DevNet | Pending | DevNet update IDs | Hackathon DevNet access details |
@@ -31,6 +31,21 @@ exists and can be reproduced. `Pending` is not a pass.
   gate and the P3 real two-step Canton Coin funding and repayment gate.
 - The runtime `.env` exists only on the VPS as a root-only ignored file. No credential or
   wallet token is part of this evidence or the repository.
+
+## P4 governance milestone
+
+- Date: 2026-10-03 (Africa/Lagos; ledger references are from the selected VPS).
+- Tavryn DAR `0.1.3` was deployed to the Builder LocalNet with package ID
+  `d949d0f17cc2be0727767b447f75918987dcabfd58de4d41519be33e4166bf80`.
+- The backend is supervised by the checked-in `deploy/tavryn-backend.service` unit and
+  reports a healthy Ledger API connection.
+- A two-operator committee with threshold 2 rejected execution with one vote as
+  `GOVERNANCE_THRESHOLD_NOT_MET`, then admitted the candidate after the second vote and
+  replaced `NetworkRules` with the candidate in its member set.
+- The live ledger API user was granted act-as rights for the configured operator parties;
+  this is runtime setup on the VPS and is not a repository secret.
+- The exact local and live evidence is preserved in
+  `docs/evidence/P4_GOVERNANCE_2026-10-03.json`.
 
 ## Day 1 log
 

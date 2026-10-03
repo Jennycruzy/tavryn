@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-03",
+  "sourceCommit": "f9e28a7",
+  "gate": "Governance threshold fails below and succeeds at threshold",
+  "package": {
+    "version": "0.1.3",
+    "packageId": "d949d0f17cc2be0727767b447f75918987dcabfd58de4d41519be33e4166bf80",
+    "darSha256": "3efcb842ba3397c724768362e071e4ffa65aca17b3e13b8cf22932fb3a652ff0"
+  },
+  "localChecks": {
+    "dpmBuild": "passed",
+    "backendNpmRunBuild": "passed",
+    "governanceDamlTest": "daml/Test/Governance.daml:testGovernanceThreshold: ok, 2 active contracts, 7 transactions"
+  },
+  "vps": {
+    "backendService": "tavryn-backend.service active and enabled",
+    "health": {
+      "httpStatus": 200,
+      "ledgerEndOffset": 9971
+    },
+    "operatorAuthorization": "ledger-api-user granted CanActAs for the two configured governance operators",
+    "integration": {
+      "threshold": 2,
+      "candidateParty": "tavryn-financier-c",
+      "belowThreshold": {
+        "httpStatus": 409,
+        "code": "GOVERNANCE_THRESHOLD_NOT_MET"
+      },
+      "atThreshold": {
+        "httpStatus": 200,
+        "updateId": "122086bd77d3e3c94d600194d9c6d85d8f3ba0f7fb8cce9e7e0f8cece0c53e253c0d",
+        "offset": 9963,
+        "candidatePresentInReplacementNetworkRules": true,
+        "replacementRulesContractId": "00628435d5d4f601a3d26a034825235b71f18d4d1d2655eaaeb644e8668ecc8fc1ca121220032e6eff361d98644d6cb32ebce2f5d0e5baad451fad4b37aa6d2ac4532d1686"
+      }
+    }
+  },
+  "reproduction": "cd backend && TAVRYN_HTTP_PORT=18788 npm run governance-integration"
+}
