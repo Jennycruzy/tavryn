@@ -8,8 +8,9 @@ interface JsonResponse {
 }
 
 const config = loadConfig();
-const server = await startTavrynServer(new TavrynService(config), config.httpPort);
-const baseUrl = `http://127.0.0.1:${config.httpPort}`;
+const integrationPort = integrationServerPort(config.httpPort);
+const server = await startTavrynServer(new TavrynService(config), integrationPort);
+const baseUrl = `http://127.0.0.1:${integrationPort}`;
 
 try {
   const rules = await post("/api/v1/setup/rules", { maxAdvanceRate: "0.95" });
@@ -114,4 +115,13 @@ function assert(condition: boolean, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function integrationServerPort(applicationPort: number): number {
+  const configured = process.env.TAVRYN_GOVERNANCE_INTEGRATION_PORT?.trim();
+  const port = configured ? Number(configured) : applicationPort + 1;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("TAVRYN_GOVERNANCE_INTEGRATION_PORT must be a valid TCP port");
+  }
+  return port;
 }
