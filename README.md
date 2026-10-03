@@ -10,9 +10,9 @@ offer and an opaque approval seal; it cannot read the winning financier's deal.
 ## Status
 
 This repository is a new build. The project name Tavryn was selected on 2026-09-29.
-The core lifecycle, party-scoped backend flow, and real two-step Canton Coin settlement
-have passed on LocalNet. DevNet, MainNet, interview, and governance results remain open
-until each has a recorded artifact in `docs/PROGRESS.md`.
+The core lifecycle, party-scoped backend flow, real two-step Canton Coin settlement, and
+threshold governance flow have passed on LocalNet/the selected VPS. DevNet, MainNet, and
+interview results remain open until each has a recorded artifact in `docs/PROGRESS.md`.
 
 ## What will be demonstrated
 
@@ -40,9 +40,9 @@ reason and evidence are recorded in [`docs/FINDINGS.md`](docs/FINDINGS.md).
 ## Current verification boundary
 
 The official DPM installer selected and installed SDK 3.5.12 on 2026-09-29. The project
-builds, the core Daml lifecycle has a recorded test pass, and the backend has passed its
-LocalNet lifecycle and settlement integrations. No DevNet, MainNet, interview, or
-governance result is implied. Source-backed decisions and open discrepancies live in
+builds, the complete core and governance Daml tests pass, and the backend has passed its
+LocalNet lifecycle and settlement integrations. No DevNet, MainNet, or interview result is
+implied. Source-backed decisions and open discrepancies live in
 [`docs/FINDINGS.md`](docs/FINDINGS.md). Phase gates and evidence live in
 [`docs/PROGRESS.md`](docs/PROGRESS.md).
 

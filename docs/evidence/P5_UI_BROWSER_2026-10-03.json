@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-03",
+  "environment": "Tavryn backend on selected VPS, reached through an SSH tunnel",
+  "browser": "Google Chrome headless 154.0.8037.93",
+  "health": {
+    "httpStatus": 200,
+    "ledgerEndOffset": 10012
+  },
+  "renderedPage": {
+    "url": "http://127.0.0.1:28787/",
+    "title": "Tavryn — single-financing ledger",
+    "domChecks": [
+      "Buyer view.",
+      "Buyer visible contracts",
+      "View the network as",
+      "Tavryn ledger invariant"
+    ],
+    "screenshot": "docs/evidence/P5_UI_BROWSER_2026-10-03.png"
+  },
+  "roleApiSmoke": {
+    "supplier": 200,
+    "buyer": 200,
+    "financierA": 200,
+    "financierB": 200,
+    "auditor": 200,
+    "governance": 200
+  },
+  "scope": {
+    "passed": "The live page rendered in a real browser process and the six role-scoped routes returned successfully.",
+    "notClaimed": "The complete create/approve/offer/fund/reject/repay click-through has not been recorded as a browser session; P5 remains pending for that lifecycle capture."
+  },
+  "reproduction": "Forward local port 28787 to the VPS backend port 18787, then run Chrome headless with --dump-dom and --screenshot against http://127.0.0.1:28787/."
+}
