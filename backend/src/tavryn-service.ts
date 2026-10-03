@@ -131,7 +131,8 @@ export class TavrynService {
       {
         governanceParty: this.config.parties.governance,
         operators: this.config.governance.operatorPartyIds,
-        threshold: parsedThreshold,
+        // Canton JSON API encodes Daml Int values as decimal strings.
+        threshold: String(parsedThreshold),
         networkRules: networkRulesContractId,
       },
       [this.config.parties.governance],
