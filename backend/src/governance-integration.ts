@@ -1,6 +1,6 @@
 import { loadConfig } from "./config.js";
 import { integrationPort } from "./integration-port.js";
-import { startTavrynServer } from "./server.js";
+import { startTavrynServer, stopTavrynServer } from "./server.js";
 import { TavrynService } from "./tavryn-service.js";
 
 interface JsonResponse {
@@ -83,7 +83,7 @@ try {
     ),
   );
 } finally {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await stopTavrynServer(server);
 }
 
 async function post(path: string, body: Record<string, unknown>): Promise<JsonResponse> {

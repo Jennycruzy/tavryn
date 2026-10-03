@@ -345,6 +345,13 @@ export async function startTavrynServer(service: TavrynService, port: number) {
   return server;
 }
 
+export async function stopTavrynServer(server: ReturnType<typeof createServer>): Promise<void> {
+  server.closeAllConnections();
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
 async function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let length = 0;
