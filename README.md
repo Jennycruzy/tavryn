@@ -119,6 +119,8 @@ before the P5 gate is claimed complete.
 LocalNet lifecycle and settlement update IDs are recorded in `docs/PROGRESS.md`. Demo
 video, DevNet update IDs, and project-profile links remain pending and will be added before
 submission. A link is not considered delivered until it opens in a private browser window.
+The exact owner inputs for those remaining items are listed in
+[`docs/REMAINING.md`](docs/REMAINING.md).
 
 ## Pre-existing code and AI assistance
 
