@@ -260,10 +260,15 @@ function updateIdFromEventId(eventId: string): string {
 }
 
 function sameDecimal(value: string | undefined, expected: string): boolean {
-  if (!value || !/^\d+(?:\.\d+)?$/.test(value) || !/^\d+(?:\.\d+)?$/.test(expected)) {
+  const absoluteValue = value?.startsWith("-") ? value.slice(1) : value;
+  if (
+    !absoluteValue ||
+    !/^\d+(?:\.\d+)?$/.test(absoluteValue) ||
+    !/^\d+(?:\.\d+)?$/.test(expected)
+  ) {
     return false;
   }
-  const [whole, fraction = ""] = value.split(".");
+  const [whole, fraction = ""] = absoluteValue.split(".");
   const [expectedWhole, expectedFraction = ""] = expected.split(".");
   return whole === expectedWhole && fraction.replace(/0+$/, "") === expectedFraction.replace(/0+$/, "");
 }
