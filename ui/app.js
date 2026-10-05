@@ -1,25 +1,26 @@
 const ROLE_CONTEXT = {
-  supplier: "Issue an invoice, then make private offers to the financiers the buyer approved.",
-  buyer: "Approve each supplier invoice once, then repay the financier who funded it.",
-  financier: "Fund your own offers. Rival offers, prices and wins never appear here.",
-  auditor: "See the complete funding and repayment trail without operating the workflow.",
-  operator: "Change the network rules together. No operator can change them alone.",
+  supplier: "Create invoices and offer them privately to the lenders the buyer approved.",
+  buyer: "Approve each supplier invoice once, then repay the lender who financed it.",
+  lender: "See the offers made to you and finance the ones you want. Other lenders' offers never appear here.",
+  auditor: "A read-only view of every payment and repayment, with amounts.",
+  operator: "The organisations that run the network agree on its rules together. No single one can change them.",
 };
 
 const state = {
-  role: "buyer",
+  role: "supplier",
   contracts: {},
   network: null,
   lastResult: null,
   currentStep: "draft",
   loading: false,
+  showAllActivity: false,
 };
 
 const $ = (id) => document.getElementById(id);
 
 class ApiError extends Error {
   constructor(status, payload) {
-    super(safeErrorMessage(status, payload));
+    super(friendlyError(status, payload));
     this.status = status;
     this.code = typeof payload?.code === "string" ? payload.code : "REQUEST_FAILED";
     this.reference = payload?.submissionReference;
@@ -42,7 +43,7 @@ async function api(path, options = {}, authRetry = false) {
     try { payload = JSON.parse(text); } catch { payload = {}; }
   }
   if (response.status === 401 && payload?.code === "DEMO_AUTH_REQUIRED" && !authRetry) {
-    const passphrase = window.prompt("Enter the Tavryn demo passphrase");
+    const passphrase = window.prompt("Enter the demo passphrase");
     if (passphrase) {
       const session = await fetch("/api/v1/session", {
         method: "POST",
@@ -56,37 +57,41 @@ async function api(path, options = {}, authRetry = false) {
   return payload;
 }
 
-function safeErrorMessage(status, payload) {
+function friendlyError(status, payload) {
   const messages = {
-    INVOICE_UNAVAILABLE: "This invoice is no longer available for funding.",
-    DUPLICATE_INVOICE: "The buyer already approved this external invoice number.",
-    FINANCIER_NOT_ELIGIBLE: "This financier is not admitted to the network or not eligible for this invoice.",
-    RATE_ABOVE_NETWORK_MAX: "The advance rate is above the network's current maximum.",
-    INVALID_ADVANCE: "The advance must be positive and no more than face value times the rate.",
+    INVOICE_UNAVAILABLE: "This invoice has already been financed by another lender.",
+    DUPLICATE_INVOICE: "The buyer has already approved an invoice with this number.",
+    FINANCIER_NOT_ELIGIBLE: "This lender isn't approved for this invoice.",
+    RATE_ABOVE_NETWORK_MAX: "That advance is above the network's maximum.",
+    INVALID_ADVANCE: "The advance must be more than zero and no more than the invoice amount.",
     PROPOSAL_EXPIRED: "This proposal has expired. Nothing changed.",
-    PROPOSAL_STALE: "The rules changed after this proposal was made. Propose it again.",
-    GOVERNANCE_ACTION_INVALID: "That change does not apply to the current rules.",
-    NETWORK_NOT_BOOTSTRAPPED: "The network has not been set up by its operators yet.",
-    BUYER_NOT_ONBOARDED: "The buyer has not been onboarded to this network yet.",
-    REPAYMENT_NOT_AVAILABLE: "This invoice is not awaiting repayment. If a repayment is in progress, it will be reconciled — do not pay again.",
-    SETTLEMENT_NOT_CONFIGURED: "Canton Coin settlement is not configured for this role.",
-    SETTLEMENT_PENDING: "Cash is still pending. The invoice stays locked until it settles.",
-    SETTLEMENT_LEDGER_FINALIZATION_FAILED: "Cash moved; the ledger record will be completed by reconciliation.",
-    SETTLEMENT_LEDGER_REPAYMENT_FAILED: "Cash moved; the repayment record will be completed by reconciliation. Do not pay again.",
-    SETTLEMENT_INSTRUMENT_MISMATCH: "This invoice is not denominated in the configured Canton Coin currency.",
-    SERVICE_UNREACHABLE: "The Tavryn service could not be reached.",
-    LEDGER_REQUEST_FAILED: "The ledger could not complete the request.",
-    DEMO_AUTH_REQUIRED: "Sign in is required to use this demo.",
-    DEMO_AUTH_FAILED: "That demo passphrase is not correct.",
-    WRITE_RATE_LIMITED: "Too many changes were sent. Please wait a minute and try again.",
+    PROPOSAL_STALE: "The rules changed since this was proposed. Propose it again.",
+    GOVERNANCE_ACTION_INVALID: "That change doesn't apply to the current rules.",
+    NETWORK_NOT_BOOTSTRAPPED: "The network hasn't been set up yet.",
+    BUYER_NOT_ONBOARDED: "The buyer hasn't joined the network yet.",
+    REPAYMENT_NOT_AVAILABLE: "This invoice isn't waiting for repayment. If a repayment is already in progress it will finish on its own — don't pay again.",
+    SETTLEMENT_NOT_CONFIGURED: "Payments aren't set up for this account.",
+    SETTLEMENT_PENDING: "The payment is still on its way. The invoice stays reserved until it arrives.",
+    SETTLEMENT_LEDGER_FINALIZATION_FAILED: "The payment went through. The record will be completed automatically in a moment.",
+    SETTLEMENT_LEDGER_REPAYMENT_FAILED: "The repayment went through. The record will be completed automatically in a moment — don't pay again.",
+    SETTLEMENT_INSTRUMENT_MISMATCH: "This invoice isn't in the network's payment currency.",
+    SETTLEMENT_REJECTED: "The wallet declined the payment, so nothing was paid and the invoice is open again.",
+    SERVICE_UNREACHABLE: "Can't reach Tavryn right now. Check your connection and try again.",
+    LEDGER_REQUEST_FAILED: "The network couldn't complete this just now. Please try again.",
+    DEMO_AUTH_REQUIRED: "Please sign in to use the demo.",
+    DEMO_AUTH_FAILED: "That passphrase isn't right.",
+    WRITE_RATE_LIMITED: "Too many changes at once. Please wait a minute and try again.",
   };
-  // The threshold message carries the live vote count from the server.
-  if (payload?.code === "GOVERNANCE_THRESHOLD_NOT_MET" && payload.error) return payload.error;
+  if (payload?.code === "GOVERNANCE_THRESHOLD_NOT_MET") {
+    const have = payload.approvals ?? "not enough";
+    const need = payload.threshold ?? state.network?.threshold;
+    return `Not enough approvals yet (${have} of ${need}). Nothing changed.`;
+  }
   if (payload?.code && messages[payload.code]) return messages[payload.code];
   if (status === 0) return messages.SERVICE_UNREACHABLE;
-  if (status === 409) return "The ledger rejected this action because the state has changed.";
-  if (status >= 500) return "The Tavryn service could not complete this action.";
-  return "Check the highlighted inputs and try again.";
+  if (status === 409) return "Something changed in the meantime. Refresh and try again.";
+  if (status >= 500) return "Something went wrong on our side. Please try again.";
+  return "Please check the details and try again.";
 }
 
 // ------------------------------------------------------------------ roles and network
@@ -104,25 +109,45 @@ function roles() {
 }
 
 function isFinancier(role) {
-  return role.startsWith("financier");
+  return String(role).startsWith("financier");
 }
 
 function roleLabel(role) {
-  if (isFinancier(role)) return `Financier ${role.slice("financier".length)}`;
-  return { supplier: "Supplier", buyer: "Buyer", auditor: "Auditor", operator: "Operators" }[role] || role;
+  if (isFinancier(role)) return `Lender ${role.slice("financier".length)}`;
+  return { supplier: "Supplier", buyer: "Buyer", auditor: "Auditor", operator: "Network admins" }[role] || role;
 }
 
 function roleForParty(party) {
-  if (!state.network) return "";
-  const financier = state.network.financierRoles.find((entry) => entry.party === party);
+  const financier = (state.network?.financierRoles || []).find((entry) => entry.party === party);
   return financier ? financier.role : "";
 }
 
-async function loadNetwork() {
-  state.network = await api("/api/v1/network");
+function lenderName(party) {
+  const role = roleForParty(party);
+  return role ? roleLabel(role) : "a lender";
 }
 
-// ------------------------------------------------------------------ contract helpers
+function currency() {
+  return state.network?.settlementCurrency || "CC";
+}
+
+async function loadNetwork() {
+  try {
+    state.network = await api("/api/v1/network");
+    setConnection(true);
+  } catch (error) {
+    setConnection(false);
+    throw error;
+  }
+}
+
+function setConnection(ok) {
+  $("connection").classList.toggle("ok", ok);
+  $("connection").classList.toggle("down", !ok);
+  $("connectionText").textContent = ok ? "Connected to Canton Network" : "Not connected";
+}
+
+// ------------------------------------------------------------------ formatting
 
 function templateName(contract) {
   return String(contract?.templateId || "").split(":").pop() || "Contract";
@@ -142,11 +167,6 @@ function argument(contract) {
     : {};
 }
 
-function shortCid(value) {
-  if (!value) return "—";
-  return `${value.slice(0, 10)}…${value.slice(-8)}`;
-}
-
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -158,43 +178,64 @@ function escapeHtml(value) {
 
 function amount(value) {
   const number = Number(value);
-  return Number.isFinite(number) ? String(Number(number.toFixed(10))) : "—";
+  if (!Number.isFinite(number)) return "—";
+  return number.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
-function optionList(items, label) {
-  if (!items.length) return '<option value="">No matching contracts in this view</option>';
-  return `<option value="">Select ${label.toLowerCase()}</option>${items.map((item) =>
-    `<option value="${escapeHtml(contractId(item))}">${escapeHtml(labelForContract(item))}</option>`).join("")}`;
+function money(value, unit = currency()) {
+  return `${amount(value)} ${unit}`;
 }
 
-function financierOptions(list) {
-  if (!list.length) return '<option value="">No admitted financiers</option>';
-  return `<option value="">Select financier</option>${list.map((role) =>
+function percent(rate) {
+  const number = Number(rate);
+  return Number.isFinite(number) ? `${Math.round(number * 1000) / 10}%` : "—";
+}
+
+function niceDate(value) {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function isoDate(offsetDays = 0) {
+  return new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+}
+
+// Invoice details are only in the supplier's and buyer's views; look them up by the
+// invoice's private reference so other records can be labelled by invoice number.
+function termsFor(commitment) {
+  for (const contract of state.contracts[state.role] || []) {
+    const arg = argument(contract);
+    if (arg.invoiceCommitment === commitment && arg.terms) return arg.terms;
+  }
+  return undefined;
+}
+
+function invoiceLabel(terms) {
+  return terms ? `Invoice ${terms.externalInvoiceNumber}` : "Invoice";
+}
+
+function optionList(items, placeholder, describe) {
+  if (!items.length) return `<option value="">Nothing here yet</option>`;
+  return `<option value="">${escapeHtml(placeholder)}</option>${items.map((item) =>
+    `<option value="${escapeHtml(contractId(item))}">${escapeHtml(describe(item))}</option>`).join("")}`;
+}
+
+function lenderOptions(list) {
+  if (!list.length) return '<option value="">No lenders available</option>';
+  return `<option value="">Choose a lender</option>${list.map((role) =>
     `<option value="${escapeHtml(role)}">${escapeHtml(roleLabel(role))}</option>`).join("")}`;
 }
 
-function labelForContract(contract) {
-  const name = templateName(contract);
-  const arg = argument(contract);
-  if (name === "InvoiceDraft") return `${arg.terms?.externalInvoiceNumber || "Invoice draft"} · ${amount(arg.terms?.faceValue)} ${arg.terms?.currency || ""}`;
-  if (name === "ApprovedInvoice") {
-    // The supplier and buyer hold the private details; label the invoice by its number.
-    const details = (state.contracts[state.role] || []).find((item) =>
-      templateName(item) === "InvoiceDetails" && argument(item).invoiceCommitment === arg.invoiceCommitment);
-    const terms = argument(details).terms;
-    return terms
-      ? `${terms.externalInvoiceNumber} · ${amount(terms.faceValue)} ${terms.currency}`
-      : `Approved invoice · ${shortCid(arg.invoiceCommitment)}`;
-  }
-  if (name === "FinancingOffer") return `${arg.terms?.externalInvoiceNumber || "Offer"} · ${amount(arg.advance)} ${arg.terms?.currency || ""}`;
-  if (name === "FinancedInvoice") return `${arg.terms?.externalInvoiceNumber || "Financed invoice"} · ${roleLabel(roleForParty(arg.financier)) || "financier"}`;
-  return `${name} · ${shortCid(contractId(contract))}`;
-}
+// ------------------------------------------------------------------ loading
 
-async function loadRole(role, announce = false) {
+async function loadRole(role) {
   const result = await api(`/api/v1/roles/${encodeURIComponent(role)}/contracts`);
-  state.contracts[role] = Array.isArray(result.contracts) ? result.contracts : [];
-  if (announce) setResult({ kind: "success", status: "VIEW REFRESHED", message: `${roleLabel(role)} view read from the ledger.` });
+  const contracts = Array.isArray(result.contracts) ? result.contracts : [];
+  contracts.sort((a, b) => Number(b.offset || 0) - Number(a.offset || 0));
+  state.contracts[role] = contracts;
   render();
 }
 
@@ -205,7 +246,7 @@ async function loadSelectedRole() {
     renderRoleButtons();
     await loadRole(state.role);
   } catch (error) {
-    setResult({ kind: "failure", status: "VIEW UNAVAILABLE", message: error.message, reference: error.reference });
+    setResult({ ok: false, title: "Couldn't load this view", message: error.message });
   } finally {
     setLoading(false);
   }
@@ -213,24 +254,15 @@ async function loadSelectedRole() {
 
 function setLoading(value) {
   state.loading = value;
-  document.querySelectorAll("button").forEach((button) => { button.disabled = value; });
+  document.querySelectorAll("button").forEach((button) => {
+    button.disabled = value || button.dataset.locked === "true";
+  });
   if (!value) render();
 }
 
 function setResult(result) {
   state.lastResult = result;
   renderResult();
-}
-
-function updateStep(step) {
-  const order = ["draft", "approved", "offered", "funded", "repaid"];
-  state.currentStep = step;
-  document.querySelectorAll(".workflow-step").forEach((element) => {
-    const current = order.indexOf(element.dataset.step);
-    const target = order.indexOf(step);
-    element.classList.toggle("complete", current < target);
-    element.classList.toggle("current", current === target);
-  });
 }
 
 // ------------------------------------------------------------------ rendering
@@ -246,260 +278,280 @@ function render() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
   });
-  const context = ROLE_CONTEXT[isFinancier(state.role) ? "financier" : state.role];
-  $("roleContext").innerHTML = `<strong>${escapeHtml(roleLabel(state.role))} view.</strong> ${escapeHtml(context)}`;
-  $("actionRole").textContent = roleLabel(state.role).toUpperCase();
+  $("roleContext").textContent = ROLE_CONTEXT[isFinancier(state.role) ? "lender" : state.role];
   renderNetwork();
   renderActionPanel();
-  renderContracts();
+  renderActivity();
   renderPrivacy();
   renderResult();
-  updateStep(state.currentStep);
+  renderSteps();
+}
+
+function renderSteps() {
+  $("steps").hidden = state.role === "operator";
+  const order = ["draft", "approved", "offered", "funded", "repaid"];
+  const target = order.indexOf(state.currentStep);
+  document.querySelectorAll("#steps li").forEach((element) => {
+    const index = order.indexOf(element.dataset.step);
+    element.classList.toggle("complete", index < target);
+    element.classList.toggle("current", index === target);
+  });
 }
 
 function renderNetwork() {
   const network = state.network;
-  const ready = Boolean(network?.bootstrapped && network.rules?.buyerOnboarded);
-  $("setupState").textContent = ready ? "LIVE" : "NOT SET UP";
-  $("setupState").classList.toggle("ready", ready);
   if (!network?.rules) {
-    $("rulesState").textContent = "Not set up";
-    $("registryState").textContent = "Not set up";
-    $("financiersState").textContent = "—";
-    $("operatorsState").textContent = network ? `${network.operators.length} operators, ${network.threshold} must agree` : "—";
+    ["operatorsState", "rulesState", "financiersState", "registryState"].forEach((id) => { $(id).textContent = "—"; });
     return;
   }
-  $("rulesState").textContent = `${amount(network.rules.maxAdvanceRate)} max · v${network.rules.version}`;
-  $("registryState").textContent = network.registry ? `${network.registry.approvedCount} approved` : "Buyer not onboarded";
-  $("financiersState").textContent = network.rules.financiers.map((entry) => roleLabel(entry.role || "unknown")).join(", ") || "None";
-  $("operatorsState").textContent = `${network.threshold} of ${network.operators.length} must agree`;
+  $("operatorsState").textContent = `${network.threshold} of ${network.operators.length} admins`;
+  $("rulesState").textContent = percent(network.rules.maxAdvanceRate);
+  const letters = network.rules.financiers.map((entry) => (entry.role || "").slice("financier".length)).filter(Boolean);
+  $("financiersState").textContent = letters.length ? `Lender ${letters.join(", ")}` : "None";
+  $("registryState").textContent = network.registry ? `${network.registry.approvedCount} to date` : "Not set up";
 }
 
 function renderActionPanel() {
-  const title = isFinancier(state.role)
-    ? "Fund your offer"
-    : {
-      supplier: "Issue or offer an invoice",
-      buyer: "Approve once or repay",
-      auditor: "Inspect the proof trail",
-      operator: "Govern the network together",
-    }[state.role];
-  $("actionTitle").textContent = title;
+  $("actionTitle").textContent = isFinancier(state.role)
+    ? "Offers for you"
+    : { supplier: "Invoices", buyer: "Approvals and repayments", auditor: "Records", operator: "Network rules" }[state.role];
   $("actionBody").innerHTML = actionMarkup();
 }
 
 function actionMarkup() {
-  if (state.role === "supplier") return supplierActionMarkup();
-  if (state.role === "buyer") return buyerActionMarkup();
-  if (state.role === "operator") return governanceActionMarkup();
-  if (isFinancier(state.role)) return financierActionMarkup();
-  return auditorActionMarkup();
+  if (state.role === "supplier") return supplierActions();
+  if (state.role === "buyer") return buyerActions();
+  if (state.role === "operator") return adminActions();
+  if (isFinancier(state.role)) return lenderActions();
+  return `<div class="notice"><strong>Read-only view</strong>The auditor sees every payment and repayment below, with amounts and references, and cannot change anything.</div>`;
 }
 
-function supplierActionMarkup() {
+function supplierActions() {
   const approved = contractsFor("supplier", "ApprovedInvoice");
   const eligible = (contract) => (argument(contract).eligibleFinanciers || []).map(roleForParty).filter(Boolean);
-  const offerTargets = [...new Set(approved.flatMap(eligible))];
+  const lenders = [...new Set(approved.flatMap(eligible))];
+  const approvedLabel = (contract) => {
+    const terms = termsFor(argument(contract).invoiceCommitment);
+    return terms ? `${terms.externalInvoiceNumber} · ${money(terms.faceValue, terms.currency)}` : "Approved invoice";
+  };
   return `
     <form class="action-form" data-action="create-draft">
+      <p class="form-title">New invoice</p>
       <div class="form-grid">
-        <div class="field"><label for="externalInvoiceNumber">External invoice number</label><input id="externalInvoiceNumber" name="externalInvoiceNumber" placeholder="INV-2026-001" required /></div>
-        <div class="field"><label for="faceValue">Face value</label><input id="faceValue" name="faceValue" inputmode="decimal" placeholder="100.00" required /></div>
-        <div class="field"><label for="currency">Currency</label><input id="currency" name="currency" placeholder="CC" required /></div>
-        <div class="field"><label for="issuedDate">Issue date</label><input id="issuedDate" name="issuedDate" type="date" required /></div>
-        <div class="field"><label for="dueDate">Due date</label><input id="dueDate" name="dueDate" type="date" required /></div>
+        <div class="field"><label for="externalInvoiceNumber">Invoice number</label><input id="externalInvoiceNumber" name="externalInvoiceNumber" value="INV-${Date.now().toString().slice(-6)}" required /></div>
+        <div class="field"><label for="faceValue">Amount (${escapeHtml(currency())})</label><input id="faceValue" name="faceValue" inputmode="decimal" placeholder="1.00" required /></div>
+        <div class="field"><label for="issuedDate">Issue date</label><input id="issuedDate" name="issuedDate" type="date" value="${isoDate(0)}" required /></div>
+        <div class="field"><label for="dueDate">Due date</label><input id="dueDate" name="dueDate" type="date" value="${isoDate(60)}" required /></div>
       </div>
-      <div class="form-actions"><button class="button button-primary" type="submit">Create invoice draft</button><span class="form-note">Only the supplier and buyer see the draft. The ledger seals it with a private commitment when the buyer approves.</span></div>
+      <div class="form-actions"><button class="button button-primary" type="submit">Create invoice</button><span class="hint">Only you and the buyer can see it.</span></div>
     </form>
-    ${approved.length ? `<div class="action-divider"></div>
+    ${approved.length ? `
     <form class="action-form" data-action="create-offer">
+      <p class="form-title">Offer an approved invoice to a lender</p>
       <div class="form-grid">
-        <div class="field wide"><label for="approvedCid">Approved invoice</label><select id="approvedCid" name="approvedCid" required>${optionList(approved, "approved invoice")}</select></div>
-        <div class="field"><label for="offerFinancier">Offer to</label><select id="offerFinancier" name="financierRole" required>${financierOptions(offerTargets)}</select></div>
-        <div class="field"><label for="offerAdvance">Advance amount</label><input id="offerAdvance" name="advance" inputmode="decimal" placeholder="90.00" required /></div>
-        <div class="field"><label for="offerRate">Advance rate</label><input id="offerRate" name="advanceRate" inputmode="decimal" placeholder="0.90" required /></div>
+        <div class="field wide"><label for="approvedCid">Invoice</label><select id="approvedCid" name="approvedCid" required>${optionList(approved, "Choose an invoice", approvedLabel)}</select></div>
+        <div class="field"><label for="offerFinancier">Lender</label><select id="offerFinancier" name="financierRole" required>${lenderOptions(lenders)}</select></div>
+        <div class="field"><label for="offerAdvance">Amount to advance</label><input id="offerAdvance" name="advance" inputmode="decimal" placeholder="0.90" required /><span class="hint" id="advanceHint">Up to ${percent(state.network?.rules?.maxAdvanceRate)} of the invoice.</span></div>
       </div>
-      <div class="form-actions"><button class="button button-secondary" type="submit">Create private offer</button><span class="form-note">The offered financier sees this invoice's terms, never another financier's offer.</span></div>
+      <div class="form-actions"><button class="button button-secondary" type="submit">Send private offer</button><span class="hint">Only this lender sees the offer.</span></div>
     </form>` : ""}
   `;
 }
 
-function buyerActionMarkup() {
+function buyerActions() {
+  if (!state.network?.rules?.buyerOnboarded) {
+    return `<div class="notice"><strong>Not set up yet</strong>The network admins haven't added this buyer yet.</div>`;
+  }
   const drafts = contractsFor("buyer", "InvoiceDraft");
   const financed = contractsFor("buyer", "FinancedInvoice");
-  if (!state.network?.rules?.buyerOnboarded) {
-    return `<div class="empty-action"><strong>The buyer is not onboarded yet.</strong><br />The network operators onboard a buyer by vote; run the bootstrap to set up the demo network.</div>`;
-  }
-  const admitted = admittedFinancierRoles();
+  const lenders = admittedFinancierRoles();
+  const draftLabel = (contract) => {
+    const terms = argument(contract).terms;
+    return `${terms.externalInvoiceNumber} · ${money(terms.faceValue, terms.currency)} · due ${niceDate(terms.dueDate)}`;
+  };
+  const financedLabel = (contract) => {
+    const arg = argument(contract);
+    return `${arg.terms.externalInvoiceNumber} · ${money(arg.terms.faceValue, arg.terms.currency)} to ${lenderName(arg.financier)}`;
+  };
   return `
     <form class="action-form" data-action="approve">
+      <p class="form-title">Approve an invoice</p>
       <div class="form-grid">
-        <div class="field wide"><label for="draftCid">Supplier invoice draft</label><select id="draftCid" name="draftCid" required>${optionList(drafts, "invoice draft")}</select></div>
-        <div class="field wide"><label>Financiers who may fund it</label><div class="form-note">${admitted.map((role) =>
-          `<label><input type="checkbox" name="eligible" value="${escapeHtml(role)}" checked /> ${escapeHtml(roleLabel(role))}</label>`).join(" &nbsp; ")}</div></div>
+        <div class="field wide"><label for="draftCid">Invoice</label><select id="draftCid" name="draftCid" required>${optionList(drafts, "Choose an invoice to approve", draftLabel)}</select></div>
+        <div class="field wide"><span class="label">Lenders who may finance it</span><div class="checks">${lenders.map((role) =>
+          `<label><input type="checkbox" name="eligible" value="${escapeHtml(role)}" ${role === "financierC" ? "" : "checked"} /> ${escapeHtml(roleLabel(role))}</label>`).join("")}</div></div>
       </div>
-      <div class="form-actions"><button class="button button-primary" type="submit">Approve invoice once</button><span class="form-note">The registry refuses a second approval of the same external number.</span></div>
+      <div class="form-actions"><button class="button button-primary" type="submit">Approve invoice</button><span class="hint">Each invoice number can only be approved once.</span></div>
     </form>
-    ${financed.length ? `<div class="action-divider"></div>
+    ${financed.length ? `
     <form class="action-form" data-action="repay">
+      <p class="form-title">Repay a lender</p>
       <div class="form-grid">
-        <div class="field wide"><label for="financedCid">Financed invoice</label><select id="financedCid" name="financedCid" required>${optionList(financed, "financed invoice")}</select></div>
-        <div class="field"><label for="repaymentDate">Repayment date</label><input id="repaymentDate" name="repaymentDate" type="date" required /></div>
+        <div class="field wide"><label for="financedCid">Invoice</label><select id="financedCid" name="financedCid" required>${optionList(financed, "Choose an invoice", financedLabel)}</select></div>
+        <div class="field"><label for="repaymentDate">Payment date</label><input id="repaymentDate" name="repaymentDate" type="date" value="${isoDate(0)}" required /></div>
       </div>
-      <div class="form-actions"><button class="button button-primary" type="submit">Repay with Canton Coin</button><span class="form-note">Early repayment is allowed. A retry never pays twice.</span></div>
+      <div class="form-actions"><button class="button button-primary" type="submit">Repay</button><span class="hint">Paying early is fine. A retry never pays twice.</span></div>
     </form>` : ""}
   `;
 }
 
-function financierActionMarkup() {
+function lenderActions() {
   const offers = contractsFor(state.role, "FinancingOffer");
   const closed = contractsFor(state.role, "OfferClosed");
+  const offerLabel = (contract) => {
+    const arg = argument(contract);
+    return `${arg.terms.externalInvoiceNumber} · advance ${money(arg.advance, arg.terms.currency)} (${percent(arg.advanceRate)}) · due ${niceDate(arg.terms.dueDate)}`;
+  };
   return `
-    <div class="action-callout teal"><strong>Your private book</strong><span>Only offers addressed to ${escapeHtml(roleLabel(state.role))} appear here. Funding consumes the invoice's one-use state; any later attempt is refused.</span></div>
+    ${offers.length ? `
     <form class="action-form" data-action="fund">
-      <div class="form-grid"><div class="field wide"><label for="offerCid">Your financing offer</label><select id="offerCid" name="offerCid" required>${optionList(offers, "financing offer")}</select></div></div>
-      <div class="form-actions"><button class="button button-primary" type="submit">Fund with Canton Coin</button><span class="form-note">The response shows the ledger and Canton Coin references.</span></div>
-    </form>
-    ${closed.length ? `<div class="action-divider"></div><div class="empty-action"><strong>This invoice is no longer available.</strong><br />${closed.length} of your offer(s) closed. The ledger tells you nothing about who funded them or on what terms.</div>` : ""}
+      <div class="form-grid"><div class="field wide"><label for="offerCid">Offer</label><select id="offerCid" name="offerCid" required>${optionList(offers, "Choose an offer", offerLabel)}</select></div></div>
+      <div class="form-actions"><button class="button button-primary" type="submit">Finance this invoice</button><span class="hint">You pay the supplier now and the buyer repays you by the due date.</span></div>
+    </form>` : `<div class="notice"><strong>No open offers</strong>Offers made to you will appear here.</div>`}
+    ${closed.length ? `<div class="notice"><strong>${closed.length === 1 ? "1 offer is" : `${closed.length} offers are`} no longer available</strong>Another lender financed ${closed.length === 1 ? "that invoice" : "those invoices"} first. You aren't told who, or at what price.</div>` : ""}
   `;
 }
 
-function governanceActionMarkup() {
+function adminActions() {
   const network = state.network;
   if (!network?.bootstrapped) {
-    return `<div class="empty-action"><strong>No committee yet.</strong><br />Every operator must sign the bootstrap before rules exist. Run <code>npm run bootstrap</code>.</div>`;
+    return `<div class="notice"><strong>Not set up yet</strong>All network admins must sign before the network has rules.</div>`;
   }
-  const operatorButtons = (proposal) => network.operators.map((operator) => {
-    const voted = proposal.votes.includes(operator.index);
-    return `<button class="button button-quiet" type="button" data-governance="vote" data-proposal="${escapeHtml(proposal.contractId)}" data-operator="${operator.index}" ${voted ? "disabled" : ""}>${voted ? `Operator ${operator.index} voted` : `Vote as operator ${operator.index}`}</button>`;
-  }).join(" ");
   const proposals = network.proposals.length
-    ? network.proposals.map((proposal) => `
-      <article class="contract-card" data-kind="GovernanceProposal"><span class="contract-card-bar"></span><div>
-        <p class="contract-name">${escapeHtml(describeAction(proposal.action))}</p>
-        <p class="contract-detail"><strong>${proposal.votes.length} of ${proposal.threshold}</strong> operator approvals · proposed for rules v${proposal.rulesVersion}${proposal.stale ? " · <strong>stale</strong>" : ""}</p>
-        <div class="form-actions">${operatorButtons(proposal)} <button class="button button-primary" type="button" data-governance="execute" data-proposal="${escapeHtml(proposal.contractId)}">Execute</button></div>
-      </div><code class="contract-cid">${escapeHtml(shortCid(proposal.contractId))}</code></article>`).join("")
-    : `<div class="empty-state">No open proposals.</div>`;
-  const allFinanciers = financierRoles();
+    ? network.proposals.map((proposal) => {
+      const buttons = network.operators.map((operator) => {
+        const voted = proposal.votes.includes(operator.index);
+        return `<button class="button button-secondary" type="button" data-governance="vote" data-proposal="${escapeHtml(proposal.contractId)}" data-operator="${operator.index}" ${voted ? 'data-locked="true" disabled' : ""}>${voted ? `Admin ${operator.index} approved` : `Approve as Admin ${operator.index}`}</button>`;
+      }).join("");
+      return `<div class="proposal">
+        <div class="item-title">${escapeHtml(describeAction(proposal.action))}</div>
+        <div class="item-detail">${proposal.stale
+          ? "Out of date — the rules changed after this was proposed. Propose it again if it's still wanted."
+          : `${proposal.votes.length} of ${proposal.threshold} approvals`}</div>
+        ${proposal.stale ? "" : `<div class="proposal-actions">${buttons}<button class="button button-primary" type="button" data-governance="execute" data-proposal="${escapeHtml(proposal.contractId)}">Apply change</button></div>`}
+      </div>`;
+    }).join("")
+    : `<p class="empty">No proposed changes.</p>`;
   return `
     <form class="action-form" data-action="propose">
+      <p class="form-title">Propose a change</p>
       <div class="form-grid">
         <div class="field"><label for="proposalType">Change</label><select id="proposalType" name="type" required>
-          <option value="AdmitFinancier">Admit financier</option>
-          <option value="RemoveFinancier">Remove financier</option>
-          <option value="SetMaxAdvanceRate">Set maximum advance rate</option>
+          <option value="AdmitFinancier">Add a lender</option>
+          <option value="RemoveFinancier">Remove a lender</option>
+          <option value="SetMaxAdvanceRate">Change the maximum advance</option>
         </select></div>
-        <div class="field"><label for="proposalFinancier">Financier</label><select id="proposalFinancier" name="financierRole">${financierOptions(allFinanciers)}</select></div>
-        <div class="field"><label for="proposalRate">Rate</label><input id="proposalRate" name="rate" inputmode="decimal" placeholder="0.90" /></div>
-        <div class="field"><label for="proposalOperator">Proposed by</label><select id="proposalOperator" name="operatorIndex">${network.operators.map((operator) => `<option value="${operator.index}">Operator ${operator.index}</option>`).join("")}</select></div>
+        <div class="field" data-for="lender"><label for="proposalFinancier">Lender</label><select id="proposalFinancier" name="financierRole">${lenderOptions(financierRoles())}</select></div>
+        <div class="field" data-for="rate" hidden><label for="proposalRate">Maximum advance (%)</label><input id="proposalRate" name="rate" inputmode="decimal" placeholder="90" /></div>
+        <div class="field"><label for="proposalOperator">Proposed by</label><select id="proposalOperator" name="operatorIndex">${network.operators.map((operator) => `<option value="${operator.index}">Admin ${operator.index}</option>`).join("")}</select></div>
       </div>
-      <div class="form-actions"><button class="button button-secondary" type="submit">Propose change</button><span class="form-note">${network.threshold} of ${network.operators.length} operators must vote before anyone can execute it.</span></div>
+      <div class="form-actions"><button class="button button-secondary" type="submit">Propose</button><span class="hint">${network.threshold} of ${network.operators.length} admins must approve before it applies.</span></div>
     </form>
-    <div class="action-divider"></div>
-    <div class="contracts-list">${proposals}</div>
+    <div class="action-form">
+      <p class="form-title">Proposed changes</p>
+      ${proposals}
+    </div>
   `;
 }
 
 function describeAction(action) {
-  if (action.type === "AdmitFinancier") return `Admit ${roleLabel(action.financierRole || "a financier")}`;
-  if (action.type === "RemoveFinancier") return `Remove ${roleLabel(action.financierRole || "a financier")}`;
-  if (action.type === "SetMaxAdvanceRate") return `Set maximum advance rate to ${amount(action.rate)}`;
-  if (action.type === "OnboardBuyer") return "Onboard the buyer";
+  if (action.type === "AdmitFinancier") return `Add ${roleLabel(action.financierRole || "a lender")}`;
+  if (action.type === "RemoveFinancier") return `Remove ${roleLabel(action.financierRole || "a lender")}`;
+  if (action.type === "SetMaxAdvanceRate") return `Set the maximum advance to ${percent(action.rate)}`;
+  if (action.type === "OnboardBuyer") return "Add the buyer";
   return action.type;
 }
 
-function auditorActionMarkup() {
-  return `<div class="empty-action"><strong>Auditor mode is read-only.</strong><br />The contract list below is the proof: funding receipts and repayment receipts with amounts and cash references.</div>`;
-}
-
-function renderContracts() {
-  const contracts = state.contracts[state.role] || [];
-  $("contractsTitle").textContent = `${roleLabel(state.role)} visible contracts`;
-  $("contractCount").textContent = String(contracts.length);
-  if (!contracts.length) {
-    $("contractsList").innerHTML = `<div class="empty-state">No active contracts are visible to ${escapeHtml(roleLabel(state.role))} yet.</div>`;
-    return;
+// One plain-language line per record. Internal bookkeeping records are not shown.
+function activityItem(contract) {
+  const arg = argument(contract);
+  const terms = arg.terms || termsFor(arg.invoiceCommitment);
+  const lender = isFinancier(state.role) ? "You" : lenderName(arg.financier);
+  // Off-network payments are in the invoice's own currency, when this view knows it.
+  const unit = (instrument) => (instrument === "OFF_LEDGER" ? (terms?.currency ?? "") : instrument);
+  switch (templateName(contract)) {
+    case "InvoiceDraft":
+      return [`${invoiceLabel(arg.terms)} · ${money(arg.terms.faceValue, arg.terms.currency)}`, `Due ${niceDate(arg.terms.dueDate)}`, "Waiting for approval", "wait"];
+    case "ApprovedInvoice":
+      return [terms ? `${invoiceLabel(terms)} · ${money(terms.faceValue, terms.currency)}` : "An approved invoice",
+        isFinancier(state.role) ? "You may be offered this invoice" : "Approved by the buyer", "Open for financing", "good"];
+    case "FinancingOffer":
+      return [`Offer · ${invoiceLabel(arg.terms)}`,
+        `${money(arg.advance, arg.terms.currency)} advance (${percent(arg.advanceRate)}) · ${isFinancier(state.role) ? "sent to you" : `to ${lenderName(arg.financier)}`}`, "Offered", "wait"];
+    case "OfferClosed":
+      return isFinancier(state.role)
+        ? ["An offer is no longer available", "Another lender financed this invoice first.", "Closed", "closed"]
+        : null;
+    case "PendingFunding":
+      return [`Payment on its way · ${invoiceLabel(arg.terms)}`, `${money(arg.settlementAmount, arg.instrument)} from ${lenderName(arg.financier)}`, "In progress", "wait"];
+    case "FinancedInvoice":
+      return [`${invoiceLabel(arg.terms)} · financed`, `${lender} advanced ${money(arg.advance, arg.terms.currency)} · repayment due ${niceDate(arg.terms.dueDate)}`, "Financed", "good"];
+    case "FundingReceipt":
+      return [`Payment made · ${money(arg.settlementAmount, unit(arg.instrument))}`,
+        `${lender} paid the supplier${arg.instrument === "OFF_LEDGER" ? " outside the network" : ""}`, "Paid", "good"];
+    case "PendingRepayment":
+      return [`Repayment on its way · ${invoiceLabel(arg.terms)}`, money(arg.settlementAmount, arg.instrument), "In progress", "wait"];
+    case "RepaymentReceipt":
+      return [`Repaid · ${money(arg.amount, unit(arg.instrument))}`, `On ${niceDate(arg.repaymentDate)}${arg.early ? ", before the due date" : ""}`, "Repaid", "good"];
+    default:
+      return null;
   }
-  $("contractsList").innerHTML = contracts.map(contractCard).join("");
 }
 
-function contractCard(contract) {
-  const name = templateName(contract);
-  const detail = contractDetail(name, argument(contract));
-  return `<article class="contract-card" data-kind="${escapeHtml(name)}"><span class="contract-card-bar"></span><div><p class="contract-name">${escapeHtml(displayTemplate(name))}</p><p class="contract-detail">${detail}</p></div><code class="contract-cid">${escapeHtml(shortCid(contractId(contract)))}</code></article>`;
-}
+const ACTIVITY_PREVIEW = 8;
 
-function displayTemplate(name) {
-  return {
-    NetworkRules: "Network rules",
-    GovernanceCommittee: "Governance committee",
-    GovernanceProposal: "Governance proposal",
-    GovernanceVote: "Operator vote",
-    BuyerApprovalRegistry: "Buyer approval registry",
-    InvoiceDraft: "Invoice draft",
-    ApprovedInvoice: "Approved invoice · one-use seal",
-    FundingSlot: "Funding slot · one-use",
-    FinancingOffer: "Private financing offer",
-    OfferClosed: "Offer closed",
-    PendingFunding: "Funding lock · cash in flight",
-    FundingReceipt: "Funding receipt",
-    FinancedInvoice: "Financed invoice",
-    PendingRepayment: "Repayment lock · cash in flight",
-    RepaymentReceipt: "Repayment receipt",
-    InvoiceDetails: "Private invoice details",
-  }[name] || name;
-}
-
-function contractDetail(name, arg) {
-  if (name === "NetworkRules") return `v${escapeHtml(arg.version)} · maximum advance <strong>${escapeHtml(amount(arg.maxAdvanceRate))}</strong> · ${(arg.financiers || []).length} financier(s)`;
-  if (name === "GovernanceCommittee") return `${escapeHtml(arg.threshold)} of ${(arg.operators || []).length} operators must agree`;
-  if (name === "GovernanceProposal") return escapeHtml(describeAction({ type: arg.action?.tag, rate: arg.action?.value, financierRole: roleForParty(arg.action?.value) }));
-  if (name === "GovernanceVote") return `For rules v${escapeHtml(arg.rulesVersion)}`;
-  if (name === "BuyerApprovalRegistry") return `<strong>${escapeHtml((arg.approvedInvoiceNumbers || []).length)}</strong> approved external invoice number(s)`;
-  if (name === "InvoiceDraft") return `<strong>${escapeHtml(arg.terms?.externalInvoiceNumber || "Draft")}</strong> · ${escapeHtml(amount(arg.terms?.faceValue))} ${escapeHtml(arg.terms?.currency || "")}`;
-  if (name === "ApprovedInvoice") return "Approved once · terms appear only in each private offer";
-  if (name === "FundingSlot") return "Terms-free shared state · the first successful claim wins";
-  if (name === "FinancingOffer") return `<strong>${escapeHtml(arg.terms?.externalInvoiceNumber || "")}</strong> · ${escapeHtml(amount(arg.advance))} advance at ${escapeHtml(amount(arg.advanceRate))}`;
-  if (name === "OfferClosed") return "<strong>This invoice is no longer available.</strong> No winner, amount or terms disclosed.";
-  if (name === "PendingFunding") return `<strong>${escapeHtml(amount(arg.settlementAmount))} ${escapeHtml(arg.instrument || "")}</strong> locked · tracking ${escapeHtml(shortCid(arg.trackingId))}`;
-  if (name === "FundingReceipt") return `<strong>${escapeHtml(amount(arg.settlementAmount))} ${escapeHtml(arg.instrument || "")}</strong> · cash reference ${escapeHtml(shortCid(arg.paymentReference))}`;
-  if (name === "FinancedInvoice") return `<strong>${escapeHtml(arg.terms?.externalInvoiceNumber || "Invoice")}</strong> · ${escapeHtml(amount(arg.advance))} funded`;
-  if (name === "PendingRepayment") return `<strong>${escapeHtml(amount(arg.settlementAmount))} ${escapeHtml(arg.instrument || "")}</strong> repayment locked`;
-  if (name === "RepaymentReceipt") return `<strong>${escapeHtml(amount(arg.amount))} ${escapeHtml(arg.instrument || "")}</strong> · ${escapeHtml(arg.repaymentDate || "")}${arg.early ? " · early" : ""}`;
-  if (name === "InvoiceDetails") return "Private terms visible only to the buyer, supplier and auditor";
-  return "Active on the Canton ledger";
+function renderActivity() {
+  $("activityPanel").hidden = state.role === "operator";
+  const items = (state.contracts[state.role] || []).map(activityItem).filter(Boolean);
+  const shown = state.showAllActivity ? items : items.slice(0, ACTIVITY_PREVIEW);
+  $("contractsTitle").textContent = "Activity";
+  $("contractsList").innerHTML = items.length
+    ? shown.map(([title, detail, badge, tone]) =>
+      `<div class="item"><div class="item-text"><span class="item-title">${escapeHtml(title)}</span><span class="item-detail">${escapeHtml(detail)}</span></div><span class="badge ${tone}">${escapeHtml(badge)}</span></div>`).join("")
+      + (items.length > ACTIVITY_PREVIEW
+        ? `<button class="link-button" type="button" id="toggleActivity">${state.showAllActivity ? "Show less" : `Show all ${items.length}`}</button>`
+        : "")
+    : `<p class="empty">Nothing yet.</p>`;
 }
 
 function renderPrivacy() {
   const copy = isFinancier(state.role)
-    ? [["Offers addressed to you, with their terms", true], ["Which financiers were eligible for an invoice", true], ["Another financier's offer, price or win", false]]
+    ? [["Offers made to you, with the invoice details", true], ["Which other lenders could bid on the same invoice", true], ["Other lenders' offers, prices or wins", false]]
     : {
-      supplier: [["Invoice drafts and approvals", true], ["Every offer you made", true], ["Financier books outside your invoices", false]],
-      buyer: [["Approved supplier invoices", true], ["Your approval registry", true], ["Financier books", false]],
-      auditor: [["Funding and repayment receipts", true], ["Amounts and cash references", true], ["Operational control actions", false]],
-      operator: [["Network rules and proposals", true], ["Approved invoice numbers (registry)", true], ["Invoice terms, offers and prices", false]],
+      supplier: [["Your invoices and approvals", true], ["Every offer you sent", true], ["Lenders' other business", false]],
+      buyer: [["Invoices sent to you", true], ["Who financed each invoice", true], ["Lenders' other business", false]],
+      auditor: [["Every payment and repayment, with amounts", true], ["Payment references", true], ["Ability to change anything", false]],
+      operator: [["Network rules and proposed changes", true], ["Approved invoice numbers", true], ["Invoice amounts, offers and prices", false]],
     }[state.role];
-  $("privacyList").innerHTML = copy.map(([text, allowed]) => `<div class="privacy-row ${allowed ? "" : "restricted"}"><span>${escapeHtml(text)}</span></div>`).join("");
+  $("privacyList").innerHTML = copy.map(([text, allowed]) => `<li class="${allowed ? "" : "hidden"}">${escapeHtml(text)}</li>`).join("");
 }
 
 function renderResult() {
   const result = state.lastResult;
   if (!result) {
-    // A new role starts with an empty log, so another role's result is never shown here.
-    $("resultBody").innerHTML = `<div class="result-placeholder"><span class="placeholder-mark">✦</span><p>Actions will return the real Canton update reference here.</p></div>`;
+    $("resultBody").innerHTML = `<p class="empty">Results of your actions appear here.</p>`;
     return;
   }
-  const failure = result.kind === "failure";
   const refs = [];
-  if (result.updateId) refs.push(["Ledger update", result.updateId]);
-  if (result.cashUpdateId) refs.push(["Canton Coin", result.cashUpdateId]);
-  if (result.reference?.commandId) refs.push(["Command", result.reference.commandId]);
-  if (result.reference?.submissionId) refs.push(["Submission", result.reference.submissionId]);
-  $("resultBody").innerHTML = `<div class="${failure ? "result-failure" : "result-success"}"><p class="result-status">${escapeHtml(result.status)}</p><p class="result-message">${escapeHtml(result.message)}</p>${refs.length ? `<div class="result-reference">${refs.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><code title="${escapeHtml(value)}">${escapeHtml(shortCid(value))}</code></div>`).join("")}</div>` : ""}</div>`;
+  if (result.updateId) refs.push(["Network record", result.updateId]);
+  if (result.cashUpdateId) refs.push(["Payment", result.cashUpdateId]);
+  if (result.reference?.submissionId) refs.push(["Request", result.reference.submissionId]);
+  $("resultBody").innerHTML = `<div class="result-box ${result.ok ? "ok" : "fail"}"><p class="result-title">${escapeHtml(result.title)}</p><p class="result-message">${escapeHtml(result.message)}</p>${refs.length ? `<details><summary>References</summary>${refs.map(([label, value]) => `<code>${escapeHtml(label)}: ${escapeHtml(value)}</code>`).join("")}</details>` : ""}</div>`;
 }
 
 // ------------------------------------------------------------------ actions
+
+function approvedFaceValue(approvedCid) {
+  const approved = contractsFor("supplier", "ApprovedInvoice").find((contract) => contractId(contract) === approvedCid);
+  const terms = approved && termsFor(argument(approved).invoiceCommitment);
+  return terms ? Number(terms.faceValue) : undefined;
+}
+
+// The advance rate is derived from the amount, rounded up so the advance never exceeds
+// the invoice amount times the rate.
+function rateFor(advance, faceValue) {
+  return (Math.ceil((advance / faceValue) * 10_000) / 10_000).toFixed(4);
+}
 
 async function handleAction(form) {
   const data = new FormData(form);
@@ -509,41 +561,59 @@ async function handleAction(form) {
   try {
     let result;
     if (action === "create-draft") {
-      result = await api("/api/v1/invoices/drafts", { method: "POST", body: JSON.stringify({ terms: { externalInvoiceNumber: value("externalInvoiceNumber"), faceValue: value("faceValue"), currency: value("currency"), issuedDate: value("issuedDate"), dueDate: value("dueDate") } }) });
+      const number = value("externalInvoiceNumber");
+      result = await api("/api/v1/invoices/drafts", { method: "POST", body: JSON.stringify({ terms: { externalInvoiceNumber: number, faceValue: value("faceValue"), currency: currency(), issuedDate: value("issuedDate"), dueDate: value("dueDate") } }) });
       state.currentStep = "draft";
       await loadRole("supplier");
-      setResult(successFrom(result, "DRAFT CREATED", "The draft is visible to the supplier and buyer only."));
+      setResult({ ok: true, title: "Invoice created", message: `${number} is waiting for the buyer's approval.`, updateId: result.updateId });
     } else if (action === "approve") {
       const eligibleFinancierRoles = data.getAll("eligible").map(String);
+      if (!eligibleFinancierRoles.length) throw new Error("Choose at least one lender.");
       result = await api(`/api/v1/invoices/drafts/${encodeURIComponent(value("draftCid"))}/approve`, { method: "POST", body: JSON.stringify({ eligibleFinancierRoles }) });
       state.currentStep = "approved";
       await loadNetwork();
       await loadRole("buyer");
-      setResult(successFrom(result, "APPROVED ONCE", "The invoice is sealed with an on-ledger commitment, and its one-use funding slot is live."));
+      setResult({ ok: true, title: "Invoice approved", message: `It can now be financed once, by ${eligibleFinancierRoles.map(roleLabel).join(" or ")}.`, updateId: result.updateId });
     } else if (action === "create-offer") {
-      result = await api(`/api/v1/invoices/approved/${encodeURIComponent(value("approvedCid"))}/offers`, { method: "POST", body: JSON.stringify({ financierRole: value("financierRole"), advance: value("advance"), advanceRate: value("advanceRate") }) });
+      const face = approvedFaceValue(value("approvedCid"));
+      const advance = Number(value("advance"));
+      if (!face || !(advance > 0) || advance > face) throw new Error("The advance must be more than zero and no more than the invoice amount.");
+      const advanceRate = rateFor(advance, face);
+      const max = Number(state.network?.rules?.maxAdvanceRate ?? 1);
+      if (Number(advanceRate) > max) throw new Error(`That's more than the network's maximum advance of ${percent(max)}.`);
+      result = await api(`/api/v1/invoices/approved/${encodeURIComponent(value("approvedCid"))}/offers`, { method: "POST", body: JSON.stringify({ financierRole: value("financierRole"), advance: value("advance"), advanceRate }) });
       state.currentStep = "offered";
       await loadRole("supplier");
-      setResult(successFrom(result, "OFFER CREATED", "Only the named financier and the invoice parties can see this offer."));
+      setResult({ ok: true, title: "Offer sent", message: `${roleLabel(value("financierRole"))} can now see this offer. No other lender can.`, updateId: result.updateId });
     } else if (action === "fund") {
       result = await api(`/api/v1/offers/${encodeURIComponent(value("offerCid"))}/fund`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
       state.currentStep = "funded";
       await loadRole(state.role);
-      setResult({ kind: "success", status: "FUNDED ONCE", message: "Canton Coin moved and the invoice's one-use state was consumed.", updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+      setResult({ ok: true, title: "Invoice financed", message: `You paid ${money(result.cashTransfer?.amount)} to the supplier. No one else can finance this invoice now.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
     } else if (action === "repay") {
       result = await api(`/api/v1/financed/${encodeURIComponent(value("financedCid"))}/settle-repay`, { method: "POST", body: JSON.stringify({ repaymentDate: value("repaymentDate") }) });
       state.currentStep = "repaid";
       await loadRole("buyer");
-      setResult({ kind: "success", status: "REPAID", message: "Canton Coin repayment and its receipt are recorded.", updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+      setResult({ ok: true, title: "Lender repaid", message: `${money(result.cashTransfer?.amount)} paid. The invoice is closed.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
     } else if (action === "propose") {
       const type = value("type");
-      const proposal = type === "SetMaxAdvanceRate" ? { type, rate: value("rate") } : { type, financierRole: value("financierRole") };
+      let proposal;
+      if (type === "SetMaxAdvanceRate") {
+        const pct = Number(value("rate"));
+        if (!value("rate") || !(pct >= 0 && pct <= 100)) throw new Error("Enter a maximum advance between 0 and 100%.");
+        proposal = { type, rate: (pct / 100).toFixed(4) };
+      } else {
+        if (!value("financierRole")) throw new Error("Choose a lender.");
+        proposal = { type, financierRole: value("financierRole") };
+      }
       result = await api("/api/v1/governance/proposals", { method: "POST", body: JSON.stringify({ operatorIndex: value("operatorIndex"), action: proposal }) });
       await loadNetwork();
-      setResult(successFrom(result, "PROPOSED", "The change waits for operator votes. Nothing has changed yet."));
+      await loadRole("operator");
+      setResult({ ok: true, title: "Change proposed", message: `Nothing changes until ${state.network.threshold} admins approve.`, updateId: result.updateId });
     }
   } catch (error) {
-    setResult({ kind: "failure", status: error.code === "INVOICE_UNAVAILABLE" ? "SECOND FUNDING REJECTED" : "ACTION FAILED", message: error.message, reference: error.reference });
+    const taken = error.code === "INVOICE_UNAVAILABLE";
+    setResult({ ok: false, title: taken ? "Already financed" : "Couldn't complete that", message: error.message, reference: error.reference });
   } finally {
     setLoading(false);
   }
@@ -553,27 +623,45 @@ async function handleGovernance(button) {
   const proposal = button.dataset.proposal;
   setLoading(true);
   try {
+    let result;
     if (button.dataset.governance === "vote") {
       const operatorIndex = button.dataset.operator;
-      const result = await api(`/api/v1/governance/proposals/${encodeURIComponent(proposal)}/votes`, { method: "POST", body: JSON.stringify({ operatorIndex }) });
+      result = await api(`/api/v1/governance/proposals/${encodeURIComponent(proposal)}/votes`, { method: "POST", body: JSON.stringify({ operatorIndex }) });
       await loadNetwork();
-      setResult(successFrom(result, "VOTE RECORDED", `Operator ${operatorIndex} approved the change.`));
+      setResult({ ok: true, title: "Approval recorded", message: `Admin ${operatorIndex} approved the change.`, updateId: result.updateId });
     } else {
-      const result = await api(`/api/v1/governance/proposals/${encodeURIComponent(proposal)}/execute`, { method: "POST", body: JSON.stringify({ operatorIndex: "1" }) });
+      result = await api(`/api/v1/governance/proposals/${encodeURIComponent(proposal)}/execute`, { method: "POST", body: JSON.stringify({ operatorIndex: "1" }) });
       await loadNetwork();
-      setResult(successFrom(result, "RULES CHANGED", "Enough operators agreed; the ledger replaced the network rules."));
+      setResult({ ok: true, title: "Rules changed", message: "Enough admins approved, so the new rule now applies to everyone.", updateId: result.updateId });
     }
     await loadRole("operator");
   } catch (error) {
     await loadNetwork().catch(() => {});
-    setResult({ kind: "failure", status: error.code === "GOVERNANCE_THRESHOLD_NOT_MET" ? "BELOW THRESHOLD" : "ACTION FAILED", message: error.message, reference: error.reference });
+    const below = error.code === "GOVERNANCE_THRESHOLD_NOT_MET";
+    setResult({ ok: false, title: below ? "Not enough approvals" : "Couldn't complete that", message: error.message, reference: error.reference });
   } finally {
     setLoading(false);
   }
 }
 
-function successFrom(result, status, message) {
-  return { kind: "success", status, message, updateId: result.updateId };
+function updateProposalFields() {
+  const type = $("proposalType")?.value;
+  if (!type) return;
+  document.querySelectorAll('[data-for="lender"]').forEach((field) => { field.hidden = type === "SetMaxAdvanceRate"; });
+  document.querySelectorAll('[data-for="rate"]').forEach((field) => { field.hidden = type !== "SetMaxAdvanceRate"; });
+}
+
+function updateAdvanceHint() {
+  const hint = $("advanceHint");
+  const select = $("approvedCid");
+  const input = $("offerAdvance");
+  if (!hint || !select || !input) return;
+  const face = approvedFaceValue(select.value);
+  const advance = Number(input.value);
+  const max = percent(state.network?.rules?.maxAdvanceRate);
+  hint.textContent = face && advance > 0
+    ? `${percent(advance / face)} of the invoice · maximum ${max}.`
+    : `Up to ${max} of the invoice.`;
 }
 
 function bindEvents() {
@@ -582,6 +670,7 @@ function bindEvents() {
     if (!button || state.loading) return;
     state.role = button.dataset.role;
     state.lastResult = null;
+    state.showAllActivity = false;
     render();
     await loadSelectedRole();
   });
@@ -594,11 +683,20 @@ function bindEvents() {
     const button = event.target.closest("button[data-governance]");
     if (button && !state.loading) handleGovernance(button);
   });
+  $("actionPanel").addEventListener("input", updateAdvanceHint);
+  $("actionPanel").addEventListener("change", () => {
+    updateAdvanceHint();
+    updateProposalFields();
+  });
+  $("contractsList").addEventListener("click", (event) => {
+    if (event.target.id !== "toggleActivity") return;
+    state.showAllActivity = !state.showAllActivity;
+    renderActivity();
+  });
 }
 
 async function start() {
   bindEvents();
-  renderRoleButtons();
   render();
   await loadSelectedRole();
 }

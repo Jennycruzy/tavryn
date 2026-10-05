@@ -33,19 +33,15 @@ async function role(name) {
   await page.click(`#roleButtons button[data-role="${name}"]`);
   // Wait until the role's ledger view has loaded and the buttons are enabled again.
   await page.waitForFunction(
-    (label) =>
-      document.querySelector("#contractsTitle")?.textContent?.startsWith(label) &&
-      [...document.querySelectorAll("button")].every((button) => !button.disabled || button.textContent.includes("voted")),
-    roleLabel(name),
+    (role) =>
+      document.querySelector(".role-button.active")?.dataset.role === role &&
+      [...document.querySelectorAll("button")].every((button) => !button.disabled || button.dataset.locked === "true"),
+    name,
     { timeout: 60_000 },
   );
   await page.waitForTimeout(500);
 }
 
-function roleLabel(name) {
-  if (name.startsWith("financier")) return `Financier ${name.slice("financier".length)}`;
-  return { supplier: "Supplier", buyer: "Buyer", auditor: "Auditor", operator: "Operators" }[name];
-}
 
 async function selectByLabel(selector, text) {
   const value = await page.$eval(
@@ -68,14 +64,14 @@ async function act(clickable) {
 
 async function result(expectedStatus, name) {
   await page.waitForFunction(
-    (status) => document.querySelector("#resultBody .result-status")?.textContent === status,
+    (status) => document.querySelector("#resultBody .result-title")?.textContent === status,
     expectedStatus,
     { timeout: 120_000 },
   );
-  const status = await page.textContent("#resultBody .result-status");
+  const status = await page.textContent("#resultBody .result-title");
   const message = await page.textContent("#resultBody .result-message");
-  const references = await page.$$eval("#resultBody .result-reference code", (codes) =>
-    codes.map((code) => code.getAttribute("title")),
+  const references = await page.$$eval("#resultBody details code", (codes) =>
+    codes.map((code) => code.textContent.split(": ").pop()),
   );
   const screenshot = `${String(steps.length + 1).padStart(2, "0")}-${name}.png`;
   await page.screenshot({ path: join(outDir, screenshot), fullPage: true });
@@ -96,11 +92,10 @@ try {
   await role("supplier");
   await page.fill("#externalInvoiceNumber", invoiceNumber);
   await page.fill("#faceValue", "1.00");
-  await page.fill("#currency", currency);
   await page.fill("#issuedDate", "2026-09-01");
   await page.fill("#dueDate", "2026-12-01");
   await act(page.locator('form[data-action="create-draft"] button[type="submit"]'));
-  await result("DRAFT CREATED", "supplier-creates-draft");
+  await result("Invoice created", "supplier-creates-draft");
 
   await role("buyer");
   await selectByLabel("#draftCid", invoiceNumber);
@@ -109,16 +104,15 @@ try {
     if (value !== "financierA" && value !== "financierB") await box.uncheck();
   }
   await act(page.locator('form[data-action="approve"] button[type="submit"]'));
-  await result("APPROVED ONCE", "buyer-approves-once");
+  await result("Invoice approved", "buyer-approves-once");
 
   await role("supplier");
   for (const [financier, advance] of [["financierA", "0.90"], ["financierB", "0.88"]]) {
     await selectByLabel("#approvedCid", invoiceNumber);
     await page.selectOption("#offerFinancier", financier);
     await page.fill("#offerAdvance", advance);
-    await page.fill("#offerRate", advance);
     await act(page.locator('form[data-action="create-offer"] button[type="submit"]'));
-    await result("OFFER CREATED", `supplier-offers-${financier}`);
+    await result("Offer sent", `supplier-offers-${financier}`);
   }
 
   await role("financierB");
@@ -132,12 +126,12 @@ try {
   await role("financierA");
   await selectByLabel("#offerCid", invoiceNumber);
   await act(page.locator('form[data-action="fund"] button[type="submit"]'));
-  await result("FUNDED ONCE", "financierA-funds-with-canton-coin");
+  await result("Invoice financed", "financierA-funds-with-canton-coin");
 
   await role("financierB");
   await snapshot("financierB-no-longer-available", {
     fn: (number) =>
-      document.querySelector("#actionBody")?.textContent?.includes("This invoice is no longer available") &&
+      document.querySelector("#actionBody")?.textContent?.includes("no longer available") &&
       ![...document.querySelectorAll("#offerCid option")].some((option) => option.textContent.includes(number)),
     arg: invoiceNumber,
     description: "Financier B's offer for this invoice is closed and cannot be funded; no winner or terms shown",
@@ -147,13 +141,13 @@ try {
   await selectByLabel("#financedCid", invoiceNumber);
   await page.fill("#repaymentDate", "2026-10-05");
   await act(page.locator('form[data-action="repay"] button[type="submit"]'));
-  await result("REPAID", "buyer-repays-with-canton-coin");
+  await result("Lender repaid", "buyer-repays-with-canton-coin");
 
   await role("auditor");
   await snapshot("auditor-trail", {
     fn: () =>
-      [...document.querySelectorAll(".contract-name")].some((node) => node.textContent === "Funding receipt") &&
-      [...document.querySelectorAll(".contract-name")].some((node) => node.textContent === "Repayment receipt"),
+      [...document.querySelectorAll(".item-title")].some((node) => node.textContent.startsWith("Payment made")) &&
+      [...document.querySelectorAll(".item-title")].some((node) => node.textContent.startsWith("Repaid")),
     arg: null,
     description: "Auditor sees funding and repayment receipts",
   });
@@ -161,25 +155,25 @@ try {
   await role("operator");
   // Propose a rate that differs from the current ceiling.
   const currentRate = await page.textContent("#rulesState");
-  const rate = currentRate.startsWith("0.92") ? "0.93" : "0.92";
-  const proposalText = `Set maximum advance rate to ${rate}`;
+  const rate = currentRate.startsWith("90") ? "91" : "90";
+  const proposalText = `Set the maximum advance to ${rate}%`;
   await page.selectOption("#proposalType", "SetMaxAdvanceRate");
   await page.fill("#proposalRate", rate);
   await page.selectOption("#proposalOperator", "1");
   await act(page.locator('form[data-action="propose"] button[type="submit"]'));
-  await result("PROPOSED", "operator-proposes-rate-change");
-  const card = page.locator("article", { hasText: proposalText }).first();
+  await result("Change proposed", "operator-proposes-rate-change");
+  const card = page.locator(".proposal", { hasText: proposalText }).first();
   await act(card.locator('button[data-governance="vote"][data-operator="1"]'));
-  await result("VOTE RECORDED", "operator1-votes");
-  await act(page.locator("article", { hasText: proposalText }).first()
+  await result("Approval recorded", "operator1-votes");
+  await act(page.locator(".proposal", { hasText: proposalText }).first()
     .locator('button[data-governance="execute"]'));
-  await result("BELOW THRESHOLD", "execute-refused-below-threshold");
-  await act(page.locator("article", { hasText: proposalText }).first()
+  await result("Not enough approvals", "execute-refused-below-threshold");
+  await act(page.locator(".proposal", { hasText: proposalText }).first()
     .locator('button[data-governance="vote"][data-operator="2"]'));
-  await result("VOTE RECORDED", "operator2-votes");
-  await act(page.locator("article", { hasText: proposalText }).first()
+  await result("Approval recorded", "operator2-votes");
+  await act(page.locator(".proposal", { hasText: proposalText }).first()
     .locator('button[data-governance="execute"]'));
-  await result("RULES CHANGED", "execute-at-threshold");
+  await result("Rules changed", "execute-at-threshold");
 } finally {
   const video = page.video();
   await context.close();

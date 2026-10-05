@@ -315,6 +315,7 @@ export class TavrynService {
     return {
       networkId: this.config.networkId,
       bootstrapped: Boolean(network),
+      settlementCurrency: this.config.settlement.cantonCoinSymbol,
       operators: operators.map((party, index) => ({ index: index + 1, party })),
       threshold: this.config.governance.threshold,
       committeeCid: network?.committee.contractId,
