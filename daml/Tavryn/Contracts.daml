@@ -1,93 +1,58 @@
 module Tavryn.Contracts where
 
+import DA.Crypto.Text (sha256, toHex)
+import DA.List (unique)
+import qualified DA.Text as T
+
+import Tavryn.Rules
 import Tavryn.Types
 
--- | Network-wide rules are deliberately separate from invoice data. Governance will
--- replace the direct governance choice with the Decentralization Manager integration.
-template NetworkRules
-  with
-    governanceParty : Party
-    members : [Party]
-    maxAdvanceRate : Decimal
-  where
-    ensure maxAdvanceRate >= 0.0 && maxAdvanceRate <= 1.0
-    signatory governanceParty
-    observer members
-
-    choice SetMaxAdvanceRate : ContractId NetworkRules
-      with
-        newRate : Decimal
-      controller governanceParty
-      do
-        assert (newRate >= 0.0 && newRate <= 1.0)
-        create this with maxAdvanceRate = newRate
-
-    choice AddFinancier : ContractId NetworkRules
-      with
-        financier : Party
-      controller governanceParty
-      do
-        assert (not (elem financier members))
-        create this with members = members ++ [financier]
-
--- | The buyer-side single maintainer record for external invoice numbers. This is not a
--- unique contract key: the buyer consumes and recreates one registry contract per
--- approval, so a duplicate approval is rejected by ordinary Daml authorization/state.
-template BuyerApprovalRegistry
-  with
-    buyer : Party
-    approvedInvoiceNumbers : [Text]
-  where
-    signatory buyer
-
-    choice RecordApproval : ContractId BuyerApprovalRegistry
-      with
-        externalInvoiceNumber : Text
-      controller buyer
-      do
-        assert (externalInvoiceNumber /= "")
-        assert (not (elem externalInvoiceNumber approvedInvoiceNumbers))
-        create this with
-          approvedInvoiceNumbers = approvedInvoiceNumbers ++ [externalInvoiceNumber]
+-- | The commitment is computed on the ledger from the parties, the terms and a private
+-- salt, so a supplier cannot attach a commitment that does not match the invoice.
+invoiceCommitmentFor : Party -> Party -> InvoiceTerms -> Text -> Text
+invoiceCommitmentFor supplier buyer terms salt =
+  sha256 (toHex (show (supplier, buyer, terms, salt)))
 
 template InvoiceDraft
   with
     supplier : Party
     buyer : Party
-    invoiceCommitment : Text
     terms : InvoiceTerms
+    salt : Text
   where
-    ensure invoiceCommitment /= ""
-      && terms.externalInvoiceNumber /= ""
-      && terms.faceValue > 0.0
-      && terms.currency /= ""
-      && terms.dueDate > terms.issuedDate
+    ensure validTerms terms && T.length salt >= 16
     signatory supplier
     observer buyer
 
-    -- The buyer service must check the external invoice number before exercising this
-    -- choice. This contract does not use a contract key for that check.
     choice Approve : ContractId ApprovedInvoice
       with
-        networkRules : ContractId NetworkRules
-        approvalRegistry : ContractId BuyerApprovalRegistry
+        rulesCid : ContractId NetworkRules
+        registryCid : ContractId BuyerApprovalRegistry
         eligibleFinanciers : [Party]
         auditor : Party
       controller buyer
       do
-        assert (not (null eligibleFinanciers))
-        registry <- fetch approvalRegistry
-        assert (registry.buyer == buyer)
-        assert (not (elem terms.externalInvoiceNumber registry.approvedInvoiceNumbers))
-        _ <- exercise approvalRegistry RecordApproval with
+        rules <- fetch rulesCid
+        registry <- fetch registryCid
+        assertMsg "TAVRYN_REGISTRY_MISMATCH"
+          (registry.buyer == buyer
+            && registry.networkId == rules.networkId
+            && registry.operators == rules.operators)
+        assertMsg "TAVRYN_BUYER_NOT_ONBOARDED" (buyer `elem` rules.buyers)
+        assertMsg "TAVRYN_NO_FINANCIERS"
+          (not (null eligibleFinanciers) && unique eligibleFinanciers)
+        assertMsg "TAVRYN_NOT_ELIGIBLE" (all (`elem` rules.financiers) eligibleFinanciers)
+        _ <- exercise registryCid RecordApproval with
           externalInvoiceNumber = terms.externalInvoiceNumber
-        detailsCid <- create InvoiceDetails with
+        let invoiceCommitment = invoiceCommitmentFor supplier buyer terms salt
+        invoiceDetails <- create InvoiceDetails with
           buyer
           supplier
           auditor
           invoiceCommitment
           terms
-        slotCid <- create FundingSlot with
+          salt
+        fundingSlot <- create FundingSlot with
           supplier
           buyer
           invoiceCommitment
@@ -96,12 +61,15 @@ template InvoiceDraft
           supplier
           buyer
           invoiceCommitment
-          invoiceDetails = detailsCid
-          networkRules
-          fundingSlot = slotCid
+          invoiceDetails
+          fundingSlot
           eligibleFinanciers
           auditor
+          networkId = rules.networkId
+          operators = rules.operators
 
+-- | Private invoice terms. Archived when the invoice is funded; the financed invoice
+-- carries the terms from then on.
 template InvoiceDetails
   with
     buyer : Party
@@ -109,12 +77,9 @@ template InvoiceDetails
     auditor : Party
     invoiceCommitment : Text
     terms : InvoiceTerms
+    salt : Text
   where
-    ensure invoiceCommitment /= ""
-      && terms.externalInvoiceNumber /= ""
-      && terms.faceValue > 0.0
-      && terms.currency /= ""
-      && terms.dueDate > terms.issuedDate
+    ensure invoiceCommitment /= "" && validTerms terms
     signatory buyer, supplier
     observer auditor
 
@@ -129,14 +94,14 @@ template FundingSlot
     signatory buyer, supplier
     observer eligibleFinanciers
 
-    -- This is intentionally terms-free. Its only purpose is to make concurrent funding
-    -- attempts contend for one consumable ledger object without disclosing invoice data.
+    -- Terms-free. Its only purpose is to make concurrent funding attempts contend for
+    -- one consumable ledger object without disclosing invoice data.
     choice Claim : ()
       with
         claimant : Party
       controller claimant
       do
-        assert (elem claimant eligibleFinanciers)
+        assertMsg "TAVRYN_NOT_ELIGIBLE" (claimant `elem` eligibleFinanciers)
         pure ()
 
 template ApprovedInvoice
@@ -145,78 +110,44 @@ template ApprovedInvoice
     buyer : Party
     invoiceCommitment : Text
     invoiceDetails : ContractId InvoiceDetails
-    networkRules : ContractId NetworkRules
     fundingSlot : ContractId FundingSlot
     eligibleFinanciers : [Party]
     auditor : Party
+    networkId : Text
+    operators : [Party]
   where
     ensure invoiceCommitment /= "" && not (null eligibleFinanciers)
     signatory buyer, supplier
     observer eligibleFinanciers
 
-    -- Supplier can issue multiple private offers for this same approved invoice. The
-    -- commitment check binds each offer to this active invoice without a unique key.
+    -- The supplier can issue several private offers for the same approved invoice.
+    -- Offers store the commitment, not this contract ID, so they survive a cancelled
+    -- funding attempt and every governance change.
     nonconsuming choice CreateOffer : ContractId FinancingOffer
       with
-        approvedInvoice : ContractId ApprovedInvoice
+        rulesCid : ContractId NetworkRules
         financier : Party
         advance : Decimal
         advanceRate : Decimal
       controller buyer, supplier
       do
+        rules <- fetch rulesCid
+        assertRulesFor networkId operators rules
+        assertMsg "TAVRYN_NOT_ELIGIBLE"
+          (financier `elem` eligibleFinanciers && financier `elem` rules.financiers)
+        assertMsg "TAVRYN_RATE_ABOVE_MAX"
+          (validRate advanceRate && advanceRate <= rules.maxAdvanceRate)
         details <- fetch invoiceDetails
-        assert (details.invoiceCommitment == invoiceCommitment)
-        assert (advance > 0.0 && advance <= details.terms.faceValue)
-        assert (advanceRate >= 0.0 && advanceRate <= 1.0)
+        assertMsg "TAVRYN_INVALID_ADVANCE"
+          (advance > 0.0 && advance <= details.terms.faceValue * advanceRate)
         create FinancingOffer with
           supplier
           buyer
           financier
-          approvedInvoice
-          fundingSlot
           invoiceCommitment
           terms = details.terms
-          networkRules
-          advance
-          advanceRate
-
-    -- This choice is used when cash settlement is an external, real Canton Coin
-    -- transfer. It consumes the shared slot before cash moves, so another offer
-    -- cannot begin funding while this payment is in flight. The ApprovedInvoice
-    -- remains active until CompleteFunding records the payment and creates the
-    -- receivable.
-    choice ReopenFunding : ContractId ApprovedInvoice
-      controller buyer, supplier
-      do
-        slotCid <- create FundingSlot with
-          supplier
-          buyer
-          invoiceCommitment
-          eligibleFinanciers
-        create this with fundingSlot = slotCid
-
-    -- This nested choice is reached from a winning offer acceptance. The winner is an
-    -- actor of the enclosing three-party choice, so it signs the receivable; the losing
-    -- financier is never an actor and never sees this subtransaction.
-    choice FinalizeFunding : ContractId FinancedInvoice
-      with
-        financier : Party
-        advance : Decimal
-        advanceRate : Decimal
-      controller buyer, supplier, financier
-      do
-        assert (elem financier eligibleFinanciers)
-        details <- fetch invoiceDetails
-        assert (details.invoiceCommitment == invoiceCommitment)
-        assert (advance > 0.0 && advance <= details.terms.faceValue)
-        assert (advanceRate >= 0.0 && advanceRate <= 1.0)
-        create FinancedInvoice with
-          buyer
-          supplier
-          financier
-          auditor
-          invoiceCommitment
-          terms = details.terms
+          networkId
+          operators
           advance
           advanceRate
 
@@ -225,65 +156,129 @@ template FinancingOffer
     supplier : Party
     buyer : Party
     financier : Party
-    approvedInvoice : ContractId ApprovedInvoice
-    fundingSlot : ContractId FundingSlot
     invoiceCommitment : Text
     terms : InvoiceTerms
-    networkRules : ContractId NetworkRules
+    networkId : Text
+    operators : [Party]
     advance : Decimal
     advanceRate : Decimal
   where
     ensure invoiceCommitment /= ""
       && advance > 0.0 && advance <= terms.faceValue
-      && advanceRate >= 0.0 && advanceRate <= 1.0
+      && validRate advanceRate
     signatory buyer, supplier
     observer financier
 
-    -- The winning path consumes the terms-free FundingSlot and then nested-consumes the
-    -- hidden ApprovedInvoice. Buyer and supplier are already stakeholders of the
-    -- invoice; the winning financier is the third actor of this private transaction.
+    -- Off-ledger settlement: the cash moved outside Canton, and the payment reference
+    -- is recorded with an OFF_LEDGER instrument.
     choice Accept : ContractId FinancedInvoice
+      with
+        approvedInvoiceCid : ContractId ApprovedInvoice
+        rulesCid : ContractId NetworkRules
+        paymentReference : Text
       controller buyer, supplier, financier
       do
-        slot <- fetch fundingSlot
-        assert (slot.invoiceCommitment == invoiceCommitment)
-        assert (elem financier slot.eligibleFinanciers)
-        rules <- fetch networkRules
-        assert (advanceRate <= rules.maxAdvanceRate)
-        _ <- exercise fundingSlot Claim with claimant = financier
-        exercise approvedInvoice FinalizeFunding with
+        assertMsg "TAVRYN_PAYMENT_REFERENCE_REQUIRED" (paymentReference /= "")
+        approved <- lockForFunding this approvedInvoiceCid rulesCid
+        archive approved.invoiceDetails
+        financedCid <- create (financedFrom this approved.auditor)
+        _ <- create FundingReceipt with
+          buyer
+          supplier
           financier
-          advance
-          advanceRate
+          auditor = approved.auditor
+          financedInvoice = financedCid
+          invoiceCommitment
+          settlementAmount = advance
+          instrument = "OFF_LEDGER"
+          trackingId = ""
+          paymentReference
+        pure financedCid
 
-    -- Two-step settlement alternative: lock the invoice on-ledger, move real cash
-    -- through the token-standard wallet API, then call PendingFunding.Complete.
+    -- Two-step Canton Coin settlement: lock the invoice on the ledger first, then move
+    -- the cash with the same tracking ID, then complete or cancel the lock.
     choice BeginFunding : ContractId PendingFunding
+      with
+        approvedInvoiceCid : ContractId ApprovedInvoice
+        rulesCid : ContractId NetworkRules
+        trackingId : Text
+        settlementAmount : Decimal
+        instrument : Text
       controller buyer, supplier, financier
       do
-        slot <- fetch fundingSlot
-        assert (slot.invoiceCommitment == invoiceCommitment)
-        assert (elem financier slot.eligibleFinanciers)
-        rules <- fetch networkRules
-        assert (advanceRate <= rules.maxAdvanceRate)
-        approved <- fetch approvedInvoice
-        _ <- exercise fundingSlot Claim with claimant = financier
+        assertMsg "TAVRYN_TRACKING_ID_REQUIRED" (trackingId /= "")
+        assertMsg "TAVRYN_AMOUNT_MISMATCH" (settlementAmount == advance)
+        assertMsg "TAVRYN_INSTRUMENT_MISMATCH" (instrument == terms.currency)
+        approved <- lockForFunding this approvedInvoiceCid rulesCid
+        lockedAt <- getTime
         create PendingFunding with
           buyer
           supplier
           financier
           auditor = approved.auditor
-          approvedInvoice
           invoiceCommitment
+          invoiceDetails = approved.invoiceDetails
+          eligibleFinanciers = approved.eligibleFinanciers
+          networkId
+          operators
           terms
-          networkRules
           advance
           advanceRate
+          trackingId
+          settlementAmount
+          instrument
+          lockedAt
 
-    choice Withdraw : ()
+    -- Closing a losing offer leaves the financier a ledger fact that the invoice is
+    -- gone, with no winner, amount or terms.
+    choice Withdraw : ContractId OfferClosed
       controller supplier
       do
-        pure ()
+        create OfferClosed with buyer; supplier; financier; invoiceCommitment
+
+-- | Consumes both the terms-free slot and the approved invoice. Whichever financier's
+-- transaction commits first wins; any later attempt fails because both are gone.
+lockForFunding
+  : FinancingOffer -> ContractId ApprovedInvoice -> ContractId NetworkRules
+  -> Update ApprovedInvoice
+lockForFunding offer approvedInvoiceCid rulesCid = do
+  approved <- fetch approvedInvoiceCid
+  assertMsg "TAVRYN_INVOICE_MISMATCH"
+    (approved.invoiceCommitment == offer.invoiceCommitment
+      && approved.buyer == offer.buyer
+      && approved.supplier == offer.supplier
+      && approved.networkId == offer.networkId
+      && approved.operators == offer.operators)
+  rules <- fetch rulesCid
+  assertRulesFor approved.networkId approved.operators rules
+  assertMsg "TAVRYN_NOT_ELIGIBLE"
+    (offer.financier `elem` approved.eligibleFinanciers
+      && offer.financier `elem` rules.financiers)
+  assertMsg "TAVRYN_RATE_ABOVE_MAX" (offer.advanceRate <= rules.maxAdvanceRate)
+  exercise approved.fundingSlot Claim with claimant = offer.financier
+  archive approvedInvoiceCid
+  pure approved
+
+financedFrom : FinancingOffer -> Party -> FinancedInvoice
+financedFrom offer auditor = FinancedInvoice with
+  buyer = offer.buyer
+  supplier = offer.supplier
+  financier = offer.financier
+  auditor
+  invoiceCommitment = offer.invoiceCommitment
+  terms = offer.terms
+  advance = offer.advance
+  advanceRate = offer.advanceRate
+
+template OfferClosed
+  with
+    buyer : Party
+    supplier : Party
+    financier : Party
+    invoiceCommitment : Text
+  where
+    signatory buyer, supplier
+    observer financier
 
 template PendingFunding
   with
@@ -291,16 +286,20 @@ template PendingFunding
     supplier : Party
     financier : Party
     auditor : Party
-    approvedInvoice : ContractId ApprovedInvoice
     invoiceCommitment : Text
+    invoiceDetails : ContractId InvoiceDetails
+    eligibleFinanciers : [Party]
+    networkId : Text
+    operators : [Party]
     terms : InvoiceTerms
-    networkRules : ContractId NetworkRules
     advance : Decimal
     advanceRate : Decimal
+    trackingId : Text
+    settlementAmount : Decimal
+    instrument : Text
+    lockedAt : Time
   where
-    ensure invoiceCommitment /= ""
-      && advance > 0.0 && advance <= terms.faceValue
-      && advanceRate >= 0.0 && advanceRate <= 1.0
+    ensure invoiceCommitment /= "" && trackingId /= "" && settlementAmount > 0.0
     signatory buyer, supplier, financier
     observer auditor
 
@@ -309,9 +308,15 @@ template PendingFunding
         paymentReference : Text
       controller buyer, supplier, financier
       do
-        assert (paymentReference /= "")
-        financedCid <- exercise approvedInvoice FinalizeFunding with
+        assertMsg "TAVRYN_PAYMENT_REFERENCE_REQUIRED" (paymentReference /= "")
+        archive invoiceDetails
+        financedCid <- create FinancedInvoice with
+          buyer
+          supplier
           financier
+          auditor
+          invoiceCommitment
+          terms
           advance
           advanceRate
         _ <- create FundingReceipt with
@@ -321,15 +326,43 @@ template PendingFunding
           auditor
           financedInvoice = financedCid
           invoiceCommitment
+          settlementAmount
+          instrument
+          trackingId
           paymentReference
         pure financedCid
 
-    -- This is only safe before the external transfer succeeds. The service invokes
-    -- it when the wallet transfer fails, restoring a fresh one-use FundingSlot.
+    -- Restores the approved invoice, a fresh slot and this financier's offer. The
+    -- locking financier is a controller, so buyer and supplier cannot reopen funding
+    -- behind the back of a financier whose cash may already have moved.
     choice Cancel : ContractId ApprovedInvoice
       controller buyer, supplier, financier
       do
-        exercise approvedInvoice ReopenFunding
+        fundingSlot <- create FundingSlot with
+          supplier
+          buyer
+          invoiceCommitment
+          eligibleFinanciers
+        _ <- create FinancingOffer with
+          supplier
+          buyer
+          financier
+          invoiceCommitment
+          terms
+          networkId
+          operators
+          advance
+          advanceRate
+        create ApprovedInvoice with
+          supplier
+          buyer
+          invoiceCommitment
+          invoiceDetails
+          fundingSlot
+          eligibleFinanciers
+          auditor
+          networkId
+          operators
 
 template FundingReceipt
   with
@@ -339,9 +372,12 @@ template FundingReceipt
     auditor : Party
     financedInvoice : ContractId FinancedInvoice
     invoiceCommitment : Text
+    settlementAmount : Decimal
+    instrument : Text
+    trackingId : Text
     paymentReference : Text
   where
-    ensure invoiceCommitment /= "" && paymentReference /= ""
+    ensure invoiceCommitment /= "" && paymentReference /= "" && settlementAmount > 0.0
     signatory buyer, supplier, financier
     observer auditor
 
@@ -358,27 +394,109 @@ template FinancedInvoice
   where
     ensure invoiceCommitment /= ""
       && advance > 0.0 && advance <= terms.faceValue
-      && advanceRate >= 0.0 && advanceRate <= 1.0
+      && validRate advanceRate
     signatory buyer, supplier, financier
     observer auditor
 
+    -- Off-ledger repayment with an external payment reference.
     choice Repay : ContractId RepaymentReceipt
       with
         repaymentDate : Date
         paymentReference : Text
       controller buyer, financier
       do
-        -- Repayment may happen any time after the invoice was issued. The
-        -- receipt can still show whether it was early or on time.
-        assert (repaymentDate >= terms.issuedDate)
-        assert (paymentReference /= "")
+        assertMsg "TAVRYN_REPAYMENT_BEFORE_ISSUE" (repaymentDate >= terms.issuedDate)
+        assertMsg "TAVRYN_PAYMENT_REFERENCE_REQUIRED" (paymentReference /= "")
         create RepaymentReceipt with
           buyer
           financier
           auditor
           invoiceCommitment
           repaymentDate
+          early = repaymentDate < terms.dueDate
+          amount = terms.faceValue
+          instrument = "OFF_LEDGER"
+          trackingId = ""
           paymentReference
+
+    choice BeginRepayment : ContractId PendingRepayment
+      with
+        repaymentDate : Date
+        trackingId : Text
+        settlementAmount : Decimal
+        instrument : Text
+      controller buyer, financier
+      do
+        assertMsg "TAVRYN_REPAYMENT_BEFORE_ISSUE" (repaymentDate >= terms.issuedDate)
+        assertMsg "TAVRYN_TRACKING_ID_REQUIRED" (trackingId /= "")
+        assertMsg "TAVRYN_AMOUNT_MISMATCH" (settlementAmount == terms.faceValue)
+        assertMsg "TAVRYN_INSTRUMENT_MISMATCH" (instrument == terms.currency)
+        lockedAt <- getTime
+        create PendingRepayment with
+          buyer
+          supplier
+          financier
+          auditor
+          invoiceCommitment
+          terms
+          advance
+          advanceRate
+          repaymentDate
+          trackingId
+          settlementAmount
+          instrument
+          lockedAt
+
+template PendingRepayment
+  with
+    buyer : Party
+    supplier : Party
+    financier : Party
+    auditor : Party
+    invoiceCommitment : Text
+    terms : InvoiceTerms
+    advance : Decimal
+    advanceRate : Decimal
+    repaymentDate : Date
+    trackingId : Text
+    settlementAmount : Decimal
+    instrument : Text
+    lockedAt : Time
+  where
+    ensure invoiceCommitment /= "" && trackingId /= "" && settlementAmount > 0.0
+    signatory buyer, supplier, financier
+    observer auditor
+
+    choice CompleteRepayment : ContractId RepaymentReceipt
+      with
+        paymentReference : Text
+      controller buyer, financier
+      do
+        assertMsg "TAVRYN_PAYMENT_REFERENCE_REQUIRED" (paymentReference /= "")
+        create RepaymentReceipt with
+          buyer
+          financier
+          auditor
+          invoiceCommitment
+          repaymentDate
+          early = repaymentDate < terms.dueDate
+          amount = settlementAmount
+          instrument
+          trackingId
+          paymentReference
+
+    choice CancelRepayment : ContractId FinancedInvoice
+      controller buyer, financier
+      do
+        create FinancedInvoice with
+          buyer
+          supplier
+          financier
+          auditor
+          invoiceCommitment
+          terms
+          advance
+          advanceRate
 
 template RepaymentReceipt
   with
@@ -387,8 +505,12 @@ template RepaymentReceipt
     auditor : Party
     invoiceCommitment : Text
     repaymentDate : Date
+    early : Bool
+    amount : Decimal
+    instrument : Text
+    trackingId : Text
     paymentReference : Text
   where
-    ensure invoiceCommitment /= "" && paymentReference /= ""
+    ensure invoiceCommitment /= "" && paymentReference /= "" && amount > 0.0
     signatory buyer, financier
     observer auditor

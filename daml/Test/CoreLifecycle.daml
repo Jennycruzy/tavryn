@@ -1,119 +1,171 @@
 module Test.CoreLifecycle where
 
 import DA.Date (Month(..), date)
+import DA.Time (time)
 import Daml.Script
 
 import Tavryn.Contracts
+import Tavryn.Governance
+import Tavryn.Rules
 import Tavryn.Types
+import Test.Support
 
 testCoreLifecycle : Script ()
 testCoreLifecycle = script do
-  supplier <- allocatePartyByHint (PartyIdHint "Supplier")
-  buyer <- allocatePartyByHint (PartyIdHint "Buyer")
-  financierA <- allocatePartyByHint (PartyIdHint "FinancierA")
-  financierB <- allocatePartyByHint (PartyIdHint "FinancierB")
-  auditor <- allocatePartyByHint (PartyIdHint "Auditor")
-  governance <- allocatePartyByHint (PartyIdHint "Governance")
+  network <- setupNetwork
+  let p = network.parties
 
-  rulesCid <- submit governance do
-    createCmd NetworkRules with
-      governanceParty = governance
-      members = [financierA, financierB]
-      maxAdvanceRate = 0.90
-
-  registryCid <- submit buyer do
-    createCmd BuyerApprovalRegistry with
-      buyer
-      approvedInvoiceNumbers = []
-
-  let terms = InvoiceTerms with
-        externalInvoiceNumber = "INV-001"
-        faceValue = 100.0
-        currency = "USD"
-        issuedDate = date 2026 Jan 1
-        dueDate = date 2026 Feb 1
-
-  draftCid <- submit supplier do
-    createCmd InvoiceDraft with
-      supplier
-      buyer
-      invoiceCommitment = "cb:commitment:001"
-      terms
-
-  invoiceCid <- submit buyer do
-    exerciseCmd draftCid Approve with
-      networkRules = rulesCid
-      approvalRegistry = registryCid
-      eligibleFinanciers = [financierA, financierB]
-      auditor
+  invoiceCid <- approvedInvoice network "INV-001" [p.financierA, p.financierB]
 
   -- A rival is a stakeholder of the terms-free approval seal, but cannot query the
   -- private invoice details contract.
-  Some _ <- queryContractId buyer invoiceCid
-  Some _ <- queryContractId supplier invoiceCid
-  Some approved <- queryContractId financierA invoiceCid
-  None <- queryContractId financierA approved.invoiceDetails
+  Some approved <- queryContractId p.financierA invoiceCid
+  None <- queryContractId p.financierA approved.invoiceDetails
+  Some details <- queryContractId p.auditor approved.invoiceDetails
+  assert (approved.invoiceCommitment
+    == invoiceCommitmentFor p.supplier p.buyer details.terms details.salt)
 
-  offerACid <- submit (actAs [buyer, supplier]) do
-    exerciseCmd invoiceCid CreateOffer with
-      approvedInvoice = invoiceCid
-      financier = financierA
-      advance = 80.0
-      advanceRate = 0.80
+  offerACid <- offerTo network invoiceCid p.financierA 80.0 0.80
+  offerBCid <- offerTo network invoiceCid p.financierB 75.0 0.75
 
-  offerBCid <- submit (actAs [buyer, supplier]) do
-    exerciseCmd invoiceCid CreateOffer with
-      approvedInvoice = invoiceCid
-      financier = financierB
-      advance = 75.0
-      advanceRate = 0.75
+  Some _ <- queryContractId p.financierA offerACid
+  None <- queryContractId p.financierB offerACid
+  None <- queryContractId p.financierB approved.invoiceDetails
 
-  Some _ <- queryContractId financierA offerACid
-  Some offerB <- queryContractId financierB offerBCid
-  None <- queryContractId financierB offerACid
-  Some _ <- queryContractId financierB invoiceCid
-  None <- queryContractId financierB approved.invoiceDetails
-  Some _ <- queryContractId financierB offerB.fundingSlot
+  (rulesCid, _) <- currentRules network
+  financedCid <- submit (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd offerACid Accept with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      paymentReference = "BANK-REF-001"
 
-  financedCid <- submit (actAs [buyer, supplier, financierA]) do
-    exerciseCmd offerACid Accept
+  Some _ <- queryContractId p.financierA financedCid
+  Some _ <- queryContractId p.auditor financedCid
+  -- The private details are archived once the invoice is funded.
+  None <- queryContractId p.auditor approved.invoiceDetails
+  [(_, receipt)] <- query @FundingReceipt p.auditor
+  assert (receipt.settlementAmount == 80.0 && receipt.instrument == "OFF_LEDGER")
 
-  -- The winning receivable is private to its own stakeholders.
-  Some _ <- queryContractId financierA financedCid
-  Some _ <- queryContractId auditor financedCid
-
-  -- B's offer is real and visible to B, but the one-use slot is now archived. The
+  -- B's offer is real, but the approved invoice and its one-use slot are gone. The
   -- failed submission is the load-bearing proof of single financing.
-  submitMustFail (actAs [buyer, supplier, financierB]) do
-    exerciseCmd offerBCid Accept
-  Some _ <- queryContractId financierB offerBCid
-  None <- queryContractId financierB offerB.fundingSlot
-  None <- queryContractId financierB financedCid
+  submitMustFail (actAs [p.buyer, p.supplier, p.financierB]) do
+    exerciseCmd offerBCid Accept with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      paymentReference = "BANK-REF-002"
+  None <- queryContractId p.financierB approved.fundingSlot
+  None <- queryContractId p.financierB financedCid
 
-  receiptCid <- submit (actAs [buyer, financierA]) do
+  -- Closing the losing offer leaves B a fact with no winner, amount or terms.
+  closedCid <- submit p.supplier do exerciseCmd offerBCid Withdraw
+  Some closed <- queryContractId p.financierB closedCid
+  assert (closed.financier == p.financierB
+    && closed.invoiceCommitment == approved.invoiceCommitment)
+  None <- queryContractId p.financierB offerBCid
+  [] <- query @FinancedInvoice p.financierB
+  [] <- query @FundingReceipt p.financierB
+
+  -- Early repayment is valid as long as it is not before issuance.
+  receiptCid <- submit (actAs [p.buyer, p.financierA]) do
     exerciseCmd financedCid Repay with
-      -- Early repayment is valid as long as it is not before issuance.
       repaymentDate = date 2026 Jan 15
-      paymentReference = "CC-REPAY-001"
+      paymentReference = "BANK-REPAY-001"
+  Some repayment <- queryContractId p.auditor receiptCid
+  assert (repayment.early && repayment.amount == 100.0)
+  None <- queryContractId p.financierA financedCid
 
-  None <- queryContractId financierA financedCid
-  Some _ <- queryContractId auditor receiptCid
+  pure ()
+
+testSingleApproval : Script ()
+testSingleApproval = script do
+  network <- setupNetwork
+  let p = network.parties
+  _ <- approvedInvoice network "INV-DUP" [p.financierA]
 
   -- A second draft with the same external invoice number is refused by the buyer's
-  -- single-maintainer registry. No unique contract key is involved.
-  [(currentRegistryCid, _)] <- queryFilter @BuyerApprovalRegistry buyer
-    (\registry -> registry.buyer == buyer)
-
-  duplicateDraftCid <- submit supplier do
+  -- operator-signed registry.
+  duplicateDraftCid <- submit p.supplier do
     createCmd InvoiceDraft with
-      supplier
-      buyer
-      invoiceCommitment = "cb:commitment:duplicate"
-      terms
-
-  submitMustFail buyer do
+      supplier = p.supplier
+      buyer = p.buyer
+      terms = sampleTerms "INV-DUP"
+      salt = "another-salt-0123456789"
+  (rulesCid, _) <- currentRules network
+  registryCid <- registryFor network
+  submitMustFail p.buyer do
     exerciseCmd duplicateDraftCid Approve with
-      networkRules = rulesCid
-      approvalRegistry = currentRegistryCid
-      eligibleFinanciers = [financierA, financierB]
-      auditor
+      rulesCid
+      registryCid
+      eligibleFinanciers = [p.financierA]
+      auditor = p.auditor
+
+  -- The buyer cannot mint a second registry on the real network: that needs every
+  -- operator's signature.
+  submitMustFail p.buyer do
+    createCmd BuyerApprovalRegistry with
+      networkId = "tavryn-test"
+      operators = operatorsOf p
+      buyer = p.buyer
+      approvedInvoiceNumbers = []
+
+  -- It can invent a network of its own and approve the duplicate there, with the
+  -- supplier's help. That invoice still cannot be funded, because the financier
+  -- funds only against the real network's rules.
+  fakeRulesCid <- submit p.buyer do
+    createCmd NetworkRules with
+      networkId = "tavryn-test"
+      operators = [p.buyer]
+      threshold = 1
+      financiers = [p.financierA]
+      buyers = [p.buyer]
+      participants = []
+      maxAdvanceRate = 1.0
+      version = 1
+  fakeRegistryCid <- submit p.buyer do
+    createCmd BuyerApprovalRegistry with
+      networkId = "tavryn-test"
+      operators = [p.buyer]
+      buyer = p.buyer
+      approvedInvoiceNumbers = []
+  fakeApprovedCid <- submit p.buyer do
+    exerciseCmd duplicateDraftCid Approve with
+      rulesCid = fakeRulesCid
+      registryCid = fakeRegistryCid
+      eligibleFinanciers = [p.financierA]
+      auditor = p.auditor
+  fakeOfferCid <- submit (actAs [p.buyer, p.supplier]) do
+    exerciseCmd fakeApprovedCid CreateOffer with
+      rulesCid = fakeRulesCid
+      financier = p.financierA
+      advance = 50.0
+      advanceRate = 0.50
+  submitMustFail (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd fakeOfferCid Accept with
+      approvedInvoiceCid = fakeApprovedCid
+      rulesCid
+      paymentReference = "BANK-FAKE"
+
+  -- A buyer can be onboarded only once, so there is only ever one registry.
+  submitMustFail p.operatorOne do
+    exerciseCmd network.committee Propose with
+      proposer = p.operatorOne
+      action = OnboardBuyer p.buyer
+      rulesCid
+      expiresAt = time (date 2030 Jan 1) 0 0 0
+  _ <- registryFor network
+
+  -- Only admitted financiers can be made eligible.
+  draftCid <- submit p.supplier do
+    createCmd InvoiceDraft with
+      supplier = p.supplier
+      buyer = p.buyer
+      terms = sampleTerms "INV-NOT-MEMBER"
+      salt = "salt-not-member-0123456789"
+  registryCid <- registryFor network
+  submitMustFail p.buyer do
+    exerciseCmd draftCid Approve with
+      rulesCid
+      registryCid
+      eligibleFinanciers = [p.financierC]
+      auditor = p.auditor
+  pure ()

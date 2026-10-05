@@ -1,0 +1,60 @@
+module Tavryn.Rules where
+
+import DA.List (unique)
+
+import Tavryn.Types
+
+-- | The single set of rules for one network. Only the operators sign it, and it has no
+-- choices: the committee archives and recreates it when a proposal reaches the
+-- threshold, so no operator can change it alone. Invoices never store its contract ID;
+-- every choice that needs the rules is handed the current contract and checks that it
+-- belongs to the same network and operator set.
+template NetworkRules
+  with
+    networkId : Text
+    operators : [Party]
+    threshold : Int
+    financiers : [Party]
+    buyers : [Party]
+    participants : [Party]
+    maxAdvanceRate : Decimal
+    version : Int
+  where
+    ensure networkId /= ""
+      && validOperatorSet operators threshold
+      && unique financiers
+      && unique buyers
+      && unique participants
+      && validRate maxAdvanceRate
+      && version >= 1
+    signatory operators
+    observer financiers, buyers, participants
+
+-- | One registry per onboarded buyer, created only by an `OnboardBuyer` governance
+-- action. The operators sign it, so a buyer cannot mint a second, empty registry to
+-- approve the same external invoice number again.
+template BuyerApprovalRegistry
+  with
+    networkId : Text
+    operators : [Party]
+    buyer : Party
+    approvedInvoiceNumbers : [Text]
+  where
+    signatory operators
+    observer buyer
+
+    choice RecordApproval : ContractId BuyerApprovalRegistry
+      with
+        externalInvoiceNumber : Text
+      controller buyer
+      do
+        assertMsg "TAVRYN_INVALID_INVOICE" (externalInvoiceNumber /= "")
+        assertMsg "TAVRYN_DUPLICATE_INVOICE"
+          (externalInvoiceNumber `notElem` approvedInvoiceNumbers)
+        create this with
+          approvedInvoiceNumbers = approvedInvoiceNumbers ++ [externalInvoiceNumber]
+
+assertRulesFor : Text -> [Party] -> NetworkRules -> Update ()
+assertRulesFor networkId operators rules =
+  assertMsg "TAVRYN_RULES_MISMATCH"
+    (rules.networkId == networkId && rules.operators == operators)

@@ -1,53 +1,137 @@
 module Test.Governance where
 
+import DA.Time (addRelTime, days, hours)
 import Daml.Script
 
 import Tavryn.Contracts
 import Tavryn.Governance
+import Tavryn.Types
+import Test.Support
 
 testGovernanceThreshold : Script ()
 testGovernanceThreshold = script do
-  governance <- allocatePartyByHint (PartyIdHint "Governance")
-  operatorOne <- allocatePartyByHint (PartyIdHint "OperatorOne")
-  operatorTwo <- allocatePartyByHint (PartyIdHint "OperatorTwo")
-  operatorThree <- allocatePartyByHint (PartyIdHint "OperatorThree")
-  financierA <- allocatePartyByHint (PartyIdHint "FinancierA")
-  financierB <- allocatePartyByHint (PartyIdHint "FinancierB")
-  financierC <- allocatePartyByHint (PartyIdHint "FinancierC")
+  network <- setupNetwork
+  let p = network.parties
+  (rulesCid, rules) <- currentRules network
 
-  rulesCid <- submit governance do
-    createCmd NetworkRules with
-      governanceParty = governance
-      members = [financierA, financierB]
-      maxAdvanceRate = 0.90
-
-  committeeCid <- submit governance do
+  -- No single operator can write the rules: they have no choices, and creating them
+  -- needs every operator's signature.
+  submitMustFail p.operatorOne do
+    createCmd rules with version = 99
+  submitMustFail p.operatorOne do
     createCmd GovernanceCommittee with
-      governanceParty = governance
-      operators = [operatorOne, operatorTwo, operatorThree]
-      threshold = 2
-      networkRules = rulesCid
+      networkId = "tavryn-test"
+      operators = operatorsOf p
+      threshold = 1
 
-  proposalCid <- submit operatorOne do
-    exerciseCmd committeeCid ProposeFinancierAdmission with
-      proposer = operatorOne
-      candidate = financierC
+  proposalCid <- propose network (AdmitFinancier p.financierC)
+  voteOne <- vote p.operatorOne proposalCid
 
-  voteOneCid <- submit operatorOne do
-    exerciseCmd proposalCid Confirm with operator = operatorOne
+  -- One operator is below the threshold.
+  submitMustFail p.operatorOne do
+    executeWith network proposalCid [voteOne] rulesCid
 
-  -- One operator is not enough to admit a new financier.
-  submitMustFail governance do
-    exerciseCmd proposalCid Execute with votes = [voteOneCid]
+  -- A second vote from the same operator does not count.
+  voteOneAgain <- vote p.operatorOne proposalCid
+  submitMustFail p.operatorOne do
+    executeWith network proposalCid [voteOne, voteOneAgain] rulesCid
 
-  voteTwoCid <- submit operatorTwo do
-    exerciseCmd proposalCid Confirm with operator = operatorTwo
+  -- A vote for another proposal is rejected.
+  otherProposalCid <- propose network (SetMaxAdvanceRate 0.80)
+  otherVote <- vote p.operatorTwo otherProposalCid
+  submitMustFail p.operatorOne do
+    executeWith network proposalCid [voteOne, otherVote] rulesCid
 
-  newRulesCid <- submit governance do
-    exerciseCmd proposalCid Execute with votes = [voteOneCid, voteTwoCid]
+  -- At the threshold the rules change and the version increments.
+  voteTwo <- vote p.operatorTwo proposalCid
+  newRulesCid <- submit p.operatorTwo do
+    exerciseCmd network.committee Execute with
+      executor = p.operatorTwo
+      proposalCid
+      voteCids = [voteOne, voteTwo]
+      rulesCid
+  Some newRules <- queryContractId p.operatorOne newRulesCid
+  assert (p.financierC `elem` newRules.financiers && newRules.version == rules.version + 1)
+  None <- queryContractId p.operatorOne rulesCid
 
-  Some newRules <- queryContractId governance newRulesCid
-  assert (elem financierC newRules.members)
-  None <- queryContractId governance rulesCid
-  None <- queryContractId governance committeeCid
+  -- The other proposal was voted on the old rules version, so it can no longer run.
+  otherVoteThree <- vote p.operatorThree otherProposalCid
+  submitMustFail p.operatorOne do
+    executeWith network otherProposalCid [otherVote, otherVoteThree] newRulesCid
+
+  -- An expired proposal cannot execute.
+  now <- getTime
+  shortCid <- submit p.operatorOne do
+    exerciseCmd network.committee Propose with
+      proposer = p.operatorOne
+      action = SetMaxAdvanceRate 0.70
+      rulesCid = newRulesCid
+      expiresAt = addRelTime now (hours 1)
+  shortOne <- vote p.operatorOne shortCid
+  shortTwo <- vote p.operatorTwo shortCid
+  passTime (days 1)
+  submitMustFail p.operatorOne do
+    executeWith network shortCid [shortOne, shortTwo] newRulesCid
+  pure ()
+
+testGovernanceDoesNotBreakOpenInvoices : Script ()
+testGovernanceDoesNotBreakOpenInvoices = script do
+  network <- setupNetwork
+  let p = network.parties
+
+  -- Regression: governance used to archive a rules contract that every open invoice
+  -- referenced. An invoice opened before a governance change must still fund.
+  invoiceCid <- approvedInvoice network "INV-OPEN" [p.financierA, p.financierB]
+  offerACid <- offerTo network invoiceCid p.financierA 60.0 0.60
+  _ <- govern network (AdmitFinancier p.financierC)
+  (rulesCid, _) <- currentRules network
+  _ <- submit (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd offerACid Accept with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      paymentReference = "BANK-OPEN"
+
+  -- An admitted financier can be made eligible, receive an offer and fund.
+  invoiceCCid <- approvedInvoice network "INV-C" [p.financierC]
+  offerCCid <- offerTo network invoiceCCid p.financierC 50.0 0.50
+  (rulesCid, _) <- currentRules network
+  _ <- submit (actAs [p.buyer, p.supplier, p.financierC]) do
+    exerciseCmd offerCCid Accept with
+      approvedInvoiceCid = invoiceCCid
+      rulesCid
+      paymentReference = "BANK-C"
+  pure ()
+
+testGovernanceGatesFunding : Script ()
+testGovernanceGatesFunding = script do
+  network <- setupNetwork
+  let p = network.parties
+
+  -- Lowering the ceiling stops an open offer above it.
+  invoiceCid <- approvedInvoice network "INV-RATE" [p.financierA, p.financierB]
+  offerACid <- offerTo network invoiceCid p.financierA 60.0 0.60
+  _ <- govern network (SetMaxAdvanceRate 0.50)
+  (rulesCid, rules) <- currentRules network
+  assert (rules.maxAdvanceRate == 0.50)
+  submitMustFail (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd offerACid Accept with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      paymentReference = "BANK-RATE"
+  submitMustFail (actAs [p.buyer, p.supplier]) do
+    exerciseCmd invoiceCid CreateOffer with
+      rulesCid
+      financier = p.financierB
+      advance = 60.0
+      advanceRate = 0.60
+
+  -- Removing a financier stops its open offers.
+  offerBCid <- offerTo network invoiceCid p.financierB 45.0 0.45
+  _ <- govern network (RemoveFinancier p.financierB)
+  (rulesCid, _) <- currentRules network
+  submitMustFail (actAs [p.buyer, p.supplier, p.financierB]) do
+    exerciseCmd offerBCid Accept with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      paymentReference = "BANK-REMOVED"
   pure ()

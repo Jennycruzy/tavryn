@@ -1,105 +1,195 @@
 module Tavryn.Governance where
 
 import DA.Foldable (forA_)
+import DA.List (dedup, sort, unique)
 
-import Tavryn.Contracts
+import Tavryn.Rules
+import Tavryn.Types
 
--- This is the shared-control fallback for the Decentralization Manager integration.
--- Each operator signs its own vote. The governance party can execute only after it
--- presents distinct operator votes meeting the committee threshold.
-template GovernanceCommittee
+-- | The only way a committee and its first rules come into existence. The first
+-- operator creates it, every other operator joins and adds its own signature, and the
+-- last step runs with all operators' authority.
+template CommitteeBootstrap
   with
-    governanceParty : Party
+    networkId : Text
     operators : [Party]
     threshold : Int
-    networkRules : ContractId NetworkRules
+    accepted : [Party]
+    financiers : [Party]
+    participants : [Party]
+    maxAdvanceRate : Decimal
   where
-    ensure threshold > 0
-      && threshold <= length operators
-      && allDistinct operators
-      && not (elem governanceParty operators)
-    signatory governanceParty
+    ensure networkId /= ""
+      && validOperatorSet operators threshold
+      && not (null accepted)
+      && unique accepted
+      && all (`elem` operators) accepted
+      && validRate maxAdvanceRate
+    signatory accepted
     observer operators
 
-    nonconsuming choice ProposeFinancierAdmission : ContractId FinancierAdmissionProposal
-      with
-        proposer : Party
-        candidate : Party
-      controller proposer
-      do
-        assert (elem proposer operators)
-        assert (candidate /= proposer)
-        create FinancierAdmissionProposal with
-          governanceParty
-          operators
-          threshold
-          committee = self
-          networkRules
-          proposer
-          candidate
-
-    choice ReplaceNetworkRules : ContractId GovernanceCommittee
-      with
-        newRules : ContractId NetworkRules
-      controller governanceParty
-      do
-        create this with networkRules = newRules
-
-template FinancierAdmissionProposal
-  with
-    governanceParty : Party
-    operators : [Party]
-    threshold : Int
-    committee : ContractId GovernanceCommittee
-    networkRules : ContractId NetworkRules
-    proposer : Party
-    candidate : Party
-  where
-    ensure elem proposer operators
-    signatory proposer
-    observer governanceParty, operators
-
-    nonconsuming choice Confirm : ContractId GovernanceVote
+    choice Join : ContractId CommitteeBootstrap
       with
         operator : Party
       controller operator
       do
-        assert (elem operator operators)
-        create GovernanceVote with
-          governanceParty
-          proposal = self
-          operator
+        assertMsg "TAVRYN_NOT_OPERATOR" (operator `elem` operators)
+        assertMsg "TAVRYN_ALREADY_JOINED" (operator `notElem` accepted)
+        create this with accepted = accepted ++ [operator]
 
-    choice Execute : ContractId NetworkRules
+    choice Finalize : (ContractId GovernanceCommittee, ContractId NetworkRules)
       with
-        votes : [ContractId GovernanceVote]
-      controller governanceParty
+        operator : Party
+      controller operator
       do
-        assert (length votes >= threshold)
-        voteRecords <- mapA fetch votes
-        let votedOperators = map (\vote -> vote.operator) voteRecords
-        assert (allDistinct votedOperators)
-        assert (all (\operator -> elem operator operators) votedOperators)
-        assert (all (\vote -> vote.proposal == self) voteRecords)
-        forA_ votes (\voteCid -> exercise voteCid Consume)
-        newRules <- exercise networkRules AddFinancier with financier = candidate
-        _ <- exercise committee ReplaceNetworkRules with newRules
-        pure newRules
+        assertMsg "TAVRYN_NOT_OPERATOR" (operator `elem` accepted)
+        assertMsg "TAVRYN_BOOTSTRAP_INCOMPLETE" (sort accepted == sort operators)
+        committeeCid <- create GovernanceCommittee with networkId; operators; threshold
+        rulesCid <- create NetworkRules with
+          networkId
+          operators
+          threshold
+          financiers
+          buyers = []
+          participants
+          maxAdvanceRate
+          version = 1
+        pure (committeeCid, rulesCid)
+
+-- | Signed by every operator. Any operator may propose or execute, but `Execute` only
+-- changes the rules with at least `threshold` distinct operator votes for this
+-- proposal and this rules version.
+template GovernanceCommittee
+  with
+    networkId : Text
+    operators : [Party]
+    threshold : Int
+  where
+    ensure networkId /= "" && validOperatorSet operators threshold
+    signatory operators
+
+    nonconsuming choice Propose : ContractId GovernanceProposal
+      with
+        proposer : Party
+        action : GovernanceAction
+        rulesCid : ContractId NetworkRules
+        expiresAt : Time
+      controller proposer
+      do
+        assertMsg "TAVRYN_NOT_OPERATOR" (proposer `elem` operators)
+        rules <- fetch rulesCid
+        assertRulesFor networkId operators rules
+        now <- getTime
+        assertMsg "TAVRYN_PROPOSAL_EXPIRED" (expiresAt > now)
+        validateAction rules action
+        create GovernanceProposal with
+          networkId
+          operators
+          proposer
+          action
+          rulesVersion = rules.version
+          expiresAt
+
+    nonconsuming choice Execute : ContractId NetworkRules
+      with
+        executor : Party
+        proposalCid : ContractId GovernanceProposal
+        voteCids : [ContractId GovernanceVote]
+        rulesCid : ContractId NetworkRules
+      controller executor
+      do
+        assertMsg "TAVRYN_NOT_OPERATOR" (executor `elem` operators)
+        proposal <- fetch proposalCid
+        assertMsg "TAVRYN_PROPOSAL_MISMATCH"
+          (proposal.networkId == networkId && proposal.operators == operators)
+        now <- getTime
+        assertMsg "TAVRYN_PROPOSAL_EXPIRED" (now < proposal.expiresAt)
+        rules <- fetch rulesCid
+        assertRulesFor networkId operators rules
+        assertMsg "TAVRYN_STALE_PROPOSAL" (rules.version == proposal.rulesVersion)
+        votes <- mapA fetch voteCids
+        assertMsg "TAVRYN_VOTE_MISMATCH"
+          (all
+            (\vote ->
+              vote.proposal == proposalCid
+                && vote.rulesVersion == rules.version
+                && vote.operator `elem` operators)
+            votes)
+        -- Two votes from the same operator count once.
+        let voters = dedup (map (.operator) votes)
+        assertMsg "TAVRYN_THRESHOLD_NOT_MET" (length voters >= threshold)
+        validateAction rules proposal.action
+        forA_ voteCids archive
+        archive proposalCid
+        archive rulesCid
+        case proposal.action of
+          OnboardBuyer buyer -> do
+            _ <- create BuyerApprovalRegistry with
+              networkId
+              operators
+              buyer
+              approvedInvoiceNumbers = []
+            pure ()
+          _ -> pure ()
+        create (applyAction rules proposal.action)
+
+template GovernanceProposal
+  with
+    networkId : Text
+    operators : [Party]
+    proposer : Party
+    action : GovernanceAction
+    rulesVersion : Int
+    expiresAt : Time
+  where
+    signatory proposer
+    observer operators
+
+    nonconsuming choice Vote : ContractId GovernanceVote
+      with
+        operator : Party
+      controller operator
+      do
+        assertMsg "TAVRYN_NOT_OPERATOR" (operator `elem` operators)
+        now <- getTime
+        assertMsg "TAVRYN_PROPOSAL_EXPIRED" (now < expiresAt)
+        create GovernanceVote with
+          networkId
+          operators
+          proposal = self
+          rulesVersion
+          operator
 
 template GovernanceVote
   with
-    governanceParty : Party
-    proposal : ContractId FinancierAdmissionProposal
+    networkId : Text
+    operators : [Party]
+    proposal : ContractId GovernanceProposal
+    rulesVersion : Int
     operator : Party
   where
     signatory operator
-    observer governanceParty
+    observer operators
 
-    choice Consume : ()
-      controller governanceParty
-      do pure ()
+validateAction : NetworkRules -> GovernanceAction -> Update ()
+validateAction rules action = case action of
+  AdmitFinancier financier ->
+    assertMsg "TAVRYN_ALREADY_MEMBER" (financier `notElem` rules.financiers)
+  RemoveFinancier financier ->
+    assertMsg "TAVRYN_NOT_MEMBER" (financier `elem` rules.financiers)
+  SetMaxAdvanceRate rate ->
+    assertMsg "TAVRYN_INVALID_RATE" (validRate rate)
+  OnboardBuyer buyer ->
+    assertMsg "TAVRYN_ALREADY_ONBOARDED" (buyer `notElem` rules.buyers)
+  AdmitParticipant participant ->
+    assertMsg "TAVRYN_ALREADY_MEMBER" (participant `notElem` rules.participants)
 
-allDistinct : [Party] -> Bool
-allDistinct parties = case parties of
-  [] -> True
-  first :: rest -> not (elem first rest) && allDistinct rest
+applyAction : NetworkRules -> GovernanceAction -> NetworkRules
+applyAction rules action =
+  let next = rules with version = rules.version + 1
+  in case action of
+    AdmitFinancier financier -> next with financiers = rules.financiers ++ [financier]
+    RemoveFinancier financier -> next with financiers = filter (/= financier) rules.financiers
+    SetMaxAdvanceRate rate -> next with maxAdvanceRate = rate
+    OnboardBuyer buyer -> next with buyers = rules.buyers ++ [buyer]
+    AdmitParticipant participant -> next with participants = rules.participants ++ [participant]

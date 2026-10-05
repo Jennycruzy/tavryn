@@ -1,5 +1,7 @@
 module Tavryn.Types where
 
+import DA.List (unique)
+
 data InvoiceTerms = InvoiceTerms with
   externalInvoiceNumber : Text
   faceValue : Decimal
@@ -7,3 +9,30 @@ data InvoiceTerms = InvoiceTerms with
   issuedDate : Date
   dueDate : Date
     deriving (Eq, Show)
+
+-- | The changes a governance committee can make to its network. Each one is applied
+-- only by `GovernanceCommittee.Execute` once enough distinct operators have voted.
+data GovernanceAction
+  = AdmitFinancier Party
+  | RemoveFinancier Party
+  | SetMaxAdvanceRate Decimal
+  | OnboardBuyer Party
+  | AdmitParticipant Party
+    deriving (Eq, Show)
+
+validTerms : InvoiceTerms -> Bool
+validTerms terms =
+  terms.externalInvoiceNumber /= ""
+    && terms.faceValue > 0.0
+    && terms.currency /= ""
+    && terms.dueDate > terms.issuedDate
+
+validOperatorSet : [Party] -> Int -> Bool
+validOperatorSet operators threshold =
+  not (null operators)
+    && unique operators
+    && threshold > 0
+    && threshold <= length operators
+
+validRate : Decimal -> Bool
+validRate rate = rate >= 0.0 && rate <= 1.0

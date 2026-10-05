@@ -1,0 +1,153 @@
+module Test.Support where
+
+import DA.Date (Month(..), date)
+import DA.Time (addRelTime, days)
+import Daml.Script
+
+import Tavryn.Contracts
+import Tavryn.Governance
+import Tavryn.Rules
+import Tavryn.Types
+
+data Parties = Parties with
+  supplier : Party
+  buyer : Party
+  financierA : Party
+  financierB : Party
+  financierC : Party
+  auditor : Party
+  operatorOne : Party
+  operatorTwo : Party
+  operatorThree : Party
+
+data Network = Network with
+  parties : Parties
+  committee : ContractId GovernanceCommittee
+
+operatorsOf : Parties -> [Party]
+operatorsOf p = [p.operatorOne, p.operatorTwo, p.operatorThree]
+
+allocateParties : Script Parties
+allocateParties = do
+  supplier <- allocatePartyByHint (PartyIdHint "Supplier")
+  buyer <- allocatePartyByHint (PartyIdHint "Buyer")
+  financierA <- allocatePartyByHint (PartyIdHint "FinancierA")
+  financierB <- allocatePartyByHint (PartyIdHint "FinancierB")
+  financierC <- allocatePartyByHint (PartyIdHint "FinancierC")
+  auditor <- allocatePartyByHint (PartyIdHint "Auditor")
+  operatorOne <- allocatePartyByHint (PartyIdHint "OperatorOne")
+  operatorTwo <- allocatePartyByHint (PartyIdHint "OperatorTwo")
+  operatorThree <- allocatePartyByHint (PartyIdHint "OperatorThree")
+  pure Parties with ..
+
+-- | Bootstraps a three-operator, threshold-two network with A and B admitted and the
+-- buyer onboarded through governance.
+setupNetwork : Script Network
+setupNetwork = do
+  p <- allocateParties
+  bootstrapCid <- submit p.operatorOne do
+    createCmd CommitteeBootstrap with
+      networkId = "tavryn-test"
+      operators = operatorsOf p
+      threshold = 2
+      accepted = [p.operatorOne]
+      financiers = [p.financierA, p.financierB]
+      participants = [p.supplier, p.auditor]
+      maxAdvanceRate = 0.95
+  bootstrapCid <- submit p.operatorTwo do
+    exerciseCmd bootstrapCid Join with operator = p.operatorTwo
+  bootstrapCid <- submit p.operatorThree do
+    exerciseCmd bootstrapCid Join with operator = p.operatorThree
+  (committee, _) <- submit p.operatorThree do
+    exerciseCmd bootstrapCid Finalize with operator = p.operatorThree
+  let network = Network with parties = p; committee
+  _ <- govern network (OnboardBuyer p.buyer)
+  pure network
+
+currentRules : Network -> Script (ContractId NetworkRules, NetworkRules)
+currentRules network = do
+  [rules] <- queryFilter @NetworkRules network.parties.operatorOne
+    (\rules -> rules.operators == operatorsOf network.parties)
+  pure rules
+
+registryFor : Network -> Script (ContractId BuyerApprovalRegistry)
+registryFor network = do
+  [(registryCid, _)] <- queryFilter @BuyerApprovalRegistry network.parties.buyer
+    (\registry -> registry.operators == operatorsOf network.parties)
+  pure registryCid
+
+propose : Network -> GovernanceAction -> Script (ContractId GovernanceProposal)
+propose network action = do
+  let p = network.parties
+  (rulesCid, _) <- currentRules network
+  now <- getTime
+  submit p.operatorOne do
+    exerciseCmd network.committee Propose with
+      proposer = p.operatorOne
+      action
+      rulesCid
+      expiresAt = addRelTime now (days 1)
+
+vote : Party -> ContractId GovernanceProposal -> Script (ContractId GovernanceVote)
+vote operator proposalCid =
+  submit operator do exerciseCmd proposalCid Vote with operator
+
+executeWith
+  : Network -> ContractId GovernanceProposal -> [ContractId GovernanceVote]
+  -> ContractId NetworkRules -> Commands (ContractId NetworkRules)
+executeWith network proposalCid voteCids rulesCid =
+  exerciseCmd network.committee Execute with
+    executor = network.parties.operatorOne
+    proposalCid
+    voteCids
+    rulesCid
+
+-- | Proposes, collects the threshold of votes and executes.
+govern : Network -> GovernanceAction -> Script (ContractId NetworkRules)
+govern network action = do
+  let p = network.parties
+  proposalCid <- propose network action
+  voteOne <- vote p.operatorOne proposalCid
+  voteTwo <- vote p.operatorTwo proposalCid
+  (rulesCid, _) <- currentRules network
+  submit p.operatorOne do executeWith network proposalCid [voteOne, voteTwo] rulesCid
+
+sampleTerms : Text -> InvoiceTerms
+sampleTerms invoiceNumber = InvoiceTerms with
+  externalInvoiceNumber = invoiceNumber
+  faceValue = 100.0
+  currency = "CC"
+  issuedDate = date 2026 Jan 1
+  dueDate = date 2026 Feb 1
+
+-- | Drafts and approves one invoice with the given eligible financiers.
+approvedInvoice : Network -> Text -> [Party] -> Script (ContractId ApprovedInvoice)
+approvedInvoice network invoiceNumber eligibleFinanciers = do
+  let p = network.parties
+  draftCid <- submit p.supplier do
+    createCmd InvoiceDraft with
+      supplier = p.supplier
+      buyer = p.buyer
+      terms = sampleTerms invoiceNumber
+      salt = "salt-" <> invoiceNumber <> "-0123456789"
+  (rulesCid, _) <- currentRules network
+  registryCid <- registryFor network
+  submit p.buyer do
+    exerciseCmd draftCid Approve with
+      rulesCid
+      registryCid
+      eligibleFinanciers
+      auditor = p.auditor
+
+offerTo
+  : Network -> ContractId ApprovedInvoice -> Party -> Decimal -> Decimal
+  -> Script (ContractId FinancingOffer)
+offerTo network approvedCid financier advance advanceRate = do
+  let p = network.parties
+  (rulesCid, _) <- currentRules network
+  submit (actAs [p.buyer, p.supplier]) do
+    exerciseCmd approvedCid CreateOffer with
+      rulesCid
+      financier
+      advance
+      advanceRate

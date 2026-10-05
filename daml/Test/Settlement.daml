@@ -1,0 +1,138 @@
+module Test.Settlement where
+
+import DA.Date (Month(..), date)
+import Daml.Script
+
+import Tavryn.Contracts
+import Test.Support
+
+testTwoStepFunding : Script ()
+testTwoStepFunding = script do
+  network <- setupNetwork
+  let p = network.parties
+  invoiceCid <- approvedInvoice network "INV-SETTLE" [p.financierA, p.financierB]
+  offerACid <- offerTo network invoiceCid p.financierA 90.0 0.90
+  offerBCid <- offerTo network invoiceCid p.financierB 88.0 0.88
+  (rulesCid, _) <- currentRules network
+
+  -- The locked amount must equal the offer and the instrument the invoice currency.
+  submitMustFail (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd offerACid BeginFunding with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      trackingId = "track-a"
+      settlementAmount = 95.0
+      instrument = "CC"
+  submitMustFail (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd offerACid BeginFunding with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      trackingId = "track-a"
+      settlementAmount = 90.0
+      instrument = "USD"
+
+  pendingCid <- submit (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd offerACid BeginFunding with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      trackingId = "track-a"
+      settlementAmount = 90.0
+      instrument = "CC"
+
+  -- While A's cash may be moving, B cannot lock the same invoice, and nothing that
+  -- buyer and supplier hold can mint a new slot.
+  submitMustFail (actAs [p.buyer, p.supplier, p.financierB]) do
+    exerciseCmd offerBCid BeginFunding with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      trackingId = "track-b"
+      settlementAmount = 88.0
+      instrument = "CC"
+  [] <- query @ApprovedInvoice p.buyer
+  [] <- query @FundingSlot p.buyer
+
+  -- Buyer and supplier cannot cancel without the locking financier.
+  submitMustFail (actAs [p.buyer, p.supplier]) do
+    exerciseCmd pendingCid Cancel
+
+  -- With A's agreement (for example, the transfer was rejected), funding reopens and
+  -- A's offer is restored.
+  reopenedCid <- submit (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd pendingCid Cancel
+  [_] <- query @FinancingOffer p.financierA
+
+  -- B now funds against the reopened invoice.
+  pendingBCid <- submit (actAs [p.buyer, p.supplier, p.financierB]) do
+    exerciseCmd offerBCid BeginFunding with
+      approvedInvoiceCid = reopenedCid
+      rulesCid
+      trackingId = "track-b"
+      settlementAmount = 88.0
+      instrument = "CC"
+  Some pending <- queryContractId p.auditor pendingBCid
+  financedCid <- submit (actAs [p.buyer, p.supplier, p.financierB]) do
+    exerciseCmd pendingBCid Complete with paymentReference = "cc-update-b"
+  None <- queryContractId p.auditor pending.invoiceDetails
+  [(_, receipt)] <- query @FundingReceipt p.auditor
+  assert (receipt.settlementAmount == 88.0
+    && receipt.instrument == "CC"
+    && receipt.trackingId == "track-b")
+
+  -- A's restored offer can no longer fund the invoice.
+  [(offerAAgainCid, _)] <- query @FinancingOffer p.financierA
+  submitMustFail (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd offerAAgainCid BeginFunding with
+      approvedInvoiceCid = reopenedCid
+      rulesCid
+      trackingId = "track-a-2"
+      settlementAmount = 90.0
+      instrument = "CC"
+
+  -- Repayment uses the same lock, transfer, complete pattern; a retry cannot start a
+  -- second transfer because the financed invoice is already locked.
+  pendingRepaymentCid <- submit (actAs [p.buyer, p.financierB]) do
+    exerciseCmd financedCid BeginRepayment with
+      repaymentDate = date 2026 Jan 20
+      trackingId = "repay-b"
+      settlementAmount = 100.0
+      instrument = "CC"
+  submitMustFail (actAs [p.buyer, p.financierB]) do
+    exerciseCmd financedCid BeginRepayment with
+      repaymentDate = date 2026 Jan 20
+      trackingId = "repay-b-again"
+      settlementAmount = 100.0
+      instrument = "CC"
+  receiptCid <- submit (actAs [p.buyer, p.financierB]) do
+    exerciseCmd pendingRepaymentCid CompleteRepayment with paymentReference = "cc-repay-b"
+  Some repayment <- queryContractId p.auditor receiptCid
+  assert (repayment.early && repayment.amount == 100.0 && repayment.trackingId == "repay-b")
+  pure ()
+
+testRepaymentCancel : Script ()
+testRepaymentCancel = script do
+  network <- setupNetwork
+  let p = network.parties
+  invoiceCid <- approvedInvoice network "INV-REPAY-CANCEL" [p.financierA]
+  offerCid <- offerTo network invoiceCid p.financierA 50.0 0.50
+  (rulesCid, _) <- currentRules network
+  financedCid <- submit (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd offerCid Accept with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      paymentReference = "BANK-REF"
+  submitMustFail (actAs [p.buyer, p.financierA]) do
+    exerciseCmd financedCid BeginRepayment with
+      repaymentDate = date 2025 Dec 31
+      trackingId = "repay-early"
+      settlementAmount = 100.0
+      instrument = "CC"
+  pendingCid <- submit (actAs [p.buyer, p.financierA]) do
+    exerciseCmd financedCid BeginRepayment with
+      repaymentDate = date 2026 Feb 1
+      trackingId = "repay-a"
+      settlementAmount = 100.0
+      instrument = "CC"
+  _ <- submit (actAs [p.buyer, p.financierA]) do
+    exerciseCmd pendingCid CancelRepayment
+  [_] <- query @FinancedInvoice p.financierA
+  pure ()
