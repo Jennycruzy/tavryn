@@ -18,8 +18,21 @@ import {
 } from "./tavryn-service.js";
 
 export function createTavrynServer(service: TavrynService) {
+  const writeLimiter = new WriteRateLimiter(service.writeRateLimit());
   return createServer(async (request, response) => {
     try {
+      if (isWriteApiRequest(request) && !writeLimiter.allow(clientKey(request))) {
+        writeJson(
+          response,
+          429,
+          {
+            error: "Too many write requests. Please try again in a minute.",
+            code: "WRITE_RATE_LIMITED",
+          },
+          { "Retry-After": "60" },
+        );
+        return;
+      }
       await route(request, response, service);
     } catch (error) {
       writeError(response, error);
@@ -560,6 +573,44 @@ function writeJson(
     "Content-Length": Buffer.byteLength(body),
   });
   response.end(body);
+}
+
+function isWriteApiRequest(request: IncomingMessage): boolean {
+  const method = request.method ?? "GET";
+  return method !== "GET" && method !== "HEAD" && method !== "OPTIONS"
+    && (request.url ?? "/").startsWith("/api/");
+}
+
+function clientKey(request: IncomingMessage): string {
+  const forwarded = request.headers["x-forwarded-for"];
+  const firstForwarded = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",", 1)[0];
+  return firstForwarded?.trim() || request.socket.remoteAddress || "unknown";
+}
+
+class WriteRateLimiter {
+  private readonly entries = new Map<string, { startedAt: number; count: number }>();
+
+  constructor(private readonly limit: number, private readonly windowMs = 60_000) {}
+
+  allow(key: string): boolean {
+    const now = Date.now();
+    const entry = this.entries.get(key);
+    if (!entry || now - entry.startedAt >= this.windowMs) {
+      this.entries.set(key, { startedAt: now, count: 1 });
+      this.prune(now);
+      return true;
+    }
+    if (entry.count >= this.limit) return false;
+    entry.count += 1;
+    return true;
+  }
+
+  private prune(now: number): void {
+    if (this.entries.size < 1000) return;
+    for (const [key, entry] of this.entries) {
+      if (now - entry.startedAt >= this.windowMs) this.entries.delete(key);
+    }
+  }
 }
 
 function hasDemoSession(cookieHeader: string | undefined, expected: string | undefined): boolean {

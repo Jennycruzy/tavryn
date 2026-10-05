@@ -23,6 +23,8 @@ be represented as completed without its artifact.
 - A public demo can be protected with a simple passphrase session using
   `TAVRYN_DEMO_ACCESS_TOKEN`; local runs remain open when it is unset.
 - The unsafe public pending-funding cancel route is disabled until reconciliation exists.
+- Canton Coin settlement now checks the configured invoice currency before sending cash,
+  and public API writes are limited per client to reduce accidental or abusive retries.
 - The UI and README explain the workflow in plain language and no longer say that offer
   terms are hidden from the financier receiving them.
 

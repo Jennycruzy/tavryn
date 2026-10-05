@@ -78,6 +78,8 @@ function safeErrorMessage(status, payload) {
     LEDGER_REQUEST_FAILED: "The ledger could not complete the request.",
     DEMO_AUTH_REQUIRED: "Sign in is required to use this demo.",
     DEMO_AUTH_FAILED: "That demo passphrase is not correct.",
+    WRITE_RATE_LIMITED: "Too many changes were sent. Please wait a minute and try again.",
+    SETTLEMENT_INSTRUMENT_MISMATCH: "This invoice is not denominated in the configured Canton Coin currency.",
   };
   if (payload?.code && messages[payload.code]) return messages[payload.code];
   if (status === 0) return messages.SERVICE_UNREACHABLE;

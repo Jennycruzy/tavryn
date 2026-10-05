@@ -44,7 +44,9 @@ interface TransferResponse {
 interface WalletTransaction {
   transaction_type?: string;
   event_id?: string;
+  tracking_id?: string;
   description?: string;
+  date?: string;
   sender?: { party?: string; amount?: string };
   receivers?: Array<{ party?: string; amount?: string }>;
 }
@@ -119,6 +121,8 @@ export class CantonCoinSettlement {
       sender,
       receiverParty,
       description,
+      trackingId,
+      amount,
     );
     if (!transaction) {
       throw new CantonCoinSettlementError(
@@ -151,25 +155,44 @@ export class CantonCoinSettlement {
     sender: string,
     receiver: string,
     description: string,
+    trackingId: string,
+    amount: string,
   ): Promise<WalletTransaction | undefined> {
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    const deadline = Date.now() + 30_000;
+    let beginAfterId: string | undefined;
+    while (Date.now() < deadline) {
       const response = await this.request<WalletTransactionsResponse>(
         validatorApiUrl,
         token,
         "/v0/wallet/transactions",
-        { page_size: 100 },
+        {
+          page_size: 100,
+          ...(beginAfterId ? { begin_after_id: beginAfterId } : {}),
+        },
       );
       const match = response.items?.find(
         (transaction) =>
           transaction.transaction_type === "transfer" &&
-          transaction.description === description &&
+          (transaction.tracking_id
+            ? transaction.tracking_id === trackingId
+            : transaction.description === description) &&
           transaction.sender?.party === sender &&
-          transaction.receivers?.some((item) => item.party === receiver),
+          sameDecimal(transaction.sender.amount, amount) &&
+          transaction.receivers?.some(
+            (item) => item.party === receiver && sameDecimal(item.amount, amount),
+          ),
       );
       if (match?.event_id) {
         return match;
       }
-      await delay(250);
+
+      const lastEventId = response.items?.at(-1)?.event_id;
+      if (!lastEventId || lastEventId === beginAfterId || (response.items?.length ?? 0) < 100) {
+        beginAfterId = undefined;
+        await delay(250);
+      } else {
+        beginAfterId = lastEventId;
+      }
     }
     return undefined;
   }
@@ -234,6 +257,15 @@ function updateIdFromEventId(eventId: string): string {
     );
   }
   return match[1];
+}
+
+function sameDecimal(value: string | undefined, expected: string): boolean {
+  if (!value || !/^\d+(?:\.\d+)?$/.test(value) || !/^\d+(?:\.\d+)?$/.test(expected)) {
+    return false;
+  }
+  const [whole, fraction = ""] = value.split(".");
+  const [expectedWhole, expectedFraction = ""] = expected.split(".");
+  return whole === expectedWhole && fraction.replace(/0+$/, "") === expectedFraction.replace(/0+$/, "");
 }
 
 function delay(milliseconds: number): Promise<void> {

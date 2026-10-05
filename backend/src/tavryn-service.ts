@@ -53,7 +53,13 @@ export interface SettledSubmission {
 
 export class TavrynInputError extends Error {
   readonly status = 400;
-  readonly publicCode = "INVALID_REQUEST";
+  readonly publicCode: string;
+
+  constructor(message: string, publicCode = "INVALID_REQUEST") {
+    super(message);
+    this.name = "TavrynInputError";
+    this.publicCode = publicCode;
+  }
 }
 
 export class TavrynConflictError extends Error {
@@ -115,6 +121,10 @@ export class TavrynService {
 
   demoSessionValue(): string | undefined {
     return this.config.demoAccessToken;
+  }
+
+  writeRateLimit(): number {
+    return this.config.writeRateLimit;
   }
 
   ledgerEnd(): Promise<number> {
@@ -346,6 +356,10 @@ export class TavrynService {
       "FinancingOffer",
     );
     const offerArgument = record(offer.createArgument, "FinancingOffer");
+    this.assertCantonCoinCurrency(
+      record(offerArgument.terms, "FinancingOffer.terms"),
+      "FinancingOffer.terms",
+    );
     const amount = decimalField(offerArgument, "advance", "FinancingOffer.advance");
 
     const pending = await this.ledger
@@ -460,6 +474,7 @@ export class TavrynService {
     );
     const financedArgument = record(financed.createArgument, "FinancedInvoice");
     const terms = record(financedArgument.terms, "FinancedInvoice.terms");
+    this.assertCantonCoinCurrency(terms, "FinancedInvoice.terms");
     const issuedDate = stringFieldValue(terms.issuedDate, "FinancedInvoice.terms.issuedDate");
     if (repaymentDate < issuedDate) {
       throw new TavrynInputError("repaymentDate must be on or after the invoice issue date");
@@ -506,6 +521,26 @@ export class TavrynService {
       this.config.parties.financierB,
       this.config.parties.auditor,
     ];
+  }
+
+  private assertCantonCoinCurrency(
+    terms: Record<string, unknown>,
+    termsName: string,
+  ): void {
+    const expected = this.config.settlement.cantonCoinSymbol;
+    if (!expected) {
+      throw new TavrynInputError(
+        "CANTON_COIN_SYMBOL must be configured before Canton Coin settlement is enabled",
+        "SETTLEMENT_INSTRUMENT_MISMATCH",
+      );
+    }
+    const currency = stringFieldValue(terms.currency, `${termsName}.currency`);
+    if (currency !== expected) {
+      throw new TavrynInputError(
+        `Canton Coin settlement requires invoice currency ${expected}; use the off-ledger path for ${currency}`,
+        "SETTLEMENT_INSTRUMENT_MISMATCH",
+      );
+    }
   }
 
   private assertGovernanceConfigured(threshold: number): void {

@@ -27,6 +27,7 @@ export interface TavrynConfig {
   httpPort: number;
   demoAccessToken?: string;
   demoPassphrase?: string;
+  writeRateLimit: number;
   parties: PartyConfig;
   governance: GovernanceConfig;
   settlement: SettlementConfig;
@@ -39,6 +40,7 @@ export interface GovernanceConfig {
 }
 
 export interface SettlementConfig {
+  cantonCoinSymbol?: string;
   validatorApiUrl?: string;
   walletTokens: {
     buyer?: string;
@@ -106,6 +108,7 @@ export function loadConfig(): TavrynConfig {
     httpPort: requiredPort("TAVRYN_HTTP_PORT"),
     demoAccessToken,
     demoPassphrase: optional("TAVRYN_DEMO_PASSPHRASE") ?? demoAccessToken,
+    writeRateLimit: optionalPositiveInteger("TAVRYN_WRITE_RATE_LIMIT", 30),
     parties: {
       supplier: required("SUPPLIER_PARTY_ID"),
       buyer: required("BUYER_PARTY_ID"),
@@ -124,6 +127,7 @@ export function loadConfig(): TavrynConfig {
       candidatePartyId: optional("GOVERNANCE_CANDIDATE_PARTY_ID"),
     },
     settlement: {
+      cantonCoinSymbol: optional("CANTON_COIN_SYMBOL"),
       validatorApiUrl: optional("CANTON_VALIDATOR_API_URL")?.replace(/\/+$/, ""),
       walletTokens: {
         buyer: optional("CANTON_WALLET_TOKEN_BUYER"),
