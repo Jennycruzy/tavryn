@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-05",
+  "sourceCommit": "ef454a6",
+  "environment": {
+    "network": "Canton Builder LocalNet on the selected VPS",
+    "damlSdk": "3.5.12",
+    "spliceVersion": "0.6.11",
+    "appProviderJsonApiPort": 3975,
+    "validatorApiPort": 3903,
+    "cantonCoinSymbol": "AMT",
+    "darSha256": "b64ee89de5e4d2571ffb1c53215d8ee2e4ca1f0a40cc16d1007df1db9e76d088",
+    "packageId": "d949d0f17cc2be0727767b447f75918987dcabfd58de4d41519be33e4166bf80"
+  },
+  "build": {
+    "dpmBuild": "passed",
+    "dpmTest": "passed",
+    "npmCi": "passed",
+    "npmRunBuild": "passed",
+    "secretsTransferred": false,
+    "runtimeEnv": "generated on the VPS as a root-only ignored file"
+  },
+  "walletAuthRepair": {
+    "walletPrincipals": [
+      "tavryn-buyer-wallet",
+      "tavryn-financier-a-wallet",
+      "tavryn-financier-b-wallet"
+    ],
+    "oldLedgerApiPrincipalWasNotUsedForWalletTransfers": true,
+    "signedDebitAmountsSupported": true
+  },
+  "settlement": {
+    "mode": "two-step, non-atomic",
+    "invoiceNumber": "TVN-SETTLED-BD757C65",
+    "currency": "AMT",
+    "funding": {
+      "ledgerUpdateId": "1220a36deba7cdb520392d25418d97634bd0ba4c16dfbe99dce92bcf8c420e1e137a",
+      "cashUpdateId": "1220bca9b2c0aee3c502869ded18e664b76846e8bf7076cd4fd9530fedd2e83b66d0",
+      "cashEventId": "#1220bca9b2c0aee3c502869ded18e664b76846e8bf7076cd4fd9530fedd2e83b66d0:0"
+    },
+    "financierBRejection": {
+      "status": 409,
+      "code": "INVOICE_UNAVAILABLE",
+      "source": "closed-offer preflight"
+    },
+    "repayment": {
+      "ledgerUpdateId": "1220b2648a14d70ddec9dc8a322f44e4e66d34f8f96ee9f4fd1813cfafbce79d6baf",
+      "cashUpdateId": "12201237ca29e2d1dad1c3acb95bbc23091301e32182067fef6b26c43b9c4a1ec345",
+      "cashEventId": "#12201237ca29e2d1dad1c3acb95bbc23091301e32182067fef6b26c43b9c4a1ec345:0"
+    },
+    "auditorSawFundingReceipt": true,
+    "auditorSawRepaymentReceipt": true,
+    "financierBSawFinancedInvoice": false,
+    "financierBSawFundingReceipt": false,
+    "financierBSawRepaymentReceipt": false
+  },
+  "cleanup": {
+    "orphanPendingFundingContractsReconciled": 2,
+    "activePendingFundingAfterFinalRun": 0
+  },
+  "backendHealth": {
+    "status": "healthy",
+    "ledgerEndOffset": 14168
+  }
+}

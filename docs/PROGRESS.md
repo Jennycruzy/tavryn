@@ -8,9 +8,9 @@ exists and can be reproduced. `Pending` is not a pass.
 | P0 | One contract visible on LocalNet; Mana day 1 logged | Pending | LocalNet contract visibility is proven by the P2 integration; Mana activity is not claimed | User Mana confirmation |
 | P1 | A funds; B fails; B cannot see A; duplicate approval refused | Passed | `dpm test` on SDK 3.5.12: `testCoreLifecycle: ok, 6 active contracts, 11 transactions` (2026-09-29) | Backend proof is recorded separately in P2 |
 | P2 | Backend drives P1 with party-scoped reads | Passed | `backend/npm run integration` on LocalNet (2026-09-30): funding update `1220f10925f78f7741e2c58ec4ca042448278f17390b1045ab98c15b4389af95848e`, offset 152; repayment update `12207d8db06577a3b5ac37280b93ec895d946f8e5f26c64ceb04430a71ddf0fc4d6a`, offset 155; Financier B received HTTP 409 `INVOICE_UNAVAILABLE` with failed command `tavryn-8b959286-b713-4430-8f5b-ad7ce072b129` and submission `88b1a60f-f281-4f31-a20b-0be1a8464eb7`; duplicate approval received HTTP 409 `DUPLICATE_OR_INVALID_APPROVAL`; B view had no `InvoiceDetails`, `FinancedInvoice`, or A offer | Settlement is not part of this backend gate |
-| P3 | Real Canton Coin funding and repayment | Blocked | Prior pass is preserved in `docs/evidence/P3_SETTLEMENT_2026-10-01.json`; the required pre-change VPS rerun on 2026-10-03 failed when the LocalNet wallet API returned HTTP 401, before a `FinancedInvoice` was created | Repair LocalNet wallet authentication, then rerun and replace evidence |
+| P3 | Real Canton Coin funding and repayment | Passed | `docs/evidence/P3_SETTLEMENT_2026-10-05-VPS.json`: live VPS run completed two-step AMT funding and repayment, recorded ledger and wallet event IDs, returned `409 INVOICE_UNAVAILABLE` for the closed rival offer, and left zero active `PendingFunding` contracts | LocalNet supervisor still reports `splice` health as starting even though the validator wallet and backend endpoints passed |
 | P4 | Governance threshold fails below and succeeds at threshold | Passed | `docs/evidence/P4_GOVERNANCE_2026-10-03.json`: full Daml suite passed; plain `npm run governance-integration` returned HTTP 409 below threshold and admitted `tavryn-financier-c` at threshold in update `12200024ea2fdc2adda3c4172492f1c5d106e3134812270dcfc333f9c43ac40ca436` | DevNet reproduction remains P7 |
-| P5 | Full lifecycle plus rejection from UI | Pending | `ui/` is served by the backend; static smoke passed in `docs/evidence/P5_UI_SMOKE_2026-10-01.json`, and a live browser render plus all six role routes passed in `docs/evidence/P5_UI_BROWSER_2026-10-03.json`; click-through lifecycle capture remains pending | P2 backend and P3 settlement; browser lifecycle capture |
+| P5 | Full lifecycle plus rejection from UI | Pending | `ui/` is served by the backend; static smoke passed in `docs/evidence/P5_UI_SMOKE_2026-10-01.json`, and a live browser render plus all six role routes passed in `docs/evidence/P5_UI_BROWSER_2026-10-03.json`; click-through lifecycle capture remains pending | Browser lifecycle capture |
 | P6 | Three real-looking invoice layouts extracted and corrected | Pending | Fixture paths and correction records | User-provided or legally usable invoice fixtures |
 | P7 | Full lifecycle on DevNet | Pending | DevNet update IDs | Hackathon DevNet access details |
 | P8 | Grofty flow, only if DAR/MainNet question resolves | Pending | MainNet evidence or documented exclusion | Grofty access and approved DAR path |
@@ -69,6 +69,20 @@ exists and can be reproduced. `Pending` is not a pass.
   this is runtime setup on the VPS and is not a repository secret.
 - The exact local and live evidence is preserved in
   `docs/evidence/P4_GOVERNANCE_2026-10-03.json`.
+
+## P3 settlement repair and rerun
+
+- Date: 2026-10-05 (Africa/Lagos; selected VPS).
+- The LocalNet restart invalidated the old wallet JWT signatures. Fresh self-signed tokens
+  were minted for the existing Tavryn wallet principals (`tavryn-buyer-wallet`,
+  `tavryn-financier-a-wallet`, and `tavryn-financier-b-wallet`); no token was committed.
+- The live Splice wallet reports Canton Coin as `AMT`, so the settlement integration now
+  uses the configured instrument instead of hard-coding `USD`.
+- The current wallet API reports sender debits as signed negative amounts. The backend now
+  matches their absolute decimal value when verifying the completed transfer.
+- Two `PendingFunding` contracts left by the pre-fix lookup timeout were reconciled against
+  their completed wallet event IDs. The final run left zero active `PendingFunding` contracts.
+- Full proof is preserved in `docs/evidence/P3_SETTLEMENT_2026-10-05-VPS.json`.
 
 ## Day 1 log
 

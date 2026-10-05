@@ -44,7 +44,7 @@ WHO PAYS
 Financiers pay per invoice financed because they bear the risk and cost of double financing.
 
 CURRENT STATUS
-The single-financing mechanism has recorded LocalNet evidence. Real Canton Coin wallet transfers were previously proven on the Splice-backed local network through a deliberately non-atomic two-step settlement path, but the 2026-10-03 rerun is blocked by expired wallet authentication, so P3 is not currently reproducible. Governance hardening, the UI click-through, DevNet deployment, and customer interviews remain in progress.
+The single-financing mechanism and the real Canton Coin wallet transfers are reproducible on the selected Splice-backed VPS through a deliberately non-atomic two-step settlement path. Governance is also proven there. The UI click-through, browser evidence, DevNet deployment, and customer interviews remain in progress.
 
 CLOSING LINE
 Every invoice can be pledged once. Prove it without revealing it.

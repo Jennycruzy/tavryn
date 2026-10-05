@@ -78,8 +78,10 @@ lenders.
   selected VPS, and remains explicitly non-atomic.
 - Shared governance is live on the selected VPS: one vote is rejected below the threshold,
   while two votes replace `NetworkRules` and admit the candidate financier.
-- The losing lender receives `409 INVOICE_UNAVAILABLE` with the failed command and
-  submission references.
+- The losing lender receives `409 INVOICE_UNAVAILABLE`. If the request reaches Canton,
+  Tavryn preserves the failed command and submission references; if the winning path has
+  already closed the rival offer, the backend returns a preflight conflict without
+  inventing a submission reference.
 - Party-scoped reads prove the losing lender cannot see the winner's offer, financed
   invoice, or private invoice details.
 
@@ -99,7 +101,7 @@ progress and must not be described as complete.
 | Is it technically non-trivial? | Competing private offers contend for one terms-free funding right without revealing invoice terms. | Daml contracts, role-scoped backend, real update IDs |
 | Does it work? | The core lifecycle runs on LocalNet through the real JSON Ledger API. | Reproducible integration output and short demo |
 | Can it become a business? | Buyers sponsor reverse-factoring programmes; financiers pay per verified invoice because they carry the duplicate-financing risk. | Pilot design, integrations, and interview evidence |
-| Is it complete? | Core invariant has prior evidence; the 2026-10-03 rerun found expired LocalNet wallet authentication, so P3 is not currently reproducible. Governance hardening, UI, and DevNet remain explicit gates. | Progress matrix with no inflated claims |
+| Is it complete? | Core invariant, governance, and the real two-step LocalNet Canton Coin path are reproducible on the selected VPS. Browser lifecycle capture, DevNet, UI, and interviews remain explicit gates. | Progress matrix with no inflated claims |
 
 ## Language discipline
 
