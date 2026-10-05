@@ -90,9 +90,9 @@ lenders.
 
 ### Honest current boundary
 
-Settlement is two-step and not atomic, with reconciliation. Everything runs on LocalNet on
-the selected VPS; DevNet evidence, customer interviews and the public link are still
-pending. The demo backend acts for every party through one ledger user; production needs
+Settlement is two-step and not atomic, with reconciliation. The lifecycle and governance also run on the HackCanton DevNet node; Canton Coin
+settlement is proven on LocalNet only. Customer interviews and the public link are
+still pending. The demo backend acts for every party through one ledger user; production needs
 one participant or wallet per organization.
 
 ## Judge-facing positioning
@@ -178,7 +178,7 @@ Canton Coin path end to end and record both wallet and ledger references.
 - [x] Tavryn end-to-end two-step Canton Coin funding and repayment
 - [x] Governance threshold proof
 - [x] Role-switching UI with governance view and recorded browser click-through
-- [ ] DevNet lifecycle evidence
+- [x] DevNet lifecycle and governance evidence ()
 - [ ] Customer interview evidence
 - [ ] Under-five-minute demo video
 - [ ] Public demo link checked in a private browser

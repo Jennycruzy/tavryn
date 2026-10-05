@@ -1,0 +1,123 @@
+{
+  "date": "2026-10-05",
+  "environment": "HackCanton S3 shared DevNet node hackcanton-01 (NODERS), guest tenant",
+  "package": "tavryn-network 0.1.4",
+  "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+  "setup": "Nine tavryn-* parties created and the DAR uploaded through the node Console (the guest ledger user is refused both through the API with HTTP 403); backend authenticated with OIDC password grant (client web-app-ui-hackcanton-01-devnet, scope daml_ledger_api).",
+  "bootstrap": {
+    "networkId": "tavryn",
+    "committeeCid": "008d0f2f71ee9f14c045bf0ddf9955ce57c52b97744ef579d85d2ede55c52cc707ca121220e4cf216317a3abfe7eadca7d91afba7e1dfe10d2b6bfe5397312427743a704de",
+    "rulesCid": "0021f396ff430de155f29895908239742f1f28b61235b82344e3702794ab308e95ca121220bcee0061335330410b1f02623bb262c4e51403b95919d2e3c167029b3d452b93",
+    "rulesVersion": "2",
+    "registryCid": "00953dd9d69ea33f65de513092456e041b1c188ec0dc1a64b5a1c7553e66ba886fca12122063c95388983633c8c0195df28ce4a1145528d0b09e4147be9c906903793a6150",
+    "steps": {
+      "bootstrapCreated": "1220335e70e6877033ae9f678c8402c3b3660c813168efd9e4e5b135f89b8f0819c7",
+      "joined:2": "122032b3a4a1704d062b9f6eaa0844dfc25eb7a0beb5bb576495d3ad904996aef998",
+      "joined:3": "1220654b907ec49b0a422e1d3e280b89c9a472923e1bc06cf107863aa035a49c5731",
+      "finalized": "1220d482b1b0601277389b319aab208d3c395fcc6ae03de6148be4d214a1885b85dd",
+      "buyerOnboarded": "122009ce07200a090e8ae698d2277e733bce0a32bcee9e9528cf707b2488b9b2042d"
+    }
+  },
+  "core": {
+    "command": "TAVRYN_ENV_FILE=.env.devnet npm run integration",
+    "result": {
+      "invoiceNumber": "TVN-MUVRY584-YJ48",
+      "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+      "networkId": "tavryn",
+      "rulesCid": "0021f396ff430de155f29895908239742f1f28b61235b82344e3702794ab308e95ca121220bcee0061335330410b1f02623bb262c4e51403b95919d2e3c167029b3d452b93",
+      "simultaneousFunding": {
+        "winner": "financierB",
+        "winnerUpdateId": "122004a3939daca5cb6a3ebae8949ce3f048cab539155288bcb23921cf4a719f97e1",
+        "loser": "financierA",
+        "loserStatus": 409,
+        "loserCode": "INVOICE_UNAVAILABLE",
+        "loserLedgerErrorCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+        "loserSubmissionReference": {
+          "commandId": "tavryn-0f43d7a7-8414-4380-abd9-8632daedd8ef",
+          "submissionId": "e7cc18f0-0b76-4e44-be9d-887bfb7ae689"
+        }
+      },
+      "repayment": {
+        "updateId": "1220c1e4d4a11048188a67667ebd134a780f2d597d12e9be329097dec5b64810ec3e"
+      },
+      "duplicateApproval": {
+        "status": 409,
+        "code": "DUPLICATE_INVOICE"
+      },
+      "invoiceCommitment": "c81d361e96b79dc3264360426076d15d2826fbfbaffe4db98be45b4ef1999f76",
+      "loserViewOfThisInvoice": [
+        "Tavryn.Contracts:OfferClosed"
+      ],
+      "loserVisibleTemplates": [
+        "Tavryn.Rules:NetworkRules",
+        "Tavryn.Contracts:OfferClosed"
+      ],
+      "auditorVisibleTemplates": [
+        "Tavryn.Rules:NetworkRules",
+        "Tavryn.Contracts:FundingReceipt",
+        "Tavryn.Contracts:RepaymentReceipt"
+      ]
+    }
+  },
+  "governance": {
+    "command": "TAVRYN_ENV_FILE=.env.devnet npm run governance-integration",
+    "result": {
+      "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+      "networkId": "tavryn",
+      "threshold": 2,
+      "operators": 3,
+      "rulesVersionBefore": 2,
+      "rulesVersionAfter": 4,
+      "maxAdvanceRateAfter": "0.9400000000",
+      "changes": [
+        {
+          "action": {
+            "type": "AdmitFinancier",
+            "financierRole": "financierC"
+          },
+          "below": {
+            "status": 409,
+            "code": "GOVERNANCE_THRESHOLD_NOT_MET",
+            "message": "Not enough operator approvals (1 of 2). Nothing changed.",
+            "submissionReference": {
+              "commandId": "tavryn-ae2866b7-4b27-43aa-80f9-eca952e5eb75",
+              "submissionId": "434675b2-df1c-4697-8280-4e2f0e506fdd"
+            }
+          },
+          "atThreshold": {
+            "status": 200,
+            "updateId": "1220a1ac4b0df6aa403aa2b0696caf44dcf03b9aa25f738b9277bed54edbd6e800c5"
+          }
+        },
+        {
+          "action": {
+            "type": "SetMaxAdvanceRate",
+            "rate": "0.94"
+          },
+          "below": {
+            "status": 409,
+            "code": "GOVERNANCE_THRESHOLD_NOT_MET",
+            "message": "Not enough operator approvals (1 of 2). Nothing changed.",
+            "submissionReference": {
+              "commandId": "tavryn-42e7884b-152f-4c9e-8c54-106d572f8180",
+              "submissionId": "6874ad21-e81c-4c37-80fa-5f96a5369826"
+            }
+          },
+          "atThreshold": {
+            "status": 200,
+            "updateId": "1220f3149d448e504bb07d3df2dd5ac84ee70ef40fbc914283fd30ac763f46fcbba0"
+          }
+        }
+      ],
+      "preExistingOfferFunded": {
+        "status": 200,
+        "updateId": "122024343dbe849229534a4b931f2df973b96c384abf45978e2a3bd064e25098f7b9"
+      },
+      "admittedFinancierFunded": {
+        "status": 200,
+        "updateId": "12203cd8e88ee0136907a7eae779d828749af7cb2548c89830df4ec40ae4bcedbdac"
+      }
+    }
+  },
+  "notClaimed": "Canton Coin settlement on DevNet: the tavryn-* parties have no DevNet wallets, so the two-step Canton Coin path is proven on LocalNet only (P3)."
+}
