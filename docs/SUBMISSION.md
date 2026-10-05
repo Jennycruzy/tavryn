@@ -104,7 +104,7 @@ one participant or wallet per organization.
 | Is it technically non-trivial? | Competing private offers contend for one terms-free funding right without revealing invoice terms. | Daml contracts, role-scoped backend, real update IDs |
 | Does it work? | The core lifecycle runs on LocalNet through the real JSON Ledger API. | Reproducible integration output and short demo |
 | Can it become a business? | Buyers sponsor reverse-factoring programmes; financiers pay per verified invoice because they carry the duplicate-financing risk. | Pilot design, integrations, and interview evidence |
-| Is it complete? | Core invariant, governance, and the real two-step LocalNet Canton Coin path are reproducible on the selected VPS. Browser lifecycle capture, DevNet, UI, and interviews remain explicit gates. | Progress matrix with no inflated claims |
+| Is it complete? | Core invariant and governance run on LocalNet and the HackCanton DevNet node, with a recorded browser click-through; the two-step Canton Coin path is proven on LocalNet. Interviews remain an explicit gate. | Progress matrix with no inflated claims |
 
 ## Language discipline
 
@@ -178,7 +178,7 @@ Canton Coin path end to end and record both wallet and ledger references.
 - [x] Tavryn end-to-end two-step Canton Coin funding and repayment
 - [x] Governance threshold proof
 - [x] Role-switching UI with governance view and recorded browser click-through
-- [x] DevNet lifecycle and governance evidence ()
+- [x] DevNet lifecycle and governance evidence (`docs/evidence/P7_DEVNET_2026-10-05.json`)
 - [ ] Customer interview evidence
 - [ ] Under-five-minute demo video
 - [ ] Public demo link checked in a private browser
