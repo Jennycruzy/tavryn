@@ -1,20 +1,20 @@
-# Governance integration boundary
+# Shared rules
 
-Tavryn's governed membership path is implemented in
-[`daml/Tavryn/Governance.daml`](../daml/Tavryn/Governance.daml) and exposed through the
-backend routes under `/api/v1/governance`. A committee with threshold `2` rejects an
-execution with one vote and admits a candidate after the second vote; the proof is in
-[`docs/evidence/P4_GOVERNANCE_2026-10-03.json`](../docs/evidence/P4_GOVERNANCE_2026-10-03.json).
+Tavryn's network rules — which lenders may join, which buyers are onboarded, and the
+maximum share of an invoice a lender may advance — are not owned by any one company.
 
-The Decentralization Manager example is not claimed as a completed external integration.
-The workspace does not contain its exact pinned example or DevNet credentials, so this
-directory records the safe integration boundary rather than guessing its API:
+- The rules are signed by **every** network admin, and nothing can edit them directly.
+- Any admin can propose a change. It applies only after **two of the three** admins approve
+  it; with one approval the network refuses and nothing changes.
+- A proposal made against older rules is out of date and can't be applied.
+- Changing the rules never breaks invoices that are already open.
 
-1. Distribute the vetted Tavryn DAR to every participating Canton participant.
-2. Configure the governance party and operator parties in each participant's Ledger API
-   user rights.
-3. Point the Decentralization Manager's governed choice at the Tavryn committee and
-   preserve the below-threshold rejection plus at-threshold update IDs as evidence.
+The contracts are in [`daml/Tavryn/Governance.daml`](../daml/Tavryn/Governance.daml) and
+[`daml/Tavryn/Rules.daml`](../daml/Tavryn/Rules.daml). The records from the live runs are in
+[`docs/evidence/P4_GOVERNANCE_2026-10-05-VPS.json`](../docs/evidence/P4_GOVERNANCE_2026-10-05-VPS.json)
+(local network) and
+[`docs/evidence/P7_DEVNET_2026-10-05.json`](../docs/evidence/P7_DEVNET_2026-10-05.json)
+(HackCanton DevNet).
 
-The equivalent committee contract remains useful on LocalNet and on the selected VPS
-until the external manager example and DevNet access are supplied.
+The same voting step could later be run through BitSafe's Decentralization Manager, with
+each admin on its own Canton node; that integration is not part of this build.

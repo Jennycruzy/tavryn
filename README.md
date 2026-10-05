@@ -2,7 +2,7 @@
 
 **Every invoice can be financed once — and lenders never see each other's deals.**
 
-![Tavryn, seen by a lender](docs/images/tavryn-app.png)
+![Tavryn](docs/images/tavryn-landing.png)
 
 ## The problem
 
@@ -44,6 +44,13 @@ prices where competitors can see them.
   rule change refused with one approval and applied with two
   ([video and screenshots](docs/evidence/P5_CLICKTHROUGH_2026-10-05/)).
 - **Demo script** — [docs/DEMO.md](docs/DEMO.md).
+
+## The app
+
+Each company — supplier, buyer, each lender, the auditor and the network admins — has its
+own page and sees only its own business.
+
+![The supplier's page in the Tavryn app](docs/images/tavryn-app.png)
 
 ## Who it's for
 
