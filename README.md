@@ -97,14 +97,21 @@ export PATH="$DPM_BIN:$PATH"
 export JAVA_HOME="$JAVA_RUNTIME"
 dpm build
 dpm test
-dpm codegen-js .daml/dist/tavryn-0.1.3.dar -o backend/daml.js -s tavryn.js
+dpm codegen-js .daml/dist/tavryn-network-0.1.4.dar -o backend/daml.js -s tavryn.js
 cp .env.example backend/.env
 # Fill backend/.env with values returned by the running participant.
 cd backend
 npm install
 npm run build
+npm test
+npm run bootstrap          # idempotent: committee, rules and buyer registry
 npm run integration
+npm run governance-integration
+npm run settlement-integration
 ```
+
+For a shared DevNet node, put the OIDC settings in `backend/.env.devnet` and prefix each
+command with `TAVRYN_ENV_FILE=.env.devnet`.
 
 `DPM_BIN` and `JAVA_RUNTIME` above are placeholders for paths installed on the machine;
 they are not values to copy into the repository. `backend/.env` is ignored from the first
@@ -120,13 +127,16 @@ before the P5 gate is claimed complete.
 
 ## Honest limits
 
-- Duplicate creation is prevented by the buyer approval service checking each external
-  invoice number once; this is an explicit trust assumption.
-- An invoice financed with a lender outside this network cannot be detected.
-- The MVP backend may submit demo roles centrally; production requires each organization
-  to operate its own participant or wallet.
-- Settlement is two-step and non-atomic in the current MVP. A successful cash transfer
-  followed by a failed ledger completion requires explicit reconciliation.
+- Within the participating network, an invoice can be financed once. Financing by a lender
+  outside the network cannot be detected.
+- Each buyer's approval registry is created by governance and refuses a second approval
+  of the same external invoice number; the operators can read those numbers.
+- An eligible financier can see which other financiers were eligible for that invoice,
+  though never their offers, prices or wins.
+- Settlement is two-step and not atomic; reconciliation by tracking ID completes or
+  cancels any lock left between the cash transfer and the ledger record.
+- The demo backend submits for every party through one ledger user; production requires
+  each organization to operate its own participant or wallet.
 
 ## Business materials
 

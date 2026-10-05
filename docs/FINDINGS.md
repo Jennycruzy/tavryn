@@ -78,3 +78,15 @@ each fact before it is treated as a local capability.
    already vetted. The project version was incremented to `0.1.1`; package
    `ef9391a48163946a5c3fe26f92e5e9c980be5aab8b30a4891e4312b97db1fe05` was then
    uploaded with `vetAllPackages=true` and verified in the package-vetting topology state.
+
+## 0.1.4 build findings (verified on the selected VPS, 2026-10-05)
+
+| Finding | Evidence | Consequence |
+|---|---|---|
+| `DA.Crypto.Text.sha256` is available in SDK 3.5.12 but only accepts hex input; `sha256 "abc"` fails with "Message argument is not a hex string". `sha256 (toHex text)` works. | Local `dpm test` probe | The invoice commitment is computed on the ledger as `sha256(toHex(show (supplier, buyer, terms, salt)))`; it is no longer a trust assumption. |
+| Uploading a redesigned DAR under the same package name with a higher version is refused: `NOT_VALID_UPGRADE_PACKAGE` ("Template FinancierAdmissionProposal appears in package that is being upgraded, but does not appear in the upgrading package"). | LocalNet `POST /v2/packages` | The breaking 0.1.4 model ships as package `tavryn-network`. |
+| The JSON API refuses an active-contract list longer than its node limit: HTTP 413 `JSON_API_MAXIMUM_LIST_ELEMENTS_NUMBER_REACHED` ("201 is greater than the node limit (200)"), with `errorCategory` 2 — the same category as lock contention. | LocalNet, supplier wildcard read | Reads use template filters for Tavryn templates only, and conflict mapping matches Canton error identifiers, never the category. |
+| Template filters in `/v2/state/active-contracts` take a package-name reference (`#tavryn-network:Module:Entity`); a package-ID reference is refused with `INVALID_FIELD` ("expected a package name"). | LocalNet | Reads filter by package name, then keep only the configured package ID. |
+| Observed rejection identifiers: simultaneous funding → HTTP 409 `LOCAL_VERDICT_LOCKED_CONTRACTS`; Daml assertion → HTTP 400 `DAML_FAILURE`, category 9, with the `TAVRYN_*` tag in `cause`; bad token → HTTP 401 `NA`; unknown package → HTTP 404 `TEMPLATES_OR_INTERFACES_NOT_FOUND`. | `backend/test/fixtures/*.json`, recorded by `backend/scripts/capture-ledger-errors.ts` | Only contention identifiers and `TAVRYN_*` tags become business conflicts; everything else stays `502 LEDGER_REQUEST_FAILED`. |
+| The LocalNet ledger user could not act as operator three or the candidate financier until granted; the user is a participant admin, so `npm run bootstrap` grants missing `CanActAs` rights itself. A guest user on a shared node cannot. | `npm run bootstrap` | On DevNet every party must already be grantable to the team's user in the node console. |
+| Anyone can create a one-operator network and approve a duplicate there. Such an invoice still cannot be funded on the real network, because funding checks the invoice against the rules the financier's service trusts. | `Test.CoreLifecycle.testSingleApproval` | Network identity is anchored by the financier's configured operators, not by the ledger alone. |

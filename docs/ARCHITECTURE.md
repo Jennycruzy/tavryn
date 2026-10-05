@@ -1,88 +1,124 @@
 # Architecture and decisions
 
+Current model: package `tavryn-network` 0.1.4 (`daml/Tavryn/`). It replaced the earlier
+`tavryn` 0.1.0–0.1.3 package; the redesign is not upgrade-compatible, so it ships under a
+new package name (see `FINDINGS.md`).
+
+## Choice graph
+
+```
+CommitteeBootstrap ──Join…──Finalize──▶ GovernanceCommittee + NetworkRules v1
+GovernanceCommittee.Propose ─▶ GovernanceProposal ─Vote×N─▶ GovernanceVote
+GovernanceCommittee.Execute (≥ threshold distinct votes) ─▶ NetworkRules v+1
+                                     (OnboardBuyer also creates BuyerApprovalRegistry)
+
+InvoiceDraft.Approve ─▶ InvoiceDetails + FundingSlot + ApprovedInvoice
+ApprovedInvoice.CreateOffer ─▶ FinancingOffer (one per financier)
+FinancingOffer.BeginFunding ─▶ PendingFunding ─Complete─▶ FinancedInvoice + FundingReceipt
+                                              └Cancel───▶ ApprovedInvoice + FundingSlot + offer
+FinancingOffer.Accept (off-ledger cash) ─▶ FinancedInvoice + FundingReceipt
+FinancingOffer.Withdraw ─▶ OfferClosed (losing offers)
+FinancedInvoice.BeginRepayment ─▶ PendingRepayment ─CompleteRepayment─▶ RepaymentReceipt
+                                                    └CancelRepayment──▶ FinancedInvoice
+FinancedInvoice.Repay (off-ledger cash) ─▶ RepaymentReceipt
+```
+
 ## Core ledger invariant
 
 The full invoice terms live in private `InvoiceDetails`, signed by the buyer and supplier
-and observed by the auditor. `ApprovedInvoice` is a terms-free approval seal, observed by
-the eligible financiers, and `FundingSlot` is the shared one-use semaphore. A financier's
-private `FinancingOffer` carries that invoice's terms so it can price the deal, but it
-never sees another financier's offer, price, or win. The current seal and slot expose the
-names of all eligible financiers to each eligible financier; removing rival names requires
-explicit disclosure plus a multi-participant proof and remains roadmap work.
+and observed by the auditor. `ApprovedInvoice` is the approval seal and `FundingSlot` the
+terms-free one-use semaphore; both are observed by the eligible financiers. Funding
+(`BeginFunding` or `Accept`) consumes **both** the slot and the approved invoice in one
+transaction. Whichever financier's transaction commits first wins; a simultaneous attempt
+is rejected by Canton (`LOCAL_VERDICT_LOCKED_CONTRACTS`, recorded live in
+`docs/evidence/P2_CORE_2026-10-05-VPS.json`), and any later attempt finds nothing to
+consume.
 
-Each `FinancingOffer` is signed by the buyer and supplier, observed by its named
-financier, and carries only that financier's proposed terms. `Accept` is controlled by
-the buyer, supplier, and named financier. It consumes the shared `FundingSlot`, then
-nested-consumes the approval seal and private details to create `FinancedInvoice`. The
-winning financier therefore becomes a stakeholder of its own receivable, while a losing
-financier sees its own offer and the terms-free seal but not the winner's offer, terms, or
-receivable. There is no `FundingAuthorization` template in the current model.
+The invoice commitment is computed on the ledger in `Approve` as
+`sha256(toHex(show (supplier, buyer, terms, salt)))`, with a random salt held only in
+`InvoiceDetails`. A supplier cannot attach a commitment that does not match the invoice.
 
-No unique contract key is used. The buyer approval service is the single maintainer of
-external invoice numbers and checks duplicates before creating `ApprovedInvoice`. The MVP
-also represents that maintained state as a buyer-signed, consuming
-`BuyerApprovalRegistry`: it is ordinary ledger state, not a unique key, and makes the
-duplicate-approval failure testable without pretending that Canton globally enforces
-key uniqueness.
+Offers store the invoice commitment and the network ID and operators, never a contract
+ID of the rules or the approved invoice. Funding choices are handed the current
+`ApprovedInvoice` and `NetworkRules` and check that they match. Offers therefore survive a
+cancelled funding attempt and every governance change.
+
+## Governance
+
+`NetworkRules` (network ID, operators, threshold, admitted financiers, onboarded buyers,
+participants, maximum advance rate, version) is signed by **all operators** and has **no
+choices**. It is created only by the bootstrap chain, in which every operator adds its
+own signature, and replaced only by `GovernanceCommittee.Execute`. `Execute` requires at
+least `threshold` votes from distinct operators for that proposal and that rules
+version, and an unexpired proposal. A vote from one operator counts once, a vote for
+another proposal is rejected, and a proposal made against an older rules version is
+stale. There is no privileged governance party.
+
+Membership gates funding: `Approve` admits only financiers in `rules.financiers`, and
+`CreateOffer`, `Accept` and `BeginFunding` re-check membership and
+`advanceRate <= rules.maxAdvanceRate` against the current rules. Removing a financier or
+lowering the ceiling stops open offers that no longer comply.
+
+Anyone can create a one-operator "network" of their own. That cannot touch the real
+network: a financier funds only against the rules of the network its service is
+configured for, and `lockForFunding` rejects an invoice approved on any other network
+(tested in `Test.CoreLifecycle.testSingleApproval`).
+
+## Single approval
+
+`BuyerApprovalRegistry` is signed by the operators and observed by the buyer. It is
+created only by an `OnboardBuyer` governance action, which refuses a buyer already
+onboarded, so each buyer has exactly one registry. `Approve` consumes and recreates it,
+refusing an external invoice number already recorded. The registry is a list, so approval
+cost grows linearly with approvals; sharding it is roadmap work. The operators can read
+the approved external invoice numbers.
+
+## Settlement
+
+Status: **two-step and not atomic**, with ledger-driven reconciliation.
+
+1. The backend generates a tracking ID, then `BeginFunding` locks the invoice in
+   `PendingFunding` with that tracking ID, the amount (which must equal the offer's
+   advance) and the instrument (which must equal the invoice currency).
+2. The backend sends the Canton Coin transfer from the financier's wallet with the same
+   tracking ID.
+3. `Complete` archives the private details and creates `FinancedInvoice` and a
+   `FundingReceipt` with the amount, instrument, tracking ID and cash reference.
+4. `Cancel` restores the approved invoice, a fresh slot and the offer. It needs the
+   locking financier, so buyer and supplier cannot reopen funding behind its back.
+
+Repayment uses the same pattern (`BeginRepayment` → transfer → `CompleteRepayment` or
+`CancelRepayment`). A retry cannot pay twice: the financed invoice is locked before the
+transfer, so a second attempt has nothing to lock.
+
+If the process stops between the transfer and the ledger record, the lock stays. The
+sweeper (on start and every 60 s) and `POST /api/v1/pending-funding/:cid/reconcile`
+search the sender's wallet history for the tracking ID: a found transfer completes the
+lock; no transfer after the transfer's expiry plus a margin cancels it; anything else
+stays pending. A transfer the wallet refuses outright cancels the lock immediately.
 
 ## Visibility
 
-- Supplier: its drafts, approved invoices, offers, and financed invoices.
-- Buyer: its drafts/approved invoices and repayment obligations.
-- Each financier: only its own offers and the deals it funded.
-- Auditor: explicit observer on the full history.
-- Governance: network membership/rules only.
+- Supplier: its drafts, approved invoices and details, offers, and financed invoices.
+- Buyer: drafts, approved invoices and details, its registry, repayment obligations.
+- Each financier: its own offers and their terms, `OfferClosed` facts for offers it lost,
+  the deals it funded, and the network rules. On an invoice where it is eligible it also
+  learns which other financiers were eligible; removing those names needs explicit
+  disclosure and a multi-participant proof (roadmap).
+- Auditor: receipts and the private details of open invoices.
+- Operators: rules, committee, proposals, votes and the buyer registry.
 
-The implementation must verify this with party-specific queries; a centrally privileged
-backend view is not evidence of Canton privacy.
-
-Rejected funding commands do not receive a Canton transaction `updateId`, because no
-ledger transaction is committed. The backend returns the real generated command and
-submission IDs with the plain rejection message; the raw Canton error payload remains
-server-side.
-
-## Settlement decision
-
-Status: **two-step settlement selected for the MVP; it is not atomic**.
-
-The local Splice-backed network accepted the documented V2 allocation request, but the
-complete allocation settlement choice was not captured as a Tavryn funding transaction.
-The implementation therefore uses the documented fallback:
-
-1. `FinancingOffer.BeginFunding` consumes the opaque `FundingSlot` and creates
-   `PendingFunding`.
-2. The backend submits a real Canton Coin token-standard transfer from the financier's
-   wallet to the supplier's wallet.
-3. After the wallet history exposes the transfer event/update reference,
-   `PendingFunding.Complete` consumes the approved invoice and creates `FinancedInvoice`
-   plus an auditor-visible `FundingReceipt` containing that reference.
-4. Repayment follows the same external-transfer-then-ledger-record pattern. The buyer's
-   transfer reference is stored in `RepaymentReceipt`.
-
-This preserves the single-financing invariant while cash is in flight, but the cash move
-and the ledger transition are separate transactions. If a wallet transfer succeeds and
-the follow-up ledger command fails, the `PendingFunding` contract remains for explicit
-reconciliation; the service never silently marks it complete.
-
-The atomic allocation spike and the two-step path are both recorded in
-`docs/FINDINGS.md`. P3 passed end to end against the Splice participant on 2026-10-01:
-funding and repayment each produced a real wallet event/update reference and a Tavryn
-ledger update, while the losing financier received `INVOICE_UNAVAILABLE`. Exact evidence
-is recorded in `docs/PROGRESS.md` and `docs/evidence/P3_SETTLEMENT_2026-10-01.json`.
-
-## Governance decision
-
-The target governed action is admitting a financier and changing
-`NetworkRules.maxAdvanceRate`. The threshold, operators, node names, and independence
-must come from the Decentralization Manager run. If integration stalls, the fallback is a
-working shared-control module contributed to or documented against the manager rather
-than a simulated governance screen.
+Rejected commands receive no `updateId`. The backend returns the real command and
+submission IDs and the Canton error identifier with a plain message; the raw error body
+stays server-side.
 
 ## Trust assumptions and production boundary
 
-- The buyer approval service is trusted to reject duplicate external invoice numbers.
+- The demo backend submits for every party through one ledger user. Production needs one
+  participant or wallet per organization and single-controller choices (roadmap).
 - The network cannot detect financing by a lender outside the network.
-- The MVP backend may submit multiple demo parties; production isolates participants,
-  credentials, and reads per organization.
-- Credentials, package IDs, synchronizer IDs, token admin IDs, fees, and party IDs are
-  configuration obtained from the running network, never source code constants.
+- Ledger reads are scoped to Tavryn templates of the configured package; the JSON API
+  still refuses a single list longer than its node limit (200 on LocalNet), so a role
+  with very many active contracts needs paging (roadmap).
+- Credentials, package IDs, synchronizer IDs and party IDs are configuration from the
+  running network, never source constants.

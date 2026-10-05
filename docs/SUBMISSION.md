@@ -20,9 +20,10 @@ final submission. Update proof as it lands; never promote a planned feature into
 ### Challenges
 
 Select **BitSafe Challenge — Contribution Pool: Decentralizing Apps on Canton**. Tavryn's
-entry will integrate shared control over financier admission and
-`NetworkRules.maxAdvanceRate`, then demonstrate on LocalNet that an action fails below
-the approval threshold and succeeds at the threshold.
+network rules (financier admission, removal, buyer onboarding and the maximum advance
+rate) are signed by every operator and change only through a threshold of operator votes;
+on LocalNet an action fails below the threshold and succeeds at it
+(`docs/evidence/P4_GOVERNANCE_2026-10-05-VPS.json`).
 
 Do not select **BitSafe Gold** unless a Decentralized Party is actually deployed on
 DevNet or MainNet and the deployment-path application is completed by its deadline. Do
@@ -69,28 +70,29 @@ lenders.
 
 ### Working proof today
 
-- The complete Daml lifecycle test passes: draft, buyer approval, two private offers,
-  first funding, rival rejection, repayment, auditor trail, and duplicate-approval refusal.
-- A role-scoped JSON Ledger API backend drives the same lifecycle on LocalNet.
-- Successful funding and repayment have recorded Canton update IDs.
-- Real Canton Coin wallet transfers have been proven for the supplier funding and buyer
-  repayment legs on a Splice-backed local network; the two-step P3 path also passes on the
-  selected VPS, and remains explicitly non-atomic.
-- Shared governance is live on the selected VPS: one vote is rejected below the threshold,
-  while two votes replace `NetworkRules` and admit the candidate financier.
-- The losing lender receives `409 INVOICE_UNAVAILABLE`. If the request reaches Canton,
-  Tavryn preserves the failed command and submission references; if the winning path has
-  already closed the rival offer, the backend returns a preflight conflict without
-  inventing a submission reference.
-- Party-scoped reads prove the losing lender cannot see the winner's offer, financed
-  invoice, or private invoice details.
+- On the Canton ledger, the same invoice cannot be financed twice. Two financiers funded
+  the same invoice at the same moment; Canton accepted one and rejected the other
+  (`LOCAL_VERDICT_LOCKED_CONTRACTS`), and the loser saw only "This invoice is no longer
+  available".
+- The losing lender cannot see the winner, the amount or the terms; party-scoped reads
+  prove it.
+- Real Canton Coin moves for funding and repayment, with amounts recorded on the
+  receipts. The two steps are reconciled by tracking ID: a crash after the cash moves is
+  completed automatically, and a retried repayment never pays twice.
+- Shared governance: the network rules are signed by every operator and change only when
+  two of three vote. One vote is refused ("Not enough operator approvals (1 of 2).
+  Nothing changed."); two votes admit a financier or change the maximum advance rate.
+  Invoices already in flight keep working.
+- A buyer approves each external invoice number once, through a registry only governance
+  can create; the invoice commitment is computed on the ledger.
+- A recorded browser session runs the whole flow through the UI.
 
 ### Honest current boundary
 
-The single-financing and privacy invariant works. Tavryn contains a real, two-step Canton
-Coin settlement path, but it is not atomic. Governed membership is proven on the selected
-VPS; browser lifecycle evidence, DevNet evidence, and customer interviews remain in
-progress and must not be described as complete.
+Settlement is two-step and not atomic, with reconciliation. Everything runs on LocalNet on
+the selected VPS; DevNet evidence, customer interviews and the public link are still
+pending. The demo backend acts for every party through one ledger user; production needs
+one participant or wallet per organization.
 
 ## Judge-facing positioning
 
@@ -174,7 +176,7 @@ Canton Coin path end to end and record both wallet and ledger references.
 - [ ] Daily diary entries posted with artifacts
 - [x] Tavryn end-to-end two-step Canton Coin funding and repayment
 - [x] Governance threshold proof
-- [x] Role-switching UI (served/static smoke proof; browser lifecycle capture remains open)
+- [x] Role-switching UI with governance view and recorded browser click-through
 - [ ] DevNet lifecycle evidence
 - [ ] Customer interview evidence
 - [ ] Under-five-minute demo video

@@ -1,52 +1,44 @@
 # Remaining Tavryn work
 
-The core build is complete and reproducible on the selected VPS. The remaining items
-need an external owner, an external credential, or a real human interaction; none should
-be represented as completed without its artifact.
+The `tavryn-network` 0.1.4 model is built, tested and deployed on the selected VPS
+LocalNet (see `PROGRESS.md`, gates P1–P5). What remains needs an external credential, an
+owner decision, or a real human interaction; none of it is claimed without its artifact.
 
-## Completed and stable
+## Landed in 0.1.4
 
-- Core Daml lifecycle and threshold governance tests pass with the full DPM suite.
-- The 0.1.3 DAR is deployed on the selected Canton Builder LocalNet.
-- The backend is supervised by `deploy/tavryn-backend.service` and the health endpoint is
-  live.
-- Core backend, two-step Canton Coin settlement, and governance integration clients have
-  passed against the VPS.
-- The role-switching UI renders in headless Chrome; all six role-scoped routes return 200.
-- The VPS LocalNet network issue is repaired: nginx is attached to `localnet`, and the
-  LocalNet API/UI ports are loopback-only; host firewall exposure remains limited to
-  SSH/HTTP/HTTPS.
-
-## First fixes now landed
-
-- Early repayment is allowed after the invoice issue date; the Daml lifecycle test covers
-  an early repayment date.
-- Participant failures are no longer shown as if a rival financier won; real funding
-  conflicts remain a clear 409 and other ledger failures keep their submission reference.
-- A public demo can be protected with a simple passphrase session using
-  `TAVRYN_DEMO_ACCESS_TOKEN`; local runs remain open when it is unset.
-- The unsafe public pending-funding cancel route is disabled until reconciliation exists.
-- Losing offers are now withdrawn after a winner is accepted or funded, so they no longer
-  remain visibly fundable.
-- Canton Coin settlement now checks the configured invoice currency before sending cash,
-  and public API writes are limited per client to reduce accidental or abusive retries.
-- The UI and README explain the workflow in plain language and no longer say that offer
-  terms are hidden from the financier receiving them.
+- Rules change only with a threshold of distinct operator votes; no party can change them
+  alone, and a governance change no longer breaks invoices already in flight.
+- Membership and the maximum advance rate gate approval, offers and funding.
+- One operator-signed approval registry per buyer, created only by governance.
+- The invoice commitment is computed on the ledger.
+- Funding consumes the approved invoice with the slot; cancelling needs the locking
+  financier; settlement amounts and instruments are checked on the ledger and recorded on
+  the receipts; early repayment is allowed.
+- Reconciliation by tracking ID with a background sweeper; a retried repayment cannot pay
+  twice.
+- Losing financiers get an `OfferClosed` fact with no winner, amount or terms.
+- Canton errors are mapped by identifier; auth, package and transport failures stay 502.
+- OIDC token support and `TAVRYN_ENV_FILE` for DevNet; idempotent `npm run bootstrap`.
+- UI governance view and a recorded browser click-through.
 
 ## Owner-required handoff
 
 | Item | Needed from the owner | Finish action |
 |---|---|---|
-| Mana day-1 proof | Confirmation that Mana activity was completed, or permission to leave it unclaimed | Add the date and permitted artifact to `docs/PROGRESS.md` |
-| Browser lifecycle capture | A manual or automated browser run through create, approve, offer, fund, rival rejection, and repay | Save screenshots/video and promote P5 from Pending |
-| Invoice fixtures | Three real or permissioned invoice layouts, plus the corrections that may be recorded | Put source files under `fixtures/invoices/`, record provenance, then complete P6 |
-| DevNet | Participant URL, Ledger API user/token, party IDs, synchronizer ID, and DAR deployment permission | Run the three backend integrations and record update IDs for P7 |
-| Grofty | Confirmation that the bounty is in scope and a working signing/connectivity path | Integrate and prove the flow, or document the deliberate exclusion in the submission |
-| Interviews | Five consented conversations: two buyer operators, two SME suppliers, one financier | Record dates and anonymized findings in `docs/INTERVIEWS.md` and `docs/VALIDATION.md` |
-| Demo video | A recorder and a public/private-window destination | Follow `docs/DEMO.md`, keep it under five minutes, and add checksum/link evidence |
-| Public submission link | A domain or hosting destination assigned to Tavryn | Configure a dedicated proxy/server name and verify it in a private browser |
+| DevNet (P7) | A working HackCanton login in `backend/.env.devnet`, nine distinct parties with `actAs` for the team's ledger user (supplier, buyer, auditor, financiers A–C, three operators), the synchronizer ID, permission to upload `tavryn-network-0.1.4.dar`, and DevNet Canton Coin in the buyer and financier A wallets | Upload, `TAVRYN_ENV_FILE=.env.devnet npm run bootstrap`, the three integrations, and `docs/evidence/P7_DEVNET_<date>.json` |
+| Grofty (P8) | "Grofty DevNet: yes" (with funds) or "no" | Prove one funding and one repayment signed in Grofty, or write the exclusion into `SUBMISSION.md` |
+| Mana (P0) | Completion date and artifact, or leave unclaimed | Add to `PROGRESS.md` |
+| Invoice fixtures (P6) | Three permissioned invoices, or approval to use clearly labelled synthetic ones | `fixtures/invoices/` with provenance |
+| Interviews (P9) | Five real, consented conversations | Dates and anonymized notes in `INTERVIEWS.md` and `VALIDATION.md` |
+| Demo video (P10) | A recording of `DEMO.md` under five minutes | Link and checksum |
+| Public link (P11) | A hostname with DNS pointing at the VPS | Dedicated nginx server block and TLS, checked in a private window |
 
-The VPS public IP currently belongs to other Nginx virtual hosts and returns a default 404
-for Tavryn; no existing project was overwritten to manufacture a link. The Tavryn backend
-remains bound to loopback behind its systemd unit until a dedicated public hostname is
-provided.
+## Production roadmap (not shipped)
+
+- One participant or wallet per organization, with single-controller choices so each
+  party signs its own step; OIDC sessions that map a user to a party.
+- Remove rival financier names from shared payloads with explicit disclosure, proven
+  across participants.
+- Shard the approval registry; page large role views past the JSON API list limit.
+- Invoice ingestion with extraction and supplier corrections.
+- Decentralization Manager integration for the governance committee.

@@ -6,17 +6,32 @@ exists and can be reproduced. `Pending` is not a pass.
 | Phase | Gate | Status | Evidence | Open dependency |
 |---|---|---|---|---|
 | P0 | One contract visible on LocalNet; Mana day 1 logged | Pending | LocalNet contract visibility is proven by the P2 integration; Mana activity is not claimed | User Mana confirmation |
-| P1 | A funds; B fails; B cannot see A; duplicate approval refused | Passed | `dpm test` on SDK 3.5.12: `testCoreLifecycle: ok, 6 active contracts, 11 transactions` (2026-09-29) | Backend proof is recorded separately in P2 |
-| P2 | Backend drives P1 with party-scoped reads | Passed | `backend/npm run integration` on LocalNet (2026-09-30): funding update `1220f10925f78f7741e2c58ec4ca042448278f17390b1045ab98c15b4389af95848e`, offset 152; repayment update `12207d8db06577a3b5ac37280b93ec895d946f8e5f26c64ceb04430a71ddf0fc4d6a`, offset 155; Financier B received HTTP 409 `INVOICE_UNAVAILABLE` with failed command `tavryn-8b959286-b713-4430-8f5b-ad7ce072b129` and submission `88b1a60f-f281-4f31-a20b-0be1a8464eb7`; duplicate approval received HTTP 409 `DUPLICATE_OR_INVALID_APPROVAL`; B view had no `InvoiceDetails`, `FinancedInvoice`, or A offer | Settlement is not part of this backend gate |
-| P3 | Real Canton Coin funding and repayment | Passed | `docs/evidence/P3_SETTLEMENT_2026-10-05-VPS.json`: live VPS run completed two-step AMT funding and repayment, recorded ledger and wallet event IDs, returned `409 INVOICE_UNAVAILABLE` for the closed rival offer, and left zero active `PendingFunding` contracts | — |
-| P4 | Governance threshold fails below and succeeds at threshold | Passed | `docs/evidence/P4_GOVERNANCE_2026-10-03.json`: full Daml suite passed; plain `npm run governance-integration` returned HTTP 409 below threshold and admitted `tavryn-financier-c` at threshold in update `12200024ea2fdc2adda3c4172492f1c5d106e3134812270dcfc333f9c43ac40ca436` | DevNet reproduction remains P7 |
-| P5 | Full lifecycle plus rejection from UI | Pending | `ui/` is served by the backend; static smoke passed in `docs/evidence/P5_UI_SMOKE_2026-10-01.json`, and a live browser render plus all six role routes passed in `docs/evidence/P5_UI_BROWSER_2026-10-03.json`; click-through lifecycle capture remains pending | Browser lifecycle capture |
+| P1 | A funds; B fails; B cannot see A; duplicate approval refused | Passed | `dpm test` on SDK 3.5.12 for `tavryn-network` 0.1.4 (2026-10-05): 9 scripts pass, covering the lifecycle, single approval, a fake-network duplicate that cannot be funded, two-step funding and repayment, cancel only with the locking financier, the governance threshold, and funding after governance changes | — |
+| P2 | Backend drives P1 with party-scoped reads | Passed | `docs/evidence/P2_CORE_2026-10-05-VPS.json`: A and B funded at the same moment; A won, B got HTTP 409 `INVOICE_UNAVAILABLE` from Canton `LOCAL_VERDICT_LOCKED_CONTRACTS` with its failed submission reference; B's view of that invoice is one `OfferClosed`; duplicate approval refused with `DUPLICATE_INVOICE` | — |
+| P3 | Real Canton Coin funding and repayment | Passed | `docs/evidence/P3_SETTLEMENT_2026-10-05-VPS-0.1.4.json`: AMT funding and repayment with amounts matching the receipts; a crash after the transfer completed after restart by tracking ID; a wallet-rejected transfer reopened the invoice; a repayment retry moved no cash and reconciliation completed the original | Not atomic by design |
+| P4 | Governance threshold fails below and succeeds at threshold | Passed | `docs/evidence/P4_GOVERNANCE_2026-10-05-VPS.json`: `AdmitFinancier` and `SetMaxAdvanceRate` each refused at 1 of 2 operator votes ("Not enough operator approvals (1 of 2). Nothing changed.") and applied at 2; an offer opened before the changes still funded; the admitted financier funded. No party can change the rules alone | DevNet reproduction remains P7 |
+| P5 | Full lifecycle plus rejection from UI | Passed | `docs/evidence/P5_CLICKTHROUGH_2026-10-05/`: a recorded headless-Chromium session (video and 14 screenshots) through the deployed UI: draft, single approval, two offers, B sees only its own, A funds with Canton Coin, B left with "This invoice is no longer available", repayment, auditor receipts, a governance change refused below threshold and applied at it | — |
 | P6 | Three real-looking invoice layouts extracted and corrected | Pending | Fixture paths and correction records | User-provided or legally usable invoice fixtures |
 | P7 | Full lifecycle on DevNet | Pending | DevNet update IDs | Hackathon DevNet access details |
 | P8 | Grofty flow, only if DAR/MainNet question resolves | Pending | MainNet evidence or documented exclusion | Grofty access and approved DAR path |
 | P9 | Brief, pilot, validation, pitch materials | Pending | Document paths and genuine interviews | Five interview conversations |
 | P10 | Reproducible sub-five-minute demo | Pending | Video path and checksum | DevNet lifecycle |
 | P11 | Private-window link check and submission | Pending | Checklist and screenshots | Public repo, project profile, Mana requirement |
+
+## 0.1.4 milestone
+
+- Date: 2026-10-05 (Africa/Lagos), on the selected VPS LocalNet.
+- Package `tavryn-network` 0.1.4, ID
+  `c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9`, uploaded and
+  deployed; `tavryn-backend` restarted on it and `/health` passed.
+- `npm run bootstrap` created the network through the operators' bootstrap chain
+  (finalized in update `122052b28e1ec2e3930202d50b7ad0c292b427007c5e8afeb5462d2b455c89ca683e`)
+  and onboarded the buyer by governance vote
+  (`12202799c7549d6588fbdbf942afb61bd3f65c2166befe7d91a45e9bf25e70ef6bcf`). A second run
+  changed nothing.
+- `dpm test`: 9 of 9 scripts pass. `npm test`: 9 of 9 unit tests pass, using Canton
+  error bodies recorded from the VPS (`backend/test/fixtures/`).
+- Integrations: P2, P3 and P4 evidence above; browser click-through P5 above.
 
 ## Remote VPS milestone
 
