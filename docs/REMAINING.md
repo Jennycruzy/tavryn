@@ -13,6 +13,9 @@ be represented as completed without its artifact.
 - Core backend, two-step Canton Coin settlement, and governance integration clients have
   passed against the VPS.
 - The role-switching UI renders in headless Chrome; all six role-scoped routes return 200.
+- The VPS LocalNet network issue is repaired: nginx is attached to `localnet`, and the
+  LocalNet API/UI ports are loopback-only; host firewall exposure remains limited to
+  SSH/HTTP/HTTPS.
 
 ## First fixes now landed
 
