@@ -25,6 +25,8 @@ export interface TavrynConfig {
   participantId?: string;
   packageId?: string;
   httpPort: number;
+  demoAccessToken?: string;
+  demoPassphrase?: string;
   parties: PartyConfig;
   governance: GovernanceConfig;
   settlement: SettlementConfig;
@@ -93,6 +95,7 @@ function optionalPositiveIntegerOrUndefined(name: string): number | undefined {
 }
 
 export function loadConfig(): TavrynConfig {
+  const demoAccessToken = optional("TAVRYN_DEMO_ACCESS_TOKEN");
   return {
     ledgerApiUrl: required("CANTON_LEDGER_API_URL").replace(/\/+$/, ""),
     ledgerApiToken: optional("CANTON_LEDGER_API_TOKEN"),
@@ -101,6 +104,8 @@ export function loadConfig(): TavrynConfig {
     participantId: optional("CANTON_PARTICIPANT_ID"),
     packageId: optional("CANTON_PACKAGE_ID"),
     httpPort: requiredPort("TAVRYN_HTTP_PORT"),
+    demoAccessToken,
+    demoPassphrase: optional("TAVRYN_DEMO_PASSPHRASE") ?? demoAccessToken,
     parties: {
       supplier: required("SUPPLIER_PARTY_ID"),
       buyer: required("BUYER_PARTY_ID"),

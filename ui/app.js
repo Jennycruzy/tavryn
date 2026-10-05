@@ -36,7 +36,7 @@ class ApiError extends Error {
   }
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, authRetry = false) {
   let response;
   try {
     response = await fetch(path, {
@@ -50,6 +50,17 @@ async function api(path, options = {}) {
   let payload = {};
   if (text) {
     try { payload = JSON.parse(text); } catch { payload = {}; }
+  }
+  if (response.status === 401 && payload?.code === "DEMO_AUTH_REQUIRED" && !authRetry) {
+    const passphrase = window.prompt("Enter the Tavryn demo passphrase");
+    if (passphrase) {
+      const session = await fetch("/api/v1/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passphrase }),
+      });
+      if (session.ok) return api(path, options, true);
+    }
   }
   if (!response.ok) throw new ApiError(response.status, payload);
   return payload;
@@ -65,6 +76,8 @@ function safeErrorMessage(status, payload) {
     SETTLEMENT_LEDGER_REPAYMENT_FAILED: "Cash moved, but repayment needs ledger reconciliation.",
     SERVICE_UNREACHABLE: "The Tavryn service could not be reached.",
     LEDGER_REQUEST_FAILED: "The ledger could not complete the request.",
+    DEMO_AUTH_REQUIRED: "Sign in is required to use this demo.",
+    DEMO_AUTH_FAILED: "That demo passphrase is not correct.",
   };
   if (payload?.code && messages[payload.code]) return messages[payload.code];
   if (status === 0) return messages.SERVICE_UNREACHABLE;
@@ -272,7 +285,7 @@ function buyerActionMarkup() {
       </div>
       <div class="form-actions"><button class="button button-primary" type="submit">Approve invoice once</button><span class="form-note">The buyer registry rejects a second approval of the same external number.</span></div>
     </form>
-    ${financed.length ? `<div class="action-divider"></div><form class="action-form" data-action="repay"><div class="form-grid"><div class="field wide"><label for="financedCid">Financed invoice</label><select id="financedCid" name="financedCid" required>${optionList(financed, "financed invoice")}</select></div><div class="field"><label for="repaymentFinancier">Financier to repay</label><select id="repaymentFinancier" name="financierRole" required><option value="">Select financier</option><option value="financierA">Financier A</option><option value="financierB">Financier B</option></select></div><div class="field"><label for="repaymentDate">Repayment date</label><input id="repaymentDate" name="repaymentDate" type="date" required /></div></div><div class="form-actions"><button class="button button-primary" type="submit">Repay with Canton Coin</button><span class="form-note">The date must be on or after the invoice due date.</span></div></form>` : ""}
+    ${financed.length ? `<div class="action-divider"></div><form class="action-form" data-action="repay"><div class="form-grid"><div class="field wide"><label for="financedCid">Financed invoice</label><select id="financedCid" name="financedCid" required>${optionList(financed, "financed invoice")}</select></div><div class="field"><label for="repaymentFinancier">Financier to repay</label><select id="repaymentFinancier" name="financierRole" required><option value="">Select financier</option><option value="financierA">Financier A</option><option value="financierB">Financier B</option></select></div><div class="field"><label for="repaymentDate">Repayment date</label><input id="repaymentDate" name="repaymentDate" type="date" required /></div></div><div class="form-actions"><button class="button button-primary" type="submit">Repay with Canton Coin</button><span class="form-note">The date can be on or after the invoice issue date.</span></div></form>` : ""}
   `;
 }
 
@@ -330,7 +343,7 @@ function contractDetail(name, arg) {
   if (name === "NetworkRules") return `Maximum advance <strong>${escapeHtml(arg.maxAdvanceRate || "—")}</strong>`;
   if (name === "BuyerApprovalRegistry") return `<strong>${escapeHtml((arg.approvedInvoiceNumbers || []).length)}</strong> approved external invoice number(s)`;
   if (name === "InvoiceDraft") return `<strong>${escapeHtml(arg.terms?.externalInvoiceNumber || "Draft")}</strong> · ${escapeHtml(arg.terms?.faceValue || "—")} ${escapeHtml(arg.terms?.currency || "")}`;
-  if (name === "ApprovedInvoice") return "Terms hidden from financiers · available for one funding attempt";
+  if (name === "ApprovedInvoice") return "One-use approval · terms appear only in each private offer";
   if (name === "FundingSlot") return "Terms-free shared state · first successful claim wins";
   if (name === "FinancingOffer") return `<strong>${escapeHtml(arg.advance || "—")}</strong> advance · ${escapeHtml(arg.advanceRate || "—")} rate`;
   if (name === "PendingFunding") return `<strong>${escapeHtml(arg.advance || "—")}</strong> locked · cash transfer in progress`;

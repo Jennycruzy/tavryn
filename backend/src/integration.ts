@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { loadConfig } from "./config.js";
+import { createDemoSession, sessionHeaders } from "./integration-auth.js";
 import { integrationPort } from "./integration-port.js";
 import { startTavrynServer, stopTavrynServer } from "./server.js";
 import { TavrynService } from "./tavryn-service.js";
@@ -15,10 +16,12 @@ const service = new TavrynService(config);
 const port = integrationPort(config.httpPort);
 const server = await startTavrynServer(service, port);
 const baseUrl = `http://127.0.0.1:${port}`;
+let demoCookie: string | undefined;
 const invoiceNumber = `TVN-${randomUUID().slice(0, 8).toUpperCase()}`;
 const commitment = `commitment-${randomUUID()}`;
 
 try {
+  demoCookie = await createDemoSession(baseUrl, config);
   const rules = await post("/api/v1/setup/rules", { maxAdvanceRate: "0.95" });
   const registry = await post("/api/v1/setup/registry", {});
   const draft = await post("/api/v1/invoices/drafts", {
@@ -164,14 +167,16 @@ try {
 async function post(path: string, body: Record<string, unknown>): Promise<JsonResponse> {
   const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...sessionHeaders(demoCookie) },
     body: JSON.stringify(body),
   });
   return { status: response.status, body: (await response.json()) as Record<string, any> };
 }
 
 async function get(path: string): Promise<JsonResponse> {
-  const response = await fetch(`${baseUrl}${path}`);
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: sessionHeaders(demoCookie),
+  });
   return { status: response.status, body: (await response.json()) as Record<string, any> };
 }
 

@@ -46,6 +46,46 @@ async function route(
     return;
   }
 
+  if (method === "POST" && parts.join("/") === "api/v1/session") {
+    if (!service.demoAuthEnabled()) {
+      writeJson(response, 404, {
+        error: "Demo sign-in is not enabled on this server.",
+        code: "DEMO_AUTH_DISABLED",
+      });
+      return;
+    }
+    const body = await readJson(request);
+    const session = service.issueDemoSession(stringField(body, "passphrase"));
+    if (!session) {
+      writeJson(response, 401, {
+        error: "That demo passphrase is not correct.",
+        code: "DEMO_AUTH_FAILED",
+      });
+      return;
+    }
+    writeJson(
+      response,
+      200,
+      { authenticated: true },
+      {
+        "Set-Cookie": `tavryn_session=${encodeURIComponent(session)}; HttpOnly; SameSite=Strict; Path=/`,
+      },
+    );
+    return;
+  }
+
+  if (
+    parts[0] === "api" &&
+    service.demoAuthEnabled() &&
+    !hasDemoSession(request.headers.cookie, service.demoSessionValue())
+  ) {
+    writeJson(response, 401, {
+      error: "Sign in to use the Tavryn demo.",
+      code: "DEMO_AUTH_REQUIRED",
+    });
+    return;
+  }
+
   if (
     method === "GET" &&
     parts.length === 5 &&
@@ -204,12 +244,13 @@ async function route(
     parts[2] === "pending-funding" &&
     parts[4] === "cancel"
   ) {
-    const body = await readJson(request);
-    const result = await service.cancelPendingFunding(
-      parts[3],
-      parseFinancierRole(stringField(body, "financierRole")),
-    );
-    writeSubmission(response, 200, result);
+    // A public cancel endpoint could reopen an invoice after cash moved. Until
+    // reconciliation is implemented, fail closed instead of offering an unsafe
+    // recovery action.
+    writeJson(response, 410, {
+      error: "Funding recovery is not available yet; keep the pending funding locked.",
+      code: "SETTLEMENT_RECONCILIATION_REQUIRED",
+    });
     return;
   }
 
@@ -491,6 +532,9 @@ function writeError(response: ServerResponse, error: unknown): void {
     writeJson(response, 502, {
       error: "The ledger could not complete the request.",
       code: "LEDGER_REQUEST_FAILED",
+      ...(error.submissionReference
+        ? { submissionReference: error.submissionReference }
+        : {}),
     });
     return;
   }
@@ -503,13 +547,34 @@ function writeError(response: ServerResponse, error: unknown): void {
   });
 }
 
-function writeJson(response: ServerResponse, status: number, value: unknown): void {
+function writeJson(
+  response: ServerResponse,
+  status: number,
+  value: unknown,
+  extraHeaders: Record<string, string> = {},
+): void {
   const body = JSON.stringify(value);
   response.writeHead(status, {
+    ...extraHeaders,
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
   });
   response.end(body);
+}
+
+function hasDemoSession(cookieHeader: string | undefined, expected: string | undefined): boolean {
+  if (!cookieHeader || !expected) return false;
+  return cookieHeader.split(";").some((part) => {
+    const separator = part.indexOf("=");
+    if (separator < 0) return false;
+    const name = part.slice(0, separator).trim();
+    if (name !== "tavryn_session") return false;
+    try {
+      return decodeURIComponent(part.slice(separator + 1).trim()) === expected;
+    } catch {
+      return false;
+    }
+  });
 }
 
 if (process.argv[1]?.endsWith("/server.ts") || process.argv[1]?.endsWith("/server.js")) {

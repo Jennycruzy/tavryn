@@ -1,4 +1,5 @@
 import { loadConfig } from "./config.js";
+import { createDemoSession, sessionHeaders } from "./integration-auth.js";
 import { integrationPort } from "./integration-port.js";
 import { startTavrynServer, stopTavrynServer } from "./server.js";
 import { TavrynService } from "./tavryn-service.js";
@@ -12,8 +13,10 @@ const config = loadConfig();
 const port = integrationPort(config.httpPort);
 const server = await startTavrynServer(new TavrynService(config), port);
 const baseUrl = `http://127.0.0.1:${port}`;
+let demoCookie: string | undefined;
 
 try {
+  demoCookie = await createDemoSession(baseUrl, config);
   const rules = await post("/api/v1/setup/rules", { maxAdvanceRate: "0.95" });
   const committee = await post("/api/v1/governance/committee", {
     networkRulesCid: contractId(rules, "NetworkRules"),
@@ -89,7 +92,7 @@ try {
 async function post(path: string, body: Record<string, unknown>): Promise<JsonResponse> {
   const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...sessionHeaders(demoCookie) },
     body: JSON.stringify(body),
   });
   return {

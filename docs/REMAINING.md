@@ -14,6 +14,18 @@ be represented as completed without its artifact.
   passed against the VPS.
 - The role-switching UI renders in headless Chrome; all six role-scoped routes return 200.
 
+## First fixes now landed
+
+- Early repayment is allowed after the invoice issue date; the Daml lifecycle test covers
+  an early repayment date.
+- Participant failures are no longer shown as if a rival financier won; real funding
+  conflicts remain a clear 409 and other ledger failures keep their submission reference.
+- A public demo can be protected with a simple passphrase session using
+  `TAVRYN_DEMO_ACCESS_TOKEN`; local runs remain open when it is unset.
+- The unsafe public pending-funding cancel route is disabled until reconciliation exists.
+- The UI and README explain the workflow in plain language and no longer say that offer
+  terms are hidden from the financier receiving them.
+
 ## Owner-required handoff
 
 | Item | Needed from the owner | Finish action |

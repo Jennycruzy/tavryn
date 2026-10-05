@@ -92,7 +92,8 @@ testCoreLifecycle = script do
 
   receiptCid <- submit (actAs [buyer, financierA]) do
     exerciseCmd financedCid Repay with
-      repaymentDate = date 2026 Mar 1
+      -- Early repayment is valid as long as it is not before issuance.
+      repaymentDate = date 2026 Jan 15
       paymentReference = "CC-REPAY-001"
 
   None <- queryContractId financierA financedCid

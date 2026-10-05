@@ -102,6 +102,21 @@ export class TavrynService {
     this.settlement = new CantonCoinSettlement(config);
   }
 
+  demoAuthEnabled(): boolean {
+    return Boolean(this.config.demoAccessToken);
+  }
+
+  issueDemoSession(passphrase: string): string | undefined {
+    if (!this.config.demoAccessToken || passphrase !== this.config.demoPassphrase) {
+      return undefined;
+    }
+    return this.config.demoAccessToken;
+  }
+
+  demoSessionValue(): string | undefined {
+    return this.config.demoAccessToken;
+  }
+
   ledgerEnd(): Promise<number> {
     return this.ledger.getLedgerEnd();
   }
@@ -196,7 +211,7 @@ export class TavrynService {
         [this.config.parties.governance],
       )
       .catch((error) => {
-        if (error instanceof LedgerApiError) {
+        if (isLedgerConflict(error)) {
           throw new TavrynConflictError(
             "Governance threshold not met; the financier has not been admitted.",
             "GOVERNANCE_THRESHOLD_NOT_MET",
@@ -257,7 +272,7 @@ export class TavrynService {
         [this.config.parties.buyer],
       )
       .catch((error) => {
-        if (error instanceof LedgerApiError) {
+        if (isLedgerConflict(error)) {
           throw new TavrynConflictError(
             "The buyer could not approve this invoice. Its external invoice number may already be approved.",
             "DUPLICATE_OR_INVALID_APPROVAL",
@@ -307,7 +322,7 @@ export class TavrynService {
         [this.config.parties.buyer, this.config.parties.supplier, financier],
       )
       .catch((error) => {
-        if (error instanceof LedgerApiError) {
+        if (isLedgerConflict(error)) {
           throw new TavrynConflictError(
             "This invoice is no longer available for funding.",
             "INVOICE_UNAVAILABLE",
@@ -342,7 +357,7 @@ export class TavrynService {
         [this.config.parties.buyer, this.config.parties.supplier, financier],
       )
       .catch((error) => {
-        if (error instanceof LedgerApiError) {
+        if (isLedgerConflict(error)) {
           throw new TavrynConflictError(
             "This invoice is no longer available for funding.",
             "INVOICE_UNAVAILABLE",
@@ -445,9 +460,9 @@ export class TavrynService {
     );
     const financedArgument = record(financed.createArgument, "FinancedInvoice");
     const terms = record(financedArgument.terms, "FinancedInvoice.terms");
-    const dueDate = stringFieldValue(terms.dueDate, "FinancedInvoice.terms.dueDate");
-    if (repaymentDate < dueDate) {
-      throw new TavrynInputError("repaymentDate must be on or after the invoice due date");
+    const issuedDate = stringFieldValue(terms.issuedDate, "FinancedInvoice.terms.issuedDate");
+    if (repaymentDate < issuedDate) {
+      throw new TavrynInputError("repaymentDate must be on or after the invoice issue date");
     }
     const faceValue = decimalField(
       terms,
@@ -550,6 +565,13 @@ export class TavrynService {
       });
     }
   }
+}
+
+function isLedgerConflict(error: unknown): error is LedgerApiError {
+  // Canton uses HTTP 409 for a real state/validation conflict. Authentication,
+  // network and participant failures must stay 502s so the UI does not claim
+  // that a rival won when the participant was simply unavailable.
+  return error instanceof LedgerApiError && error.status === 409;
 }
 
 function validateInvoiceInput(input: InvoiceDraftInput): void {

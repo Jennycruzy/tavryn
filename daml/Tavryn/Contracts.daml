@@ -368,7 +368,9 @@ template FinancedInvoice
         paymentReference : Text
       controller buyer, financier
       do
-        assert (repaymentDate >= terms.dueDate)
+        -- Repayment may happen any time after the invoice was issued. The
+        -- receipt can still show whether it was early or on time.
+        assert (repaymentDate >= terms.issuedDate)
         assert (paymentReference /= "")
         create RepaymentReceipt with
           buyer

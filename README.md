@@ -2,6 +2,25 @@
 
 Every invoice can be pledged once. Prove it without revealing it.
 
+## In simple terms
+
+Tavryn is a shared invoice-finance workspace:
+
+1. A supplier submits an invoice.
+2. The buyer approves it once.
+3. Financiers make private offers.
+4. The first financier to fund wins; a second attempt is rejected.
+5. The buyer repays the winning financier.
+
+The core workflow works on the local Canton network. The cash transfer and the ledger
+record are currently two separate steps, so a real deployment still needs payment
+reconciliation. Browser proof, DevNet proof, interviews, and a public demo link are still
+open; the short checklist is in [`docs/REMAINING.md`](docs/REMAINING.md).
+
+For a public demo, set `TAVRYN_DEMO_ACCESS_TOKEN` in the server environment. Tavryn then
+asks for the demo passphrase before allowing API actions; leave it empty for a local,
+private run.
+
 Tavryn is a Canton/Daml supply-chain-finance workflow for reverse factoring. A buyer
 approves a supplier invoice, the supplier offers it separately to financiers, and the
 first financier to accept consumes the one-use funding state. A rival sees only its own

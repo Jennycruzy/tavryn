@@ -59,7 +59,11 @@ export class LedgerApiError extends Error {
     payload: unknown,
     submissionReference?: SubmissionReference,
   ) {
-    super(`Canton Ledger API returned HTTP ${status}`);
+    super(
+      status === 0
+        ? "The Canton participant could not be reached"
+        : `Canton Ledger API returned HTTP ${status}`,
+    );
     this.name = "LedgerApiError";
     this.status = status;
     this.payload = payload;
@@ -272,7 +276,9 @@ export class LedgerApi {
         headers,
       });
     } catch {
-      throw new Error("The Canton participant could not be reached");
+      // Keep transport failures in the same typed path as HTTP failures. The
+      // HTTP layer turns this into a 502 instead of an indistinguishable 500.
+      throw new LedgerApiError(0, undefined, submissionReference);
     }
 
     const text = await response.text();
