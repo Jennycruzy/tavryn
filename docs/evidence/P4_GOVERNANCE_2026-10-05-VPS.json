@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-05",
+  "environment": "Selected VPS, Canton Builder LocalNet (Splice 0.6.11)",
+  "package": "tavryn-network 0.1.4",
+  "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+  "command": "npm run governance-integration",
+  "scope": "AdmitFinancier and SetMaxAdvanceRate each refused with one operator vote and applied at the threshold of two; an offer opened before the changes still funds; the admitted financier funds.",
+  "result": {
+    "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+    "networkId": "tavryn",
+    "threshold": 2,
+    "operators": 3,
+    "rulesVersionBefore": 2,
+    "rulesVersionAfter": 4,
+    "maxAdvanceRateAfter": "0.9400000000",
+    "changes": [
+      {
+        "action": {
+          "type": "AdmitFinancier",
+          "financierRole": "financierC"
+        },
+        "below": {
+          "status": 409,
+          "code": "GOVERNANCE_THRESHOLD_NOT_MET",
+          "message": "Not enough operator approvals (1 of 2). Nothing changed.",
+          "submissionReference": {
+            "commandId": "tavryn-070d5a60-6cbb-40ed-b7d7-72c20c7b77fe",
+            "submissionId": "7aab04c9-ff51-4ce8-9a43-7f619f4ccfbd"
+          }
+        },
+        "atThreshold": {
+          "status": 200,
+          "updateId": "122055f4d4b4fae50144c2cc985d43af4eb7876ffc9839117acc95c4c1680c27ba5b"
+        }
+      },
+      {
+        "action": {
+          "type": "SetMaxAdvanceRate",
+          "rate": "0.94"
+        },
+        "below": {
+          "status": 409,
+          "code": "GOVERNANCE_THRESHOLD_NOT_MET",
+          "message": "Not enough operator approvals (1 of 2). Nothing changed.",
+          "submissionReference": {
+            "commandId": "tavryn-b3abd22b-cbe6-4ecb-99ff-e0f045788533",
+            "submissionId": "4c8a3686-38f9-486a-92a0-da18249ee4ca"
+          }
+        },
+        "atThreshold": {
+          "status": 200,
+          "updateId": "12208dda4703c550dc264f87be11721aa946e7e445649847ccc8696b2758e68d8af0"
+        }
+      }
+    ],
+    "preExistingOfferFunded": {
+      "status": 200,
+      "updateId": "122013b188fde8e434cabf852d7abeef48e6bbccd5a19d41db670e1efe3a8be078cb"
+    },
+    "admittedFinancierFunded": {
+      "status": 200,
+      "updateId": "122067ed37d731eff6f7ef55a2f3b13a3cf005f84caf2bd18ece3a3f687431e9b19f"
+    }
+  }
+}

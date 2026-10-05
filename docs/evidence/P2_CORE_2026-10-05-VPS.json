@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-05",
+  "environment": "Selected VPS, Canton Builder LocalNet (Splice 0.6.11)",
+  "package": "tavryn-network 0.1.4",
+  "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+  "command": "npm run integration",
+  "scope": "Simultaneous funding by two financiers: the ledger accepts one and rejects the other with LOCAL_VERDICT_LOCKED_CONTRACTS; the loser sees only an OfferClosed fact for this invoice; duplicate approval refused by the operator-signed registry.",
+  "result": {
+    "invoiceNumber": "TVN-MUVPX5OL-ILJ1",
+    "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+    "networkId": "tavryn",
+    "rulesCid": "0056ba60a093310bf9e54bf38ee3d2b2de960795cab34c7040e04fec7e53b083f2ca1212206ad31291d499f91d6b759a513dd6272af4c4dd6cbc899f2ed91302a9a0dc3a5b",
+    "simultaneousFunding": {
+      "winner": "financierA",
+      "winnerUpdateId": "1220da0980720ed7f5853e0338713e22fa059b2e04c83486c36e39e398d7d489f10b",
+      "loser": "financierB",
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerErrorCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "loserSubmissionReference": {
+        "commandId": "tavryn-6040b3bd-7004-4363-af8b-90125ac7b000",
+        "submissionId": "4b062c63-3ec0-4503-8f73-19975cc6ac59"
+      }
+    },
+    "repayment": {
+      "updateId": "1220bd208700b2127e4aa018f39ad68cbf4c5502fb3cab0ac19500b0e9da32749b02"
+    },
+    "duplicateApproval": {
+      "status": 409,
+      "code": "DUPLICATE_INVOICE"
+    },
+    "invoiceCommitment": "dee02e279e3ccfdb22dd892a527fec3f186228f758821dac9650771a4a88c9af",
+    "loserViewOfThisInvoice": [
+      "Tavryn.Contracts:OfferClosed"
+    ],
+    "loserVisibleTemplates": [
+      "Tavryn.Contracts:OfferClosed",
+      "Tavryn.Contracts:FundingReceipt",
+      "Tavryn.Contracts:RepaymentReceipt",
+      "Tavryn.Rules:NetworkRules"
+    ],
+    "auditorVisibleTemplates": [
+      "Tavryn.Contracts:FundingReceipt",
+      "Tavryn.Contracts:RepaymentReceipt",
+      "Tavryn.Rules:NetworkRules",
+      "Tavryn.Contracts:FinancedInvoice"
+    ]
+  }
+}

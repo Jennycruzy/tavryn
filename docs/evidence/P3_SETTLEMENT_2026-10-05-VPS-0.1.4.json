@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-05",
+  "environment": "Selected VPS, Canton Builder LocalNet (Splice 0.6.11)",
+  "package": "tavryn-network 0.1.4",
+  "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+  "command": "npm run settlement-integration",
+  "scope": "Two-step Canton Coin settlement, non-atomic, with four cases: happy path with amounts matching receipts; crash after the funding transfer completed after restart by tracking ID; wallet-rejected transfer reopens the invoice; repayment retry moves no cash and reconciliation completes the original.",
+  "result": {
+    "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+    "currency": "AMT",
+    "settlement": "two-step, non-atomic, reconciled by tracking ID",
+    "happyPath": {
+      "invoiceNumber": "TVN-CC-MUVPZ6BM-84N0",
+      "fundingLedgerUpdateId": "12203a80db357b7e25fc21040e50f51c9b92bfb0a5ca217fc0f469070792226f3a9b",
+      "fundingCashUpdateId": "1220a381553bca0f9c92fe578127f089d895fc9ad34c27afdc52ba64e8a71b24ea6d",
+      "fundingAmount": "0.9000000000",
+      "fundingTrackingId": "tavryn-funding-cb3a8181-0158-4c58-85e8-4f69696c0d5b",
+      "rivalRejection": {
+        "status": 409,
+        "code": "INVOICE_UNAVAILABLE"
+      },
+      "repaymentLedgerUpdateId": "1220d749c4ee3f26f800908605c43dc2c99f4105befac5fe185fddd75089f5f09945",
+      "repaymentCashUpdateId": "1220493bbf35c74e3041e756c7e2dc7f47635c0fc92b09ac3eb1d951e2981d98cd63",
+      "repaymentAmount": "1.0000000000"
+    },
+    "crashAfterFundingTransfer": {
+      "invoiceNumber": "TVN-CC-MUVPZDGL-AFBV",
+      "trackingId": "tavryn-funding-22f8e412-cac3-4149-a029-565f43e99f56",
+      "recovered": {
+        "outcome": "completed",
+        "contractId": "008ded5d374ecb38d44729836d22ce47696bdcce4682cbbe5e2298d60300131032ca121220007999c383fc9d98dd11f1eb65ccda217e125680dfa859254716b5a7c80f2744",
+        "trackingId": "tavryn-funding-22f8e412-cac3-4149-a029-565f43e99f56",
+        "updateId": "1220980ce15cca54b747baddcf495c0d2a7467547f9739359fee7e5bb462100d0cb2",
+        "cashUpdateId": "1220bac719acc0ea85ed08c6a68efa522e5eab0f9ec6bda26905c5e243afbbbe1ee3"
+      },
+      "secondReconcile": "already-resolved"
+    },
+    "walletRejectedTransfer": {
+      "invoiceNumber": "TVN-CC-MUVPZIS3-NTAU",
+      "status": 502,
+      "code": "SETTLEMENT_REJECTED",
+      "offerRestored": true,
+      "lockRemaining": false
+    },
+    "repaymentRetry": {
+      "invoiceNumber": "TVN-CC-MUVPZLDA-YAAQ",
+      "firstAttempt": "SETTLEMENT_FAULT_INJECTED",
+      "retry": {
+        "status": 409,
+        "code": "REPAYMENT_NOT_AVAILABLE"
+      },
+      "buyerBalanceChangeDuringRetry": 0,
+      "reconciled": {
+        "outcome": "completed",
+        "contractId": "00e26ae1d724b89933a8aa88cbb52fe6c346eda139f131f65bc5804e6a047ab321ca12122037610548cd2109bae5af687f93b6b3bbf41ae1c83268c9cbc84ccee18f4ce436",
+        "trackingId": "tavryn-repayment-f3c51a99-ca62-4acb-8a15-7e8455e271d2",
+        "updateId": "1220a546b4100d90285f4937a148b52ce1a142b7427a0d0b5f748cb0e67e5d9c8717",
+        "cashUpdateId": "122013d5963c76329a76f99179bcf41bca230f8533e22ac05bef6984d0631bcc8967"
+      }
+    },
+    "financierBViewOfLostInvoice": [
+      "Tavryn.Contracts:OfferClosed"
+    ],
+    "financierBTemplates": [
+      "Tavryn.Contracts:OfferClosed",
+      "Tavryn.Contracts:FundingReceipt",
+      "Tavryn.Contracts:RepaymentReceipt",
+      "Tavryn.Rules:NetworkRules",
+      "Tavryn.Contracts:FinancingOffer",
+      "Tavryn.Contracts:FundingSlot",
+      "Tavryn.Contracts:ApprovedInvoice"
+    ],
+    "auditorTemplates": [
+      "Tavryn.Contracts:FundingReceipt",
+      "Tavryn.Contracts:RepaymentReceipt",
+      "Tavryn.Rules:NetworkRules",
+      "Tavryn.Contracts:FinancedInvoice",
+      "Tavryn.Contracts:InvoiceDetails"
+    ]
+  }
+}

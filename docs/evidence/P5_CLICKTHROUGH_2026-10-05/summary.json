@@ -1,0 +1,143 @@
+{
+  "date": "2026-10-05T20:55:46.343Z",
+  "url": "http://127.0.0.1:18787",
+  "browser": "Chromium (Playwright) headless",
+  "invoiceNumber": "TVN-UI-MUVQ9XKT",
+  "video": "clickthrough.webm",
+  "steps": [
+    {
+      "step": "supplier-creates-draft",
+      "status": "DRAFT CREATED",
+      "message": "The draft is visible to the supplier and buyer only.",
+      "references": [
+        "1220f94cd3c531701e6849d4861b25cf1bbf407a672747cddad0fa25178d0eee6c8c"
+      ],
+      "screenshot": "01-supplier-creates-draft.png"
+    },
+    {
+      "step": "buyer-approves-once",
+      "status": "APPROVED ONCE",
+      "message": "The invoice is sealed with an on-ledger commitment, and its one-use funding slot is live.",
+      "references": [
+        "12203230342a0013ed8db4c479cebefa940ed8f14e5c8bb2f540e8ba1e7dd19a6979"
+      ],
+      "screenshot": "02-buyer-approves-once.png"
+    },
+    {
+      "step": "supplier-offers-financierA",
+      "status": "OFFER CREATED",
+      "message": "Only the named financier and the invoice parties can see this offer.",
+      "references": [
+        "12205182e364ab4890ac4349b82a139b3ec8a0487e7cb324a71711bab085f5796b7a"
+      ],
+      "screenshot": "03-supplier-offers-financierA.png"
+    },
+    {
+      "step": "supplier-offers-financierB",
+      "status": "OFFER CREATED",
+      "message": "Only the named financier and the invoice parties can see this offer.",
+      "references": [
+        "12207808a2eded2d98b76e2f29429d0e80293bf7a85a5c29542e8176042b80906213"
+      ],
+      "screenshot": "04-supplier-offers-financierB.png"
+    },
+    {
+      "step": "financierB-sees-only-own-offer",
+      "screenshot": "05-financierB-sees-only-own-offer.png",
+      "verified": "Before funding, Financier B sees exactly one offer for this invoice: its own"
+    },
+    {
+      "step": "financierA-funds-with-canton-coin",
+      "status": "FUNDED ONCE",
+      "message": "Canton Coin moved and the invoice's one-use state was consumed.",
+      "references": [
+        "1220709144f3ade5d716ce15a8de6c3984cfb7159f631cdbfa2eeeb7235c12e256e1",
+        "1220c03d68ecb59b0ff257b1cf3484112fbb689f52790af6f39c4ee5cf839a6a8c56"
+      ],
+      "screenshot": "06-financierA-funds-with-canton-coin.png"
+    },
+    {
+      "step": "financierB-no-longer-available",
+      "screenshot": "07-financierB-no-longer-available.png",
+      "verified": "Financier B's offer for this invoice is closed and cannot be funded; no winner or terms shown"
+    },
+    {
+      "step": "buyer-repays-with-canton-coin",
+      "status": "REPAID",
+      "message": "Canton Coin repayment and its receipt are recorded.",
+      "references": [
+        "122058432607329bca76ce1c29e791d89d280383777e5f7613f85b0b28a491336bed",
+        "1220eef3a0281ce54b35480ca940d7795ac070daa5913a1c079a44e73635d613a4d0"
+      ],
+      "screenshot": "08-buyer-repays-with-canton-coin.png"
+    },
+    {
+      "step": "auditor-trail",
+      "screenshot": "09-auditor-trail.png",
+      "verified": "Auditor sees funding and repayment receipts"
+    },
+    {
+      "step": "operator-proposes-rate-change",
+      "status": "PROPOSED",
+      "message": "The change waits for operator votes. Nothing has changed yet.",
+      "references": [
+        "1220c455f929e40d35c7352ad0fdcca8a6c4ac8c798f86277036f422d2513a109b85"
+      ],
+      "screenshot": "10-operator-proposes-rate-change.png"
+    },
+    {
+      "step": "operator1-votes",
+      "status": "VOTE RECORDED",
+      "message": "Operator 1 approved the change.",
+      "references": [
+        "12203b2392b84b384b0fe0990129ac316253168d096044a8f15fbbff4e8a05b902e2"
+      ],
+      "screenshot": "11-operator1-votes.png"
+    },
+    {
+      "step": "execute-refused-below-threshold",
+      "status": "BELOW THRESHOLD",
+      "message": "Not enough operator approvals (1 of 2). Nothing changed.",
+      "references": [
+        "tavryn-0ec5fd08-e807-4430-8078-9f941ff92bbf",
+        "b4f8a5cc-92d8-4e29-8d97-d83c8676ce3c"
+      ],
+      "screenshot": "12-execute-refused-below-threshold.png"
+    },
+    {
+      "step": "operator2-votes",
+      "status": "VOTE RECORDED",
+      "message": "Operator 2 approved the change.",
+      "references": [
+        "1220c9f9db557ca8fd26082b6e545a08b8770f8b3f7f4cbfd6872a9e850648851f81"
+      ],
+      "screenshot": "13-operator2-votes.png"
+    },
+    {
+      "step": "execute-at-threshold",
+      "status": "RULES CHANGED",
+      "message": "Enough operators agreed; the ledger replaced the network rules.",
+      "references": [
+        "1220f5af8f877cb1780988f4a99d55a357caa6bfd210772d644ef3fec6d2adf5924a"
+      ],
+      "screenshot": "14-execute-at-threshold.png"
+    }
+  ],
+  "files": [
+    "01-supplier-creates-draft.png",
+    "02-buyer-approves-once.png",
+    "03-supplier-offers-financierA.png",
+    "04-supplier-offers-financierB.png",
+    "05-financierB-sees-only-own-offer.png",
+    "06-financierA-funds-with-canton-coin.png",
+    "07-financierB-no-longer-available.png",
+    "08-buyer-repays-with-canton-coin.png",
+    "09-auditor-trail.png",
+    "10-operator-proposes-rate-change.png",
+    "11-operator1-votes.png",
+    "12-execute-refused-below-threshold.png",
+    "13-operator2-votes.png",
+    "14-execute-at-threshold.png",
+    "clickthrough.webm"
+  ]
+}
