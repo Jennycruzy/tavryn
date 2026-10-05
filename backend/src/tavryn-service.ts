@@ -323,7 +323,7 @@ export class TavrynService {
   ): Promise<SubmissionResult> {
     requireContractId(offerContractId, "offerContractId");
     const financier = partyForRole(this.config, financierRole);
-    return this.activeContractForRole("supplier", offerContractId, "FinancingOffer")
+    return this.activeFinancingOfferForRole("supplier", offerContractId)
       .then((offer) => {
         const argument = record(offer.createArgument, "FinancingOffer");
         const invoiceCommitment = stringFieldValue(
@@ -362,11 +362,7 @@ export class TavrynService {
     requireContractId(offerContractId, "offerContractId");
     this.settlement.assertConfigured(financierRole);
     const financier = partyForRole(this.config, financierRole);
-    const offer = await this.activeContractForRole(
-      financierRole,
-      offerContractId,
-      "FinancingOffer",
-    );
+    const offer = await this.activeFinancingOfferForRole(financierRole, offerContractId);
     const offerArgument = record(offer.createArgument, "FinancingOffer");
     this.assertCantonCoinCurrency(
       record(offerArgument.terms, "FinancingOffer.terms"),
@@ -596,6 +592,27 @@ export class TavrynService {
       );
     }
     return contract;
+  }
+
+  private async activeFinancingOfferForRole(
+    role: Role,
+    contractId: string,
+  ): Promise<ActiveContract> {
+    try {
+      return await this.activeContractForRole(role, contractId, "FinancingOffer");
+    } catch (error) {
+      if (
+        error instanceof TavrynInputError &&
+        error.message ===
+          "FinancingOffer contract is not visible to the selected role or is no longer active"
+      ) {
+        throw new TavrynConflictError(
+          "This invoice is no longer available for funding.",
+          "INVOICE_UNAVAILABLE",
+        );
+      }
+      throw error;
+    }
   }
 
   private async cancelPendingFundingAfterFailedTransfer(

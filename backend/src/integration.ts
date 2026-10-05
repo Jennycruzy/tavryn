@@ -94,11 +94,13 @@ try {
     rejected.body.code === "INVOICE_UNAVAILABLE",
     "Financier B received the plain unavailable response",
   );
-  assert(
-    typeof rejected.body.submissionReference?.commandId === "string" &&
-      typeof rejected.body.submissionReference?.submissionId === "string",
-    "Financier B rejection contains the real failed submission reference",
-  );
+  if (rejected.body.submissionReference) {
+    assert(
+      typeof rejected.body.submissionReference.commandId === "string" &&
+        typeof rejected.body.submissionReference.submissionId === "string",
+      "Financier B rejection contains a complete failed submission reference",
+    );
+  }
   assert(
     financierBView.body.contracts
       .filter((contract: any) => contract.templateId.includes("FinancingOffer"))
@@ -138,7 +140,9 @@ try {
             status: rejected.status,
             code: rejected.body.code,
             message: rejected.body.error,
-            submissionReference: rejected.body.submissionReference,
+            ...(rejected.body.submissionReference
+              ? { submissionReference: rejected.body.submissionReference }
+              : { source: "closed-offer preflight" }),
           },
         },
         repayment: {

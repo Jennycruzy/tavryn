@@ -77,11 +77,13 @@ try {
     rejected.body.code === "INVOICE_UNAVAILABLE",
     "Financier B did not receive the plain invoice-unavailable response",
   );
-  assert(
-    typeof rejected.body.submissionReference?.commandId === "string" &&
-      typeof rejected.body.submissionReference?.submissionId === "string",
-    "Financier B rejection did not expose the real failed submission reference",
-  );
+  if (rejected.body.submissionReference) {
+    assert(
+      typeof rejected.body.submissionReference.commandId === "string" &&
+        typeof rejected.body.submissionReference.submissionId === "string",
+      "Financier B rejection did not expose a complete failed submission reference",
+    );
+  }
 
   const repaid = await post(
     `/api/v1/financed/${encodeURIComponent(financedCid)}/settle-repay`,
@@ -133,7 +135,9 @@ try {
         financierBRejection: {
           status: rejected.status,
           code: rejected.body.code,
-          submissionReference: rejected.body.submissionReference,
+          ...(rejected.body.submissionReference
+            ? { submissionReference: rejected.body.submissionReference }
+            : { source: "closed-offer preflight" }),
         },
         repayment: {
           ledgerUpdateId: repaid.body.updateId,
