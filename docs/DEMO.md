@@ -18,4 +18,4 @@ the automated click-through runs (`scripts/ui-clickthrough.mjs`,
 | 3:30–4:30 | Operators: propose, vote 1, execute (refused), vote 2, execute (applied) | "The network rules belong to its operators. One vote: nothing changes. Two of three: the rule changes." |
 | 4:30–4:50 | Title | "Every invoice can be pledged once. Prove it without revealing it." |
 
-After recording: add the link, duration and SHA-256 checksum to `PROGRESS.md` (P10).
+After recording: add the link, duration and SHA-256 checksum to `docs/engineering/PROGRESS.md` (P10).

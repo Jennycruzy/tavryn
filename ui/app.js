@@ -7,7 +7,7 @@ const ROLE_CONTEXT = {
 };
 
 const state = {
-  role: "supplier",
+  role: roleFromHash(),
   contracts: {},
   network: null,
   lastResult: null,
@@ -267,9 +267,37 @@ function setResult(result) {
 
 // ------------------------------------------------------------------ rendering
 
+const ICONS = {
+  supplier: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/>',
+  buyer: '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
+  lender: '<path d="M3 10h18L12 4zM5 10v8M9 10v8M15 10v8M19 10v8M3 21h18"/>',
+  auditor: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  operator: '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/>',
+};
+
+function roleIcon(role) {
+  const key = isFinancier(role) ? "lender" : role;
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[key] || ""}</svg>`;
+}
+
 function renderRoleButtons() {
-  $("roleButtons").innerHTML = roles().map((role) =>
-    `<button class="role-button" data-role="${escapeHtml(role)}" role="tab">${escapeHtml(roleLabel(role))}</button>`).join("");
+  const button = (role) =>
+    `<button class="role-button" data-role="${escapeHtml(role)}" type="button">${roleIcon(role)}${escapeHtml(roleLabel(role))}</button>`;
+  $("roleButtons").innerHTML = [
+    `<p class="side-group">Companies</p>`,
+    button("supplier"),
+    button("buyer"),
+    `<p class="side-group">Lenders</p>`,
+    ...financierRoles().map(button),
+    `<p class="side-group">Oversight</p>`,
+    button("auditor"),
+    button("operator"),
+  ].join("");
+}
+
+function roleFromHash() {
+  const role = decodeURIComponent(window.location.hash.slice(1));
+  return role && (["supplier", "buyer", "auditor", "operator"].includes(role) || isFinancier(role)) ? role : "supplier";
 }
 
 function render() {
@@ -279,6 +307,8 @@ function render() {
     button.setAttribute("aria-selected", String(active));
   });
   $("roleContext").textContent = ROLE_CONTEXT[isFinancier(state.role) ? "lender" : state.role];
+  $("pageTitle").textContent = roleLabel(state.role);
+  document.title = `${roleLabel(state.role)} · Tavryn`;
   renderNetwork();
   renderActionPanel();
   renderActivity();
@@ -425,6 +455,7 @@ function adminActions() {
       }).join("");
       return `<div class="proposal">
         <div class="item-title">${escapeHtml(describeAction(proposal.action))}</div>
+        ${proposal.stale ? "" : `<div class="votes">${Array.from({ length: proposal.threshold }, (_, index) => `<span class="${index < proposal.votes.length ? "on" : ""}"></span>`).join("")}</div>`}
         <div class="item-detail">${proposal.stale
           ? "Out of date — the rules changed after this was proposed. Propose it again if it's still wanted."
           : `${proposal.votes.length} of ${proposal.threshold} approvals`}</div>
@@ -665,10 +696,15 @@ function updateAdvanceHint() {
 }
 
 function bindEvents() {
-  $("roleButtons").addEventListener("click", async (event) => {
+  $("roleButtons").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-role]");
     if (!button || state.loading) return;
-    state.role = button.dataset.role;
+    window.location.hash = button.dataset.role;
+  });
+  window.addEventListener("hashchange", async () => {
+    const role = roleFromHash();
+    if (role === state.role) return;
+    state.role = role;
     state.lastResult = null;
     state.showAllActivity = false;
     render();

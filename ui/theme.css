@@ -1,0 +1,64 @@
+/* Tavryn brand tokens, taken from the logo: deep navy, royal blue, cyan, and a gold
+   accent used sparingly for the one thing that matters on a screen. */
+:root {
+  --navy-950: #070d2b;
+  --navy-900: #0b1640;
+  --navy-800: #13215a;
+  --blue-700: #1e3fc8;
+  --blue-600: #2450e6;
+  --blue-500: #3d6bff;
+  --blue-100: #e6edff;
+  --blue-50: #f3f6ff;
+  --cyan-400: #22c3ee;
+  --cyan-100: #dff6fd;
+  --gold-400: #f5b83d;
+  --gold-100: #fff3d9;
+  --gold-ink: #8a5a00;
+
+  --bg: #f5f7fc;
+  --surface: #ffffff;
+  --ink: #0e1631;
+  --muted: #56607a;
+  --faint: #8a93a8;
+  --line: #e2e6f0;
+  --line-strong: #cdd3e1;
+  --ok-soft: #e3f7ee;
+  --ok-ink: #11734b;
+  --error-soft: #fdeceb;
+  --error-ink: #b2342b;
+
+  --brand-gradient: linear-gradient(135deg, var(--blue-700) 0%, var(--blue-500) 55%, var(--cyan-400) 100%);
+  --radius: 14px;
+  --shadow-sm: 0 1px 2px rgba(14, 22, 49, 0.06), 0 1px 3px rgba(14, 22, 49, 0.08);
+  --shadow-md: 0 12px 32px rgba(14, 22, 49, 0.10);
+  --shadow-lg: 0 24px 60px rgba(7, 13, 43, 0.35);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--ink);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; line-height: 1.55; color: var(--ink); -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p { margin: 0; }
+a { color: inherit; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+
+.logo { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 750; letter-spacing: -0.02em; font-size: 1.15rem; }
+.logo img { width: 34px; height: 34px; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 10px; border: 1px solid transparent; font-weight: 650; font-size: 0.95rem; text-decoration: none; transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease; }
+.btn:hover { transform: translateY(-1px); }
+.btn-gold { background: var(--gold-400); color: var(--navy-950); box-shadow: 0 8px 24px rgba(245, 184, 61, 0.35); }
+.btn-primary { background: var(--blue-600); color: #fff; box-shadow: 0 6px 18px rgba(36, 80, 230, 0.28); }
+.btn-primary:hover { background: var(--blue-700); }
+.btn-ghost { border-color: rgba(255, 255, 255, 0.28); color: #fff; }
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.08); }
+.btn-outline { border-color: var(--line-strong); background: var(--surface); color: var(--ink); }
+.btn-outline:hover { border-color: var(--blue-600); color: var(--blue-700); }
+.btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

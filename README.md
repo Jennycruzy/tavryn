@@ -1,158 +1,91 @@
 # Tavryn
 
-Every invoice can be pledged once. Prove it without revealing it.
+**Every invoice can be financed once — and lenders never see each other's deals.**
 
-## In simple terms
+![Tavryn, seen by a lender](docs/images/tavryn-app.png)
 
-Tavryn is a shared invoice-finance workspace:
+## The problem
 
-1. A supplier submits an invoice.
-2. The buyer approves it once.
-3. Financiers make private offers.
-4. The first financier to fund wins; a second attempt is rejected.
-5. The buyer repays the winning financier.
+A supplier waiting 60 days to be paid can sell its invoice to a lender for cash today.
+But each lender only sees its own deals, so the same invoice can be sold to two or three
+lenders at once. The buyer pays once, and someone loses the money.
 
-The core workflow works on the local Canton network. The cash transfer and the ledger
-record are currently two separate steps, so a real deployment still needs payment
-reconciliation. Browser proof, DevNet proof, interviews, and a public demo link are still
-open; the short checklist is in [`docs/REMAINING.md`](docs/REMAINING.md).
+A shared register of invoices would stop this, but no lender will put its clients and
+prices where competitors can see them.
 
-For a public demo, set `TAVRYN_DEMO_ACCESS_TOKEN` in the server environment. Tavryn then
-asks for the demo passphrase before allowing API actions; leave it empty for a local,
-private run.
+## What Tavryn does
 
-Tavryn is a Canton/Daml supply-chain-finance workflow for reverse factoring. A buyer
-approves a supplier invoice, the supplier offers it separately to financiers, and the
-first financier to accept consumes the one-use funding state. A rival sees only its own
-offer and an opaque approval seal; it cannot read the winning financier's deal.
+1. **The supplier** creates an invoice. Only the supplier and the buyer can see it.
+2. **The buyer** approves it — once. An invoice number can never be approved twice.
+3. **The supplier** offers it privately to several lenders. Each lender sees only its own
+   offer.
+4. **The first lender to pay wins.** Every other lender is told *"This invoice is no
+   longer available"* — and nothing about who won or at what price.
+5. **The buyer** repays the winning lender on the due date.
 
-## Status
+## Why it can be trusted
 
-This repository is a new build. The project name Tavryn was selected on 2026-09-29.
-The core lifecycle, party-scoped backend flow, real two-step Canton Coin settlement, and
-threshold governance flow have passed on LocalNet/the selected VPS. DevNet, MainNet, and
-interview results remain open until each has a recorded artifact in `docs/PROGRESS.md`.
+- **One payment per invoice, guaranteed by the network itself.** It isn't a promise from a
+  company running a database. When two lenders tried to pay for the same invoice at the
+  same moment, the network accepted one and refused the other.
+- **Private by design.** Each company sees only its own business. A lender that lost an
+  invoice learns that it is gone, and nothing more.
+- **Real money moves.** Lenders pay suppliers and buyers repay lenders in Canton Coin. If a
+  payment is interrupted halfway, Tavryn finishes it automatically, and never pays twice.
+- **No single owner.** The network's rules — which lenders can join, and how much of an
+  invoice they may advance — are signed by all the organisations that run it. A change
+  needs two of three of them to agree.
 
-## What will be demonstrated
+## See it working
 
-- Create: supplier submits an `InvoiceDraft`.
-- Update status: buyer approves it once through its approval service.
-- Transfer: one financier accepts its own `FinancingOffer`; the one-use `FundingSlot` and
-  terms-free approval seal are consumed and replaced by a `FinancedInvoice`.
-- Fulfill: buyer repays the financier and creates a `RepaymentReceipt`.
-- Audit: an auditor is made an observer of the complete lifecycle.
-- Rejection proof: a second financier's acceptance references an archived invoice and is
-  rejected, while its party view contains no rival contract data.
+- **Live on the HackCanton DevNet** — the full flow and the shared rules ran on the
+  hackathon's network on 5 October 2026 ([record](docs/evidence/P7_DEVNET_2026-10-05.json)).
+- **A recorded walkthrough of the app** — every step from invoice to repayment, plus a
+  rule change refused with one approval and applied with two
+  ([video and screenshots](docs/evidence/P5_CLICKTHROUGH_2026-10-05/)).
+- **Demo script** — [docs/DEMO.md](docs/DEMO.md).
 
-The model deliberately does not depend on Canton contract-key uniqueness. The buyer's
-approval service is the single maintainer of external invoice numbers; the ledger's
-single-consumption rule enforces the single financing attempt after approval.
+## Who it's for
 
-Because a non-stakeholder cannot exercise a hidden contract without disclosure, the
-implementation separates private `InvoiceDetails` from a terms-free `ApprovedInvoice`
-seal. A financier offered an invoice sees that invoice's terms so it can price the deal,
-but never sees another financier's offer, price, or win. In the current model, every
-eligible financier can see which other financiers were eligible for the same invoice;
-removing those rival names requires the explicit-disclosure design tracked in
-[`docs/REMAINING.md`](docs/REMAINING.md). The winning financier joins the consuming choice
-and receives the resulting receivable.
+Large buyers that run supplier-finance programmes, their suppliers, and the banks and funds
+that finance those invoices. Lenders pay a fee per invoice financed, because they are the
+ones protected from double financing. More in [the business brief](docs/BRIEF.md) and
+[the pilot plan](docs/PILOT.md).
 
-## Current verification boundary
+## Why Canton Network
 
-The official DPM installer selected and installed SDK 3.5.12 on 2026-09-29. The project
-builds, the complete core and governance Daml tests pass, and the backend has passed its
-LocalNet lifecycle and settlement integrations. No DevNet, MainNet, or interview result is
-implied. Source-backed decisions and open discrepancies live in
-[`docs/FINDINGS.md`](docs/FINDINGS.md). Phase gates and evidence live in
-[`docs/PROGRESS.md`](docs/PROGRESS.md).
+Canton lets several companies share one fact — *"has this invoice been financed yet?"* —
+without sharing anything else. Each company's data is visible only to the companies in
+that deal. That is exactly what invoice finance needs, and an ordinary public blockchain
+or a shared database can't offer it.
 
-Settlement now has a real two-step implementation against the Splice token-standard
-wallet API. `FinancingOffer.BeginFunding` consumes the one-use slot, the backend moves
-Canton Coin, and `PendingFunding.Complete` records the wallet update reference in an
-auditor-visible `FundingReceipt`. Repayment follows the same pattern. This is not atomic;
-the cash transfer and Tavryn ledger update are separate transactions. The successful
-end-to-end LocalNet evidence is recorded in
-[`docs/PROGRESS.md`](docs/PROGRESS.md).
+## Try it yourself
 
-## Repository layout
-
-```text
-daml/        contracts and Daml Script tests
-backend/     role-scoped submission and reads
-ui/           role-switching demonstration UI
-governance/  Decentralization Manager integration or documented contribution
-docs/        evidence, findings, architecture, brief, pilot and validation
-spikes/      throwaway proofs for risky paths; not product code
-```
-
-## Clean-machine setup
-
-Install the official DPM release and Java runtime required by that release, then run the
-following from a clean checkout. The exact party IDs, participant URL, user ID,
-synchronizer ID, token-admin ID, symbol and fees must come from the participant/network
-setup; none are repository defaults.
+You need a Canton network to connect to (a local one, or the HackCanton DevNet), plus
+Node.js and the Daml tools (`dpm`). Then:
 
 ```sh
-export PATH="$DPM_BIN:$PATH"
-export JAVA_HOME="$JAVA_RUNTIME"
-dpm build
-dpm test
-dpm codegen-js .daml/dist/tavryn-network-0.1.4.dar -o backend/daml.js -s tavryn.js
-cp .env.example backend/.env
-# Fill backend/.env with values returned by the running participant.
-cd backend
-npm install
-npm run build
-npm test
-npm run bootstrap          # idempotent: committee, rules and buyer registry
-npm run integration
-npm run governance-integration
-npm run settlement-integration
+dpm build && dpm test                       # build and test the contracts
+cd backend && npm install && npm run build
+cp ../.env.example .env                     # fill in your network's details
+npm run bootstrap                           # set up the network once
+npm start                                   # open http://127.0.0.1:<port>
 ```
 
-For a shared DevNet node, put the OIDC settings in `backend/.env.devnet` and prefix each
-command with `TAVRYN_ENV_FILE=.env.devnet`.
+Developer details — every setting, the automated checks and how it is built — are in
+[backend/README.md](backend/README.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-`DPM_BIN` and `JAVA_RUNTIME` above are placeholders for paths installed on the machine;
-they are not values to copy into the repository. `backend/.env` is ignored from the first
-commit. The backend integration drives the real JSON Ledger API and records Canton update
-IDs; it does not replace the ledger with a mock.
+## Current limits
 
-When the backend is running, open its root URL in a browser to use the Tavryn UI. The page
-switches between the configured party views, reads contracts through the matching role
-route, and submits the same create, approve, offer, fund, rejection, and repayment
-operations as the integration client. The UI intentionally shows safe operation and
-submission references instead of raw ledger errors. A browser recording is still required
-before the P5 gate is claimed complete.
+- Tavryn can only stop double financing among lenders on the network. A lender outside it
+  can't be checked.
+- A lender offered an invoice can see which other lenders were invited to bid on it, but
+  never their offers or prices.
+- In this demo one server acts for every company. In real use, each company would run its
+  own connection to the network.
+- Real customer interviews are still to come.
 
-## Honest limits
+## Built with AI assistance
 
-- Within the participating network, an invoice can be financed once. Financing by a lender
-  outside the network cannot be detected.
-- Each buyer's approval registry is created by governance and refuses a second approval
-  of the same external invoice number; the operators can read those numbers.
-- An eligible financier can see which other financiers were eligible for that invoice,
-  though never their offers, prices or wins.
-- Settlement is two-step and not atomic; reconciliation by tracking ID completes or
-  cancels any lock left between the cash transfer and the ledger record.
-- The demo backend submits for every party through one ledger user; production requires
-  each organization to operate its own participant or wallet.
-
-## Business materials
-
-- [`docs/BRIEF.md`](docs/BRIEF.md) — one-page business brief
-- [`docs/PILOT.md`](docs/PILOT.md) — pilot plan and required integrations
-- [`docs/VALIDATION.md`](docs/VALIDATION.md) — interview log; no interviews are invented
-
-## Demo and deployment
-
-LocalNet lifecycle and settlement update IDs are recorded in `docs/PROGRESS.md`. Demo
-video, DevNet update IDs, and project-profile links remain pending and will be added before
-submission. A link is not considered delivered until it opens in a private browser window.
-The exact owner inputs for those remaining items are listed in
-[`docs/REMAINING.md`](docs/REMAINING.md).
-
-## Pre-existing code and AI assistance
-
-There is no pre-existing Tavryn code in this repository. AI-assisted tools contributed to
-development; the team reviewed the work and is responsible for all code and claims.
+There was no pre-existing Tavryn code. AI tools helped write it; the team reviewed the work
+and is responsible for the code and every claim here.

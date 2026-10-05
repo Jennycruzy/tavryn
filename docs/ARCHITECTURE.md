@@ -2,7 +2,7 @@
 
 Current model: package `tavryn-network` 0.1.4 (`daml/Tavryn/`). It replaced the earlier
 `tavryn` 0.1.0–0.1.3 package; the redesign is not upgrade-compatible, so it ships under a
-new package name (see `FINDINGS.md`).
+new package name (see `engineering/FINDINGS.md`).
 
 ## Choice graph
 

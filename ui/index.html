@@ -3,103 +3,204 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0f3d3a" />
-    <title>Tavryn — invoice finance, once</title>
+    <meta name="theme-color" content="#0b1640" />
+    <meta name="description" content="Tavryn makes sure every invoice is financed once. Lenders compete in private; the first to pay wins." />
+    <title>Tavryn — every invoice financed once</title>
     <link rel="icon" href="/assets/tavryn-logo-480.png" />
-    <link rel="stylesheet" href="/ui/styles.css" />
+    <link rel="stylesheet" href="/ui/theme.css" />
+    <link rel="stylesheet" href="/ui/landing.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="topbar-inner">
-        <a class="brand" href="/" aria-label="Tavryn home">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 40 40">
-              <path d="M20 4 34 12v16L20 36 6 28V12L20 4Z" fill="none" stroke="currentColor" stroke-width="2.6" />
-              <path d="m13 20 5 4 9-9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.8" />
-            </svg>
-          </span>
-          <span class="brand-name">Tavryn</span>
-        </a>
-        <span class="connection" id="connection"><span class="dot"></span><span id="connectionText">Connecting…</span></span>
+    <header class="nav" id="nav">
+      <div class="wrap nav-inner">
+        <a class="logo" href="/"><img src="/assets/tavryn-logo-480.png" alt="" />Tavryn</a>
+        <nav class="nav-links" aria-label="Page sections">
+          <a href="#how">How it works</a>
+          <a href="#trust">Why it's safe</a>
+          <a href="#who">Who it's for</a>
+        </nav>
+        <a class="btn btn-gold btn-small" href="/app">Open the app</a>
       </div>
     </header>
 
-    <main class="page">
-      <section class="intro">
-        <div>
-          <h1>Every invoice can be financed once.</h1>
-          <p class="lead">
-            Suppliers offer an approved invoice to several lenders in private. The first lender
-            to pay wins. Everyone else is simply told it's taken — never who won, or at what price.
+    <section class="hero">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="wrap hero-inner">
+        <div class="hero-copy">
+          <span class="pill">Invoice finance on Canton Network</span>
+          <h1>Every invoice,<br /><span class="gradient-text">financed once.</span></h1>
+          <p class="hero-lead">
+            Suppliers offer an approved invoice to several lenders in private. The first lender to
+            pay wins — and everyone else is simply told it's taken. Never who won, never at what price.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-gold" href="/app">Try the live demo</a>
+            <a class="btn btn-ghost" href="#how">See how it works</a>
+          </div>
+          <ul class="hero-facts">
+            <li><strong>1</strong><span>payment accepted per invoice</span></li>
+            <li><strong>0</strong><span>rival deals visible to a lender</span></li>
+            <li><strong>2 of 3</strong><span>admins needed to change the rules</span></li>
+          </ul>
+        </div>
+
+        <div class="scene" id="scene" aria-label="Animation: three lenders are offered one invoice; Lender A pays first and the others are told it is no longer available">
+          <svg class="scene-lines" viewBox="0 0 440 360" preserveAspectRatio="none" aria-hidden="true">
+            <path class="line line-a" d="M220 130 C 220 200, 75 190, 75 250" />
+            <path class="line line-b" d="M220 130 L 220 250" />
+            <path class="line line-c" d="M220 130 C 220 200, 365 190, 365 250" />
+          </svg>
+          <div class="invoice-card">
+            <div class="invoice-top"><span>Invoice</span><span class="invoice-no">INV-4821</span></div>
+            <div class="invoice-amount">$48,000</div>
+            <div class="invoice-meta">Approved · due in 60 days</div>
+            <div class="stamp">Financed</div>
+          </div>
+          <div class="coin" aria-hidden="true"></div>
+          <div class="lenders">
+            <div class="lender lender-a">
+              <span class="lender-name">Lender A</span>
+              <span class="status s-offer">Offer received</span>
+              <span class="status s-win">Paid first — it's yours</span>
+            </div>
+            <div class="lender lender-b">
+              <span class="lender-name">Lender B</span>
+              <span class="status s-offer">Offer received</span>
+              <span class="status s-lose">No longer available</span>
+            </div>
+            <div class="lender lender-c">
+              <span class="lender-name">Lender C</span>
+              <span class="status s-offer">Offer received</span>
+              <span class="status s-lose">No longer available</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="wrap band-inner reveal">
+        <span>Running on the HackCanton DevNet</span>
+        <span>Payments in Canton Coin</span>
+        <span>Rules shared by the network's admins</span>
+      </div>
+    </section>
+
+    <section class="section problem">
+      <div class="wrap two-col">
+        <div class="reveal">
+          <span class="eyebrow">The problem</span>
+          <h2>The same invoice gets sold twice.</h2>
+          <p>
+            A supplier waiting 60 days to be paid can sell its invoice to a lender for cash today.
+            But each lender sees only its own deals — so one invoice can be financed by two or three
+            lenders at once. The buyer pays once. Someone loses the money.
+          </p>
+          <p>
+            A shared list of invoices would stop it, but no lender will put its clients and prices
+            where competitors can see them.
           </p>
         </div>
-        <ul class="promises">
-          <li><strong>No double financing</strong><span>The network accepts one payment per invoice.</span></li>
-          <li><strong>Private offers</strong><span>Each lender sees only its own deal.</span></li>
-          <li><strong>Real settlement</strong><span>Lenders pay and buyers repay in Canton Coin.</span></li>
-        </ul>
-      </section>
-
-      <nav class="viewbar" aria-label="Choose who you are">
-        <span class="viewbar-label">Viewing as</span>
-        <div class="segmented" id="roleButtons" role="tablist"></div>
-      </nav>
-      <p class="role-hint" id="roleContext"></p>
-
-      <div class="layout">
-        <div class="main-column">
-          <ol class="steps" id="steps" aria-label="Invoice progress">
-            <li data-step="draft">Created</li>
-            <li data-step="approved">Approved</li>
-            <li data-step="offered">Offered</li>
-            <li data-step="funded">Financed</li>
-            <li data-step="repaid">Repaid</li>
-          </ol>
-
-          <section class="card" id="actionPanel">
-            <h2 id="actionTitle">What would you like to do?</h2>
-            <div id="actionBody"></div>
-          </section>
-
-          <section class="card" id="activityPanel">
-            <div class="card-head">
-              <h2 id="contractsTitle">Activity</h2>
-              <button class="link-button" id="refreshButton" type="button">Refresh</button>
-            </div>
-            <div class="activity" id="contractsList">
-              <p class="empty">Loading…</p>
-            </div>
-          </section>
+        <div class="problem-visual reveal" aria-hidden="true">
+          <div class="pv-invoice">INV-4821 · $48,000</div>
+          <div class="pv-row">
+            <div class="pv-lender">Lender A<small>paid $43,200</small></div>
+            <div class="pv-lender">Lender B<small>paid $42,500</small></div>
+            <div class="pv-lender">Lender C<small>paid $44,000</small></div>
+          </div>
+          <div class="pv-loss">Buyer repays once → two lenders lose</div>
         </div>
-
-        <aside class="side-column">
-          <section class="card result" id="resultPanel" aria-live="polite">
-            <h2>Latest result</h2>
-            <div id="resultBody"><p class="empty">Results of your actions appear here.</p></div>
-          </section>
-
-          <section class="card">
-            <h2>What you can see</h2>
-            <ul class="visibility" id="privacyList"></ul>
-          </section>
-
-          <section class="card network">
-            <h2>Network rules</h2>
-            <dl>
-              <div><dt>Changes need</dt><dd id="operatorsState">—</dd></div>
-              <div><dt>Maximum advance</dt><dd id="rulesState">—</dd></div>
-              <div><dt>Lenders</dt><dd id="financiersState">—</dd></div>
-              <div><dt>Buyer approvals</dt><dd id="registryState">—</dd></div>
-            </dl>
-          </section>
-        </aside>
       </div>
-    </main>
+    </section>
+
+    <section class="section how" id="how">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="eyebrow">How it works</span>
+          <h2>Four steps. One payment.</h2>
+        </div>
+        <ol class="steps-grid">
+          <li class="step reveal">
+            <span class="step-icon"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg></span>
+            <h3>Supplier creates the invoice</h3>
+            <p>Only the supplier and its buyer can see it.</p>
+          </li>
+          <li class="step reveal">
+            <span class="step-icon"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <h3>Buyer approves it — once</h3>
+            <p>An invoice number can never be approved a second time.</p>
+          </li>
+          <li class="step reveal">
+            <span class="step-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <h3>Lenders get private offers</h3>
+            <p>Each lender sees only the offer made to it.</p>
+          </li>
+          <li class="step reveal">
+            <span class="step-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 9.5c0-1.4 1.3-2 3-2s3 .8 3 2-1.3 1.8-3 2.2-3 1-3 2.3 1.3 2 3 2 3-.6 3-2"/></svg></span>
+            <h3>First to pay wins</h3>
+            <p>The rest are told "no longer available". The buyer repays the winner.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section trust" id="trust">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="eyebrow">Why it's safe</span>
+          <h2>Guaranteed by the network, not by a promise.</h2>
+        </div>
+        <div class="cards">
+          <article class="feature reveal">
+            <h3>One payment per invoice</h3>
+            <p>When two lenders tried to pay for the same invoice at the same moment, the network accepted one and refused the other. No company database decides it.</p>
+          </article>
+          <article class="feature reveal">
+            <h3>Private by design</h3>
+            <p>Each company sees only its own business. A lender that lost an invoice learns it's gone — nothing about who won or the price.</p>
+          </article>
+          <article class="feature reveal">
+            <h3>Real money, never paid twice</h3>
+            <p>Lenders pay and buyers repay in Canton Coin. If a payment is interrupted, Tavryn finishes it automatically — a retry can never pay twice.</p>
+          </article>
+          <article class="feature reveal">
+            <h3>No single owner</h3>
+            <p>Which lenders may join, and how much of an invoice they can advance, is set by the network's admins together. One admin alone can't change it.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section who" id="who">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="eyebrow">Who it's for</span>
+          <h2>Built for supplier-finance programmes.</h2>
+        </div>
+        <div class="who-grid">
+          <div class="who-card reveal"><h3>Buyers</h3><p>Keep suppliers healthy with cheaper financing, and approve each invoice exactly once.</p></div>
+          <div class="who-card reveal"><h3>Suppliers</h3><p>Get paid now instead of in 60 days, with lenders competing for the invoice.</p></div>
+          <div class="who-card reveal"><h3>Lenders</h3><p>Finance invoices knowing no one else is financing the same one — without showing your book.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="wrap cta-inner reveal">
+        <h2>See it for yourself.</h2>
+        <p>Switch between supplier, buyer and lenders, and watch the second lender get turned away.</p>
+        <a class="btn btn-gold" href="/app">Open the live demo</a>
+      </div>
+    </section>
 
     <footer class="footer">
-      <span>Tavryn</span>
-      <span>Runs on Canton Network · demo environment</span>
+      <div class="wrap footer-inner">
+        <a class="logo" href="/"><img src="/assets/tavryn-logo-480.png" alt="" />Tavryn</a>
+        <span>Built on Canton Network · HackCanton Season 3</span>
+        <a href="https://github.com/Jennycruzy/tavryn">Source on GitHub</a>
+      </div>
     </footer>
-    <script type="module" src="/ui/app.js"></script>
+
+    <script src="/ui/landing.js" type="module"></script>
   </body>
 </html>

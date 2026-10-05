@@ -86,7 +86,7 @@ async function snapshot(name, check) {
 }
 
 try {
-  await page.goto(baseUrl);
+  await page.goto(`${baseUrl}/app`);
   await page.waitForSelector('#roleButtons button[data-role="supplier"]');
 
   await role("supplier");

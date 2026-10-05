@@ -228,8 +228,13 @@ async function serveStatic(pathname: string, response: ServerResponse): Promise<
   let root: string;
   let relativePath: string;
   if (pathname === "/") {
+    // The public landing page.
     root = resolve(projectRoot, "ui");
     relativePath = "index.html";
+  } else if (pathname === "/app" || pathname === "/app/") {
+    // The product workspace.
+    root = resolve(projectRoot, "ui");
+    relativePath = "app.html";
   } else if (pathname.startsWith("/ui/")) {
     root = resolve(projectRoot, "ui");
     relativePath = pathname.slice("/ui/".length);
