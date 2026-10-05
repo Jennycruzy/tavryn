@@ -173,8 +173,13 @@ export class LedgerTokenProvider {
         this.refreshToken = undefined;
         return this.token(true);
       }
+      // Keycloak's error and description name the cause (for example invalid_grant or
+      // unauthorized_client) and carry no credential.
       throw new LedgerApiError(response.status === 200 ? 401 : response.status, {
         code: "OIDC_TOKEN_REJECTED",
+        error: typeof payload.error === "string" ? payload.error : undefined,
+        description:
+          typeof payload.error_description === "string" ? payload.error_description : undefined,
       });
     }
     if (typeof payload.refresh_token === "string") {
