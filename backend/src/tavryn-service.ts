@@ -1,9 +1,14 @@
-import { Tavryn as TavrynBindings } from "../daml.js/tavryn-0.1.1/lib/index.js";
+import { randomBytes, randomUUID } from "node:crypto";
+
+import { Tavryn as TavrynBindings } from "../daml.js/tavryn-0.1.4/lib/index.js";
 
 import {
+  type FinancierRole,
   type Role,
   type TavrynConfig,
+  isFinancierRole,
   partyForRole,
+  roleForFinancierParty,
 } from "./config.js";
 import {
   type ActiveContract,
@@ -17,21 +22,10 @@ import {
   CantonCoinSettlementError,
   type CantonCoinTransfer,
 } from "./canton-coin.js";
-import {
-  FinancingOfferBeginFunding,
-  PendingFunding,
-  PendingFundingCancel,
-  PendingFundingComplete,
-} from "./settlement-contracts.js";
-import {
-  FinancierAdmissionProposal,
-  FinancierAdmissionProposalConfirm,
-  FinancierAdmissionProposalExecute,
-  GovernanceCommittee,
-  GovernanceCommitteeProposeFinancierAdmission,
-} from "./governance-contracts.js";
+import { type LedgerErrorContext, mapLedgerError } from "./ledger-errors.js";
+import { reconcileDecision } from "./reconcile.js";
 
-const { Contracts, Types } = TavrynBindings;
+const { Contracts, Governance } = TavrynBindings;
 
 export interface InvoiceTermsInput {
   externalInvoiceNumber: string;
@@ -41,14 +35,21 @@ export interface InvoiceTermsInput {
   dueDate: string;
 }
 
-export interface InvoiceDraftInput {
-  invoiceCommitment: string;
-  terms: InvoiceTermsInput;
-}
-
 export interface SettledSubmission {
   ledger: SubmissionResult;
   cash: CantonCoinTransfer;
+}
+
+export type GovernanceActionInput =
+  | { type: "AdmitFinancier" | "RemoveFinancier"; financierRole: string }
+  | { type: "SetMaxAdvanceRate"; rate: string };
+
+export interface ReconcileOutcome {
+  outcome: "completed" | "cancelled" | "pending" | "already-resolved";
+  contractId: string;
+  trackingId?: string;
+  updateId?: string;
+  cashUpdateId?: string;
 }
 
 export class TavrynInputError extends Error {
@@ -63,19 +64,24 @@ export class TavrynInputError extends Error {
 }
 
 export class TavrynConflictError extends Error {
-  readonly status = 409;
+  readonly status: number;
   readonly publicCode: string;
   readonly submissionReference?: SubmissionReference;
+  readonly details?: Record<string, unknown>;
 
   constructor(
     message: string,
     publicCode: string,
     submissionReference?: SubmissionReference,
+    status = 409,
+    details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "TavrynConflictError";
     this.publicCode = publicCode;
     this.submissionReference = submissionReference;
+    this.status = status;
+    this.details = details;
   }
 }
 
@@ -83,27 +89,33 @@ export class TavrynSettlementError extends Error {
   readonly status = 502;
   readonly publicCode: string;
   readonly paymentReference?: string;
-  readonly pendingFundingCid?: string;
+  readonly pendingContractId?: string;
 
   constructor(
     message: string,
     publicCode: string,
     paymentReference?: string,
-    pendingFundingCid?: string,
+    pendingContractId?: string,
   ) {
     super(message);
     this.name = "TavrynSettlementError";
     this.publicCode = publicCode;
     this.paymentReference = paymentReference;
-    this.pendingFundingCid = pendingFundingCid;
+    this.pendingContractId = pendingContractId;
   }
+}
+
+interface CurrentNetwork {
+  rules: ActiveContract;
+  rulesArgument: Record<string, unknown>;
+  committee: ActiveContract;
 }
 
 export class TavrynService {
   readonly ledger: LedgerApi;
   readonly settlement: CantonCoinSettlement;
 
-  constructor(private readonly config: TavrynConfig) {
+  constructor(readonly config: TavrynConfig) {
     this.ledger = new LedgerApi(config);
     this.settlement = new CantonCoinSettlement(config);
   }
@@ -131,263 +143,387 @@ export class TavrynService {
     return this.ledger.getLedgerEnd();
   }
 
-  createNetworkRules(maxAdvanceRate: string): Promise<SubmissionResult> {
-    assertDecimal(maxAdvanceRate, "maxAdvanceRate");
-    return this.ledger.create(
-      Contracts.NetworkRules,
-      {
-        governanceParty: this.config.parties.governance,
-        members: this.allNetworkMembers(),
-        maxAdvanceRate,
-      },
-      [this.config.parties.governance],
-    );
+  contractsForRole(role: Role): Promise<ActiveContract[]> {
+    return this.ledger.activeContracts(partyForRole(this.config, role));
   }
 
-  createGovernanceCommittee(
-    networkRulesContractId: string,
-    threshold: string,
-  ): Promise<SubmissionResult> {
-    requireContractId(networkRulesContractId, "networkRulesContractId");
-    const parsedThreshold = positiveInteger(threshold, "threshold");
-    this.assertGovernanceConfigured(parsedThreshold);
-    return this.ledger.create(
-      GovernanceCommittee,
-      {
-        governanceParty: this.config.parties.governance,
-        operators: this.config.governance.operatorPartyIds,
-        // Canton JSON API encodes Daml Int values as decimal strings.
-        threshold: String(parsedThreshold),
-        networkRules: networkRulesContractId,
-      },
-      [this.config.parties.governance],
-    );
-  }
+  // ---------------------------------------------------------------- network and governance
 
-  proposeFinancierAdmission(
-    committeeContractId: string,
-    operatorIndex: string,
-    candidatePartyId?: string,
-  ): Promise<SubmissionResult> {
-    requireContractId(committeeContractId, "committeeContractId");
-    const operator = this.governanceOperator(operatorIndex);
-    const candidate = candidatePartyId?.trim() || this.config.governance.candidatePartyId;
-    if (!candidate) {
-      throw new TavrynInputError(
-        "A governance candidate party must be configured or supplied",
+  /**
+   * Idempotent: finds or creates the committee and first rules through the operators'
+   * propose/accept chain, then onboards the buyer through a governance vote.
+   */
+  async bootstrapNetwork(): Promise<Record<string, unknown>> {
+    const operators = this.config.governance.operatorPartyIds;
+    let network = await this.findNetwork();
+    const steps: Record<string, string> = {};
+    if (!network) {
+      const visible = await this.ledger.activeContracts(operators[0]);
+      let bootstrap = visible.find(
+        (contract) =>
+          isTemplate(contract, "Tavryn.Governance", "CommitteeBootstrap") &&
+          record(contract.createArgument).networkId === this.config.networkId &&
+          sameParties(record(contract.createArgument).operators, operators),
       );
+      let bootstrapCid = bootstrap?.contractId;
+      let accepted = bootstrap
+        ? (record(bootstrap.createArgument).accepted as string[])
+        : [];
+      if (!bootstrapCid) {
+        const created = await this.ledger.create(
+          Governance.CommitteeBootstrap,
+          {
+            networkId: this.config.networkId,
+            operators,
+            threshold: String(this.config.governance.threshold),
+            accepted: [operators[0]],
+            financiers: this.config.governance.initialFinancierRoles.map((role) =>
+              partyForRole(this.config, role),
+            ),
+            participants: [this.config.parties.supplier, this.config.parties.auditor],
+            maxAdvanceRate: this.config.governance.initialMaxAdvanceRate,
+          },
+          [operators[0]],
+        );
+        bootstrapCid = createdContractId(created, "CommitteeBootstrap");
+        accepted = [operators[0]];
+        steps.bootstrapCreated = created.transaction.updateId;
+      }
+      for (const operator of operators) {
+        if (accepted.includes(operator)) continue;
+        const joined = await this.ledger.exercise(
+          Governance.CommitteeBootstrap,
+          Governance.CommitteeBootstrap.Join,
+          bootstrapCid,
+          { operator },
+          [operator],
+        );
+        bootstrapCid = createdContractId(joined, "CommitteeBootstrap");
+        accepted.push(operator);
+        steps[`joined:${operators.indexOf(operator) + 1}`] = joined.transaction.updateId;
+      }
+      const last = operators[operators.length - 1];
+      const finalized = await this.ledger.exercise(
+        Governance.CommitteeBootstrap,
+        Governance.CommitteeBootstrap.Finalize,
+        bootstrapCid,
+        { operator: last },
+        [last],
+      );
+      steps.finalized = finalized.transaction.updateId;
+      network = await this.requireNetwork();
     }
-    return this.ledger.exercise(
-      GovernanceCommittee,
-      GovernanceCommitteeProposeFinancierAdmission,
-      committeeContractId,
-      { proposer: operator, candidate },
-      [operator],
-    );
+
+    const buyers = network.rulesArgument.buyers as string[];
+    if (!buyers.includes(this.config.parties.buyer)) {
+      const proposal = await this.propose("1", { type: "OnboardBuyer" });
+      const proposalCid = createdContractId(proposal, "GovernanceProposal");
+      for (let index = 1; index <= this.config.governance.threshold; index += 1) {
+        await this.vote(proposalCid, String(index));
+      }
+      const executed = await this.execute(proposalCid, "1");
+      steps.buyerOnboarded = executed.transaction.updateId;
+      network = await this.requireNetwork();
+    }
+
+    const registry = await this.findRegistry();
+    return {
+      networkId: this.config.networkId,
+      committeeCid: network.committee.contractId,
+      rulesCid: network.rules.contractId,
+      rulesVersion: network.rulesArgument.version,
+      registryCid: registry?.contractId,
+      steps,
+    };
   }
 
-  confirmFinancierAdmission(
-    proposalContractId: string,
+  async networkStatus(): Promise<Record<string, unknown>> {
+    const operators = this.config.governance.operatorPartyIds;
+    const network = await this.findNetwork();
+    const operatorView = await this.ledger.activeContracts(operators[0]);
+    const registry = network ? await this.findRegistry() : undefined;
+    const votes = operatorView.filter((contract) =>
+      isTemplate(contract, "Tavryn.Governance", "GovernanceVote"),
+    );
+    const proposals = operatorView
+      .filter(
+        (contract) =>
+          isTemplate(contract, "Tavryn.Governance", "GovernanceProposal") &&
+          record(contract.createArgument).networkId === this.config.networkId,
+      )
+      .map((proposal) => {
+        const argument = record(proposal.createArgument);
+        const voters = [
+          ...new Set(
+            votes
+              .filter((vote) => record(vote.createArgument).proposal === proposal.contractId)
+              .map((vote) => String(record(vote.createArgument).operator)),
+          ),
+        ];
+        return {
+          contractId: proposal.contractId,
+          action: this.describeAction(argument.action),
+          proposer: this.operatorIndex(String(argument.proposer)),
+          rulesVersion: Number(argument.rulesVersion),
+          expiresAt: argument.expiresAt,
+          stale:
+            network !== undefined &&
+            Number(argument.rulesVersion) !== Number(network.rulesArgument.version),
+          votes: voters.map((voter) => this.operatorIndex(voter)),
+          threshold: this.config.governance.threshold,
+        };
+      });
+    const rules = network?.rulesArgument;
+    return {
+      networkId: this.config.networkId,
+      bootstrapped: Boolean(network),
+      operators: operators.map((party, index) => ({ index: index + 1, party })),
+      threshold: this.config.governance.threshold,
+      committeeCid: network?.committee.contractId,
+      rules: rules && {
+        contractId: network.rules.contractId,
+        version: Number(rules.version),
+        maxAdvanceRate: rules.maxAdvanceRate,
+        financiers: (rules.financiers as string[]).map((party) => ({
+          party,
+          role: roleForFinancierParty(this.config, party),
+        })),
+        buyerOnboarded: (rules.buyers as string[]).includes(this.config.parties.buyer),
+      },
+      registry: registry && {
+        contractId: registry.contractId,
+        approvedCount: (record(registry.createArgument).approvedInvoiceNumbers as string[])
+          .length,
+      },
+      financierRoles: [...this.config.financiers.entries()].map(([role, party]) => ({
+        role,
+        party,
+      })),
+      proposals,
+    };
+  }
+
+  async propose(
     operatorIndex: string,
+    action: GovernanceActionInput | { type: "OnboardBuyer" },
   ): Promise<SubmissionResult> {
-    requireContractId(proposalContractId, "proposalContractId");
     const operator = this.governanceOperator(operatorIndex);
-    return this.ledger.exercise(
-      FinancierAdmissionProposal,
-      FinancierAdmissionProposalConfirm,
-      proposalContractId,
-      { operator },
-      [operator],
-    );
-  }
-
-  executeFinancierAdmission(
-    proposalContractId: string,
-    voteContractIds: string[],
-  ): Promise<SubmissionResult> {
-    requireContractId(proposalContractId, "proposalContractId");
-    if (!Array.isArray(voteContractIds) || voteContractIds.length === 0) {
-      throw new TavrynInputError("voteContractIds must contain at least one contract ID");
-    }
-    voteContractIds.forEach((voteContractId, index) =>
-      requireContractId(voteContractId, `voteContractIds[${index}]`),
-    );
+    const network = await this.requireNetwork();
     return this.ledger
       .exercise(
-        FinancierAdmissionProposal,
-        FinancierAdmissionProposalExecute,
-        proposalContractId,
-        { votes: voteContractIds },
-        [this.config.parties.governance],
+        Governance.GovernanceCommittee,
+        Governance.GovernanceCommittee.Propose,
+        network.committee.contractId,
+        {
+          proposer: operator,
+          action: this.encodeAction(action),
+          rulesCid: network.rules.contractId,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        },
+        [operator],
+      )
+      .catch((error) => this.rethrow(error, "governance"));
+  }
+
+  async vote(proposalCid: string, operatorIndex: string): Promise<SubmissionResult> {
+    requireContractId(proposalCid, "proposalCid");
+    const operator = this.governanceOperator(operatorIndex);
+    return this.ledger
+      .exercise(
+        Governance.GovernanceProposal,
+        Governance.GovernanceProposal.Vote,
+        proposalCid,
+        { operator },
+        [operator],
+      )
+      .catch((error) => this.rethrow(error, "governance"));
+  }
+
+  /**
+   * Submits every vote recorded for the proposal. Below the threshold the ledger itself
+   * rejects the change; the failed submission reference is returned to the caller.
+   */
+  async execute(proposalCid: string, operatorIndex: string): Promise<SubmissionResult> {
+    requireContractId(proposalCid, "proposalCid");
+    const executor = this.governanceOperator(operatorIndex);
+    const network = await this.requireNetwork();
+    const votes = (await this.ledger.activeContracts(executor)).filter(
+      (contract) =>
+        isTemplate(contract, "Tavryn.Governance", "GovernanceVote") &&
+        record(contract.createArgument).proposal === proposalCid,
+    );
+    const distinctVoters = new Set(
+      votes.map((vote) => String(record(vote.createArgument).operator)),
+    ).size;
+    return this.ledger
+      .exercise(
+        Governance.GovernanceCommittee,
+        Governance.GovernanceCommittee.Execute,
+        network.committee.contractId,
+        {
+          executor,
+          proposalCid,
+          voteCids: votes.map((vote) => vote.contractId),
+          rulesCid: network.rules.contractId,
+        },
+        [executor],
       )
       .catch((error) => {
-        if (isLedgerConflict(error)) {
+        const mapped = mapLedgerError(error, "governance");
+        if (mapped?.code === "GOVERNANCE_THRESHOLD_NOT_MET") {
           throw new TavrynConflictError(
-            "Governance threshold not met; the financier has not been admitted.",
-            "GOVERNANCE_THRESHOLD_NOT_MET",
-            error.submissionReference,
+            `Not enough operator approvals (${distinctVoters} of ${this.config.governance.threshold}). Nothing changed.`,
+            mapped.code,
+            error instanceof LedgerApiError ? error.submissionReference : undefined,
+            409,
+            { approvals: distinctVoters, threshold: this.config.governance.threshold },
           );
         }
-        throw error;
+        return this.rethrow(error, "governance");
       });
   }
 
-  createBuyerRegistry(): Promise<SubmissionResult> {
-    return this.ledger.create(
-      Contracts.BuyerApprovalRegistry,
-      {
-        buyer: this.config.parties.buyer,
-        approvedInvoiceNumbers: [],
-      },
-      [this.config.parties.buyer],
-    );
-  }
+  // ---------------------------------------------------------------- invoice lifecycle
 
-  createInvoiceDraft(input: InvoiceDraftInput): Promise<SubmissionResult> {
-    validateInvoiceInput(input);
+  createInvoiceDraft(terms: InvoiceTermsInput): Promise<SubmissionResult> {
+    validateTerms(terms);
     return this.ledger.create(
       Contracts.InvoiceDraft,
       {
         supplier: this.config.parties.supplier,
         buyer: this.config.parties.buyer,
-        invoiceCommitment: input.invoiceCommitment,
-        terms: encodeTerms(input.terms),
+        terms,
+        // The salt keeps the on-ledger commitment from being guessed from the terms.
+        salt: randomBytes(16).toString("hex"),
       },
       [this.config.parties.supplier],
     );
   }
 
-  approveInvoice(
+  async approveInvoice(
     draftContractId: string,
-    networkRulesContractId: string,
-    approvalRegistryContractId: string,
+    eligibleFinancierRoles?: string[],
   ): Promise<SubmissionResult> {
     requireContractId(draftContractId, "draftContractId");
-    requireContractId(networkRulesContractId, "networkRulesContractId");
-    requireContractId(approvalRegistryContractId, "approvalRegistryContractId");
+    const network = await this.requireNetwork();
+    const registry = await this.findRegistry();
+    if (!registry) {
+      throw new TavrynConflictError(
+        "The buyer has not been onboarded to this network yet.",
+        "BUYER_NOT_ONBOARDED",
+      );
+    }
+    const admitted = network.rulesArgument.financiers as string[];
+    let eligibleFinanciers: string[];
+    if (eligibleFinancierRoles && eligibleFinancierRoles.length > 0) {
+      eligibleFinanciers = eligibleFinancierRoles.map((role) => {
+        if (!isFinancierRole(this.config, role)) {
+          throw new TavrynInputError(`Unknown financier role: ${role}`);
+        }
+        return partyForRole(this.config, role);
+      });
+    } else {
+      eligibleFinanciers = [...this.config.financiers.values()].filter((party) =>
+        admitted.includes(party),
+      );
+    }
     return this.ledger
       .exercise(
         Contracts.InvoiceDraft,
         Contracts.InvoiceDraft.Approve,
         draftContractId,
         {
-          networkRules: networkRulesContractId,
-          approvalRegistry: approvalRegistryContractId,
-          eligibleFinanciers: [
-            this.config.parties.financierA,
-            this.config.parties.financierB,
-          ],
+          rulesCid: network.rules.contractId,
+          registryCid: registry.contractId,
+          eligibleFinanciers,
           auditor: this.config.parties.auditor,
         },
         [this.config.parties.buyer],
       )
-      .catch((error) => {
-        if (isLedgerConflict(error)) {
-          throw new TavrynConflictError(
-            "The buyer could not approve this invoice. Its external invoice number may already be approved.",
-            "DUPLICATE_OR_INVALID_APPROVAL",
-            error.submissionReference,
-          );
-        }
-        throw error;
-      });
+      .catch((error) => this.rethrow(error, "approval"));
   }
 
-  createOffer(
+  async createOffer(
     approvedInvoiceContractId: string,
-    financierRole: "financierA" | "financierB",
+    financierRole: FinancierRole,
     advance: string,
     advanceRate: string,
   ): Promise<SubmissionResult> {
     requireContractId(approvedInvoiceContractId, "approvedInvoiceContractId");
     assertDecimal(advance, "advance");
     assertDecimal(advanceRate, "advanceRate");
-    const financier = partyForRole(this.config, financierRole);
-    return this.ledger.exercise(
-      Contracts.ApprovedInvoice,
-      Contracts.ApprovedInvoice.CreateOffer,
-      approvedInvoiceContractId,
-      {
-        approvedInvoice: approvedInvoiceContractId,
-        financier,
-        advance,
-        advanceRate,
-      },
-      [this.config.parties.buyer, this.config.parties.supplier],
-    );
+    const financier = this.financierParty(financierRole);
+    const network = await this.requireNetwork();
+    return this.ledger
+      .exercise(
+        Contracts.ApprovedInvoice,
+        Contracts.ApprovedInvoice.CreateOffer,
+        approvedInvoiceContractId,
+        { rulesCid: network.rules.contractId, financier, advance, advanceRate },
+        [this.config.parties.buyer, this.config.parties.supplier],
+      )
+      .catch((error) => this.rethrow(error, "other"));
   }
 
-  acceptOffer(
+  /** Off-ledger settlement: records an external payment reference. */
+  async acceptOffer(
     offerContractId: string,
-    financierRole: "financierA" | "financierB",
+    financierRole: FinancierRole,
+    paymentReference: string,
   ): Promise<SubmissionResult> {
     requireContractId(offerContractId, "offerContractId");
-    const financier = partyForRole(this.config, financierRole);
-    return this.activeFinancingOfferForRole("supplier", offerContractId)
-      .then((offer) => {
-        const argument = record(offer.createArgument, "FinancingOffer");
-        const invoiceCommitment = stringFieldValue(
-          argument.invoiceCommitment,
-          "FinancingOffer.invoiceCommitment",
-        );
-        return this.ledger
-          .exercise(
-            Contracts.FinancingOffer,
-            Contracts.FinancingOffer.Accept,
-            offerContractId,
-            {},
-            [this.config.parties.buyer, this.config.parties.supplier, financier],
-          )
-          .then(async (result) => {
-            await this.withdrawLosingOffers(invoiceCommitment, offerContractId);
-            return result;
-          });
-      })
-      .catch((error) => {
-        if (isLedgerConflict(error)) {
-          throw new TavrynConflictError(
-            "This invoice is no longer available for funding.",
-            "INVOICE_UNAVAILABLE",
-            error.submissionReference,
-          );
-        }
-        throw error;
-      });
+    if (!paymentReference.trim()) {
+      throw new TavrynInputError("paymentReference is required");
+    }
+    const financier = this.financierParty(financierRole);
+    const { offer, approved, network } = await this.fundingInputs(financierRole, offerContractId);
+    const result = await this.ledger
+      .exercise(
+        Contracts.FinancingOffer,
+        Contracts.FinancingOffer.Accept,
+        offerContractId,
+        {
+          approvedInvoiceCid: approved.contractId,
+          rulesCid: network.rules.contractId,
+          paymentReference,
+        },
+        [this.config.parties.buyer, this.config.parties.supplier, financier],
+      )
+      .catch((error) => this.rethrow(error, "funding"));
+    await this.closeLosingOffers(String(record(offer.createArgument).invoiceCommitment));
+    return result;
   }
 
+  /** Two-step Canton Coin funding: lock, transfer with the same tracking ID, complete. */
   async fundOffer(
     offerContractId: string,
-    financierRole: "financierA" | "financierB",
+    financierRole: FinancierRole,
   ): Promise<SettledSubmission> {
     requireContractId(offerContractId, "offerContractId");
+    const financier = this.financierParty(financierRole);
     this.settlement.assertConfigured(financierRole);
-    const financier = partyForRole(this.config, financierRole);
-    const offer = await this.activeFinancingOfferForRole(financierRole, offerContractId);
-    const offerArgument = record(offer.createArgument, "FinancingOffer");
-    this.assertCantonCoinCurrency(
-      record(offerArgument.terms, "FinancingOffer.terms"),
-      "FinancingOffer.terms",
-    );
-    const amount = decimalField(offerArgument, "advance", "FinancingOffer.advance");
+    const { offer, approved, network } = await this.fundingInputs(financierRole, offerContractId);
+    const offerArgument = record(offer.createArgument);
+    const terms = record(offerArgument.terms);
+    const instrument = this.assertCantonCoinCurrency(terms);
+    const amount = decimalString(offerArgument.advance, "FinancingOffer.advance");
+    const trackingId = `tavryn-funding-${randomUUID()}`;
 
     const pending = await this.ledger
       .exercise(
         Contracts.FinancingOffer,
-        FinancingOfferBeginFunding,
+        Contracts.FinancingOffer.BeginFunding,
         offerContractId,
-        {},
+        {
+          approvedInvoiceCid: approved.contractId,
+          rulesCid: network.rules.contractId,
+          trackingId,
+          settlementAmount: amount,
+          instrument,
+        },
         [this.config.parties.buyer, this.config.parties.supplier, financier],
       )
-      .catch((error) => {
-        if (isLedgerConflict(error)) {
-          throw new TavrynConflictError(
-            "This invoice is no longer available for funding.",
-            "INVOICE_UNAVAILABLE",
-            error.submissionReference,
-          );
-        }
-        throw error;
-      });
+      .catch((error) => this.rethrow(error, "funding"));
     const pendingFundingCid = createdContractId(pending, "PendingFunding");
 
     let cash: CantonCoinTransfer;
@@ -396,149 +532,436 @@ export class TavrynService {
         financierRole,
         this.config.parties.supplier,
         amount,
-        "funding",
+        trackingId,
       );
     } catch (error) {
       if (error instanceof CantonCoinSettlementError && error.safeToCancel) {
-        await this.cancelPendingFundingAfterFailedTransfer(
-          pendingFundingCid,
-          financier,
-        );
+        await this.cancelFunding(pendingFundingCid, financier).catch(() => {
+          console.error("PendingFunding cancellation failed after a rejected transfer", {
+            pendingFundingCid,
+          });
+        });
       }
       throw error;
     }
+    injectFault("TAVRYN_FAULT_AFTER_TRANSFER");
 
     let completed: SubmissionResult;
     try {
-      completed = await this.ledger.exercise(
-        PendingFunding,
-        PendingFundingComplete,
-        pendingFundingCid,
-        { paymentReference: cash.updateId },
-        [this.config.parties.buyer, this.config.parties.supplier, financier],
-      );
-    } catch (error) {
+      completed = await this.completeFunding(pendingFundingCid, financier, cash.updateId);
+    } catch {
       throw new TavrynSettlementError(
-        "Canton Coin moved, but the ledger could not finalize funding. The PendingFunding contract is retained for reconciliation.",
+        "Canton Coin moved, but the ledger could not finalize funding yet. The lock is kept and reconciliation will complete it.",
         "SETTLEMENT_LEDGER_FINALIZATION_FAILED",
         cash.updateId,
         pendingFundingCid,
       );
     }
-    await this.withdrawLosingOffers(
-      stringFieldValue(offerArgument.invoiceCommitment, "FinancingOffer.invoiceCommitment"),
-      offerContractId,
-    );
+    await this.closeLosingOffers(String(offerArgument.invoiceCommitment));
     return { ledger: completed, cash };
   }
 
-  async cancelPendingFunding(
-    pendingFundingCid: string,
-    financierRole: "financierA" | "financierB",
-  ): Promise<SubmissionResult> {
+  async reconcileFunding(pendingFundingCid: string): Promise<ReconcileOutcome> {
     requireContractId(pendingFundingCid, "pendingFundingCid");
-    const financier = partyForRole(this.config, financierRole);
-    return this.ledger.exercise(
-      PendingFunding,
-      PendingFundingCancel,
-      pendingFundingCid,
-      {},
-      [this.config.parties.buyer, this.config.parties.supplier, financier],
+    const pending = (await this.contractsForRole("supplier")).find(
+      (contract) =>
+        contract.contractId === pendingFundingCid &&
+        isTemplate(contract, "Tavryn.Contracts", "PendingFunding"),
     );
+    if (!pending) {
+      return { outcome: "already-resolved", contractId: pendingFundingCid };
+    }
+    const argument = record(pending.createArgument);
+    const financier = String(argument.financier);
+    const financierRole = roleForFinancierParty(this.config, financier);
+    if (!financierRole || !this.settlement.isConfigured(financierRole)) {
+      throw new TavrynConflictError(
+        "This lock belongs to a financier whose wallet is not configured here; reconcile it manually.",
+        "RECONCILIATION_REQUIRED",
+      );
+    }
+    const trackingId = String(argument.trackingId);
+    const amount = decimalString(argument.settlementAmount, "PendingFunding.settlementAmount");
+    const lockedAt = new Date(String(argument.lockedAt));
+    const transfer = await this.settlement.findCompletedTransfer(
+      financierRole,
+      this.config.parties.supplier,
+      amount,
+      trackingId,
+      new Date(lockedAt.getTime() - 60_000),
+    );
+    const decision = reconcileDecision({
+      transferFound: Boolean(transfer),
+      lockedAt,
+      now: new Date(),
+      transferExpirySeconds: this.config.settlement.transferExpirySeconds,
+    });
+    if (decision === "complete" && transfer) {
+      const completed = await this.completeFunding(pendingFundingCid, financier, transfer.updateId);
+      await this.closeLosingOffers(String(argument.invoiceCommitment));
+      return {
+        outcome: "completed",
+        contractId: pendingFundingCid,
+        trackingId,
+        updateId: completed.transaction.updateId,
+        cashUpdateId: transfer.updateId,
+      };
+    }
+    if (decision === "cancel") {
+      const cancelled = await this.cancelFunding(pendingFundingCid, financier);
+      return {
+        outcome: "cancelled",
+        contractId: pendingFundingCid,
+        trackingId,
+        updateId: cancelled.transaction.updateId,
+      };
+    }
+    return { outcome: "pending", contractId: pendingFundingCid, trackingId };
   }
 
-  repay(
+  /** Off-ledger repayment with an external payment reference. */
+  async repay(
     financedContractId: string,
-    financierRole: "financierA" | "financierB",
     repaymentDate: string,
     paymentReference: string,
   ): Promise<SubmissionResult> {
     requireContractId(financedContractId, "financedContractId");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(repaymentDate)) {
-      throw new TavrynInputError("repaymentDate must be YYYY-MM-DD");
-    }
+    validateDate(repaymentDate, "repaymentDate");
     if (!paymentReference.trim()) {
       throw new TavrynInputError("paymentReference is required");
     }
-    const financier = partyForRole(this.config, financierRole);
-    return this.ledger.exercise(
-      Contracts.FinancedInvoice,
-      Contracts.FinancedInvoice.Repay,
-      financedContractId,
-      { repaymentDate, paymentReference },
-      [this.config.parties.buyer, financier],
-    );
+    const financed = await this.activeFinanced(financedContractId);
+    return this.ledger
+      .exercise(
+        Contracts.FinancedInvoice,
+        Contracts.FinancedInvoice.Repay,
+        financedContractId,
+        { repaymentDate, paymentReference },
+        [this.config.parties.buyer, String(record(financed.createArgument).financier)],
+      )
+      .catch((error) => this.rethrow(error, "settlement"));
   }
 
+  /** Two-step Canton Coin repayment. A retry can never send cash twice: the financed
+   * invoice is locked before the transfer, and a second attempt finds no invoice to lock. */
   async repayWithSettlement(
     financedContractId: string,
-    financierRole: "financierA" | "financierB",
     repaymentDate: string,
   ): Promise<SettledSubmission> {
     requireContractId(financedContractId, "financedContractId");
     validateDate(repaymentDate, "repaymentDate");
     this.settlement.assertConfigured("buyer");
-    const financier = partyForRole(this.config, financierRole);
-    const financed = await this.activeContractForRole(
-      financierRole,
-      financedContractId,
-      "FinancedInvoice",
-    );
-    const financedArgument = record(financed.createArgument, "FinancedInvoice");
-    const terms = record(financedArgument.terms, "FinancedInvoice.terms");
-    this.assertCantonCoinCurrency(terms, "FinancedInvoice.terms");
-    const issuedDate = stringFieldValue(terms.issuedDate, "FinancedInvoice.terms.issuedDate");
-    if (repaymentDate < issuedDate) {
-      throw new TavrynInputError("repaymentDate must be on or after the invoice issue date");
-    }
-    const faceValue = decimalField(
-      terms,
-      "faceValue",
-      "FinancedInvoice.terms.faceValue",
-    );
-    const cash = await this.settlement.transfer(
-      "buyer",
-      financier,
-      faceValue,
-      "repayment",
-    );
-    let ledger: SubmissionResult;
-    try {
-      ledger = await this.ledger.exercise(
+    const financed = await this.activeFinanced(financedContractId);
+    const argument = record(financed.createArgument);
+    const financier = String(argument.financier);
+    const terms = record(argument.terms);
+    const instrument = this.assertCantonCoinCurrency(terms);
+    const amount = decimalString(terms.faceValue, "FinancedInvoice.terms.faceValue");
+    const trackingId = `tavryn-repayment-${randomUUID()}`;
+
+    const pending = await this.ledger
+      .exercise(
         Contracts.FinancedInvoice,
-        Contracts.FinancedInvoice.Repay,
+        Contracts.FinancedInvoice.BeginRepayment,
         financedContractId,
-        { repaymentDate, paymentReference: cash.updateId },
+        { repaymentDate, trackingId, settlementAmount: amount, instrument },
         [this.config.parties.buyer, financier],
-      );
+      )
+      .catch((error) => this.rethrow(error, "settlement"));
+    const pendingRepaymentCid = createdContractId(pending, "PendingRepayment");
+
+    let cash: CantonCoinTransfer;
+    try {
+      cash = await this.settlement.transfer("buyer", financier, amount, trackingId);
+    } catch (error) {
+      if (error instanceof CantonCoinSettlementError && error.safeToCancel) {
+        await this.cancelRepayment(pendingRepaymentCid, financier).catch(() => {
+          console.error("PendingRepayment cancellation failed after a rejected transfer", {
+            pendingRepaymentCid,
+          });
+        });
+      }
+      throw error;
+    }
+    injectFault("TAVRYN_FAULT_AFTER_REPAYMENT_TRANSFER");
+
+    try {
+      const ledger = await this.completeRepayment(pendingRepaymentCid, financier, cash.updateId);
+      return { ledger, cash };
     } catch {
       throw new TavrynSettlementError(
-        "Canton Coin moved, but the ledger could not record repayment. The payment reference must be reconciled before retrying.",
+        "Canton Coin moved, but the ledger could not record repayment yet. The lock is kept and reconciliation will complete it; do not pay again.",
         "SETTLEMENT_LEDGER_REPAYMENT_FAILED",
         cash.updateId,
+        pendingRepaymentCid,
       );
     }
-    return { ledger, cash };
   }
 
-  contractsForRole(role: Role): Promise<ActiveContract[]> {
-    return this.ledger.activeContracts(partyForRole(this.config, role));
+  async reconcileRepayment(pendingRepaymentCid: string): Promise<ReconcileOutcome> {
+    requireContractId(pendingRepaymentCid, "pendingRepaymentCid");
+    const pending = (await this.contractsForRole("buyer")).find(
+      (contract) =>
+        contract.contractId === pendingRepaymentCid &&
+        isTemplate(contract, "Tavryn.Contracts", "PendingRepayment"),
+    );
+    if (!pending) {
+      return { outcome: "already-resolved", contractId: pendingRepaymentCid };
+    }
+    if (!this.settlement.isConfigured("buyer")) {
+      throw new TavrynConflictError(
+        "The buyer wallet is not configured here; reconcile this repayment manually.",
+        "RECONCILIATION_REQUIRED",
+      );
+    }
+    const argument = record(pending.createArgument);
+    const financier = String(argument.financier);
+    const trackingId = String(argument.trackingId);
+    const amount = decimalString(argument.settlementAmount, "PendingRepayment.settlementAmount");
+    const lockedAt = new Date(String(argument.lockedAt));
+    const transfer = await this.settlement.findCompletedTransfer(
+      "buyer",
+      financier,
+      amount,
+      trackingId,
+      new Date(lockedAt.getTime() - 60_000),
+    );
+    const decision = reconcileDecision({
+      transferFound: Boolean(transfer),
+      lockedAt,
+      now: new Date(),
+      transferExpirySeconds: this.config.settlement.transferExpirySeconds,
+    });
+    if (decision === "complete" && transfer) {
+      const completed = await this.completeRepayment(pendingRepaymentCid, financier, transfer.updateId);
+      return {
+        outcome: "completed",
+        contractId: pendingRepaymentCid,
+        trackingId,
+        updateId: completed.transaction.updateId,
+        cashUpdateId: transfer.updateId,
+      };
+    }
+    if (decision === "cancel") {
+      const cancelled = await this.cancelRepayment(pendingRepaymentCid, financier);
+      return {
+        outcome: "cancelled",
+        contractId: pendingRepaymentCid,
+        trackingId,
+        updateId: cancelled.transaction.updateId,
+      };
+    }
+    return { outcome: "pending", contractId: pendingRepaymentCid, trackingId };
   }
 
-  private allNetworkMembers(): string[] {
-    return [
-      this.config.parties.supplier,
-      this.config.parties.buyer,
-      this.config.parties.financierA,
-      this.config.parties.financierB,
-      this.config.parties.auditor,
-    ];
+  /** Reconciles every settlement lock older than `minimumAgeMs`. Never sends cash. */
+  async sweepSettlementLocks(minimumAgeMs = 30_000): Promise<ReconcileOutcome[]> {
+    const cutoff = Date.now() - minimumAgeMs;
+    const old = (contract: ActiveContract) =>
+      new Date(String(record(contract.createArgument).lockedAt)).getTime() < cutoff;
+    const funding = (await this.contractsForRole("supplier")).filter(
+      (contract) => isTemplate(contract, "Tavryn.Contracts", "PendingFunding") && old(contract),
+    );
+    const repayments = (await this.contractsForRole("buyer")).filter(
+      (contract) => isTemplate(contract, "Tavryn.Contracts", "PendingRepayment") && old(contract),
+    );
+    const outcomes: ReconcileOutcome[] = [];
+    for (const contract of funding) {
+      outcomes.push(
+        await this.reconcileFunding(contract.contractId).catch((error) =>
+          sweepFailure(contract.contractId, error),
+        ),
+      );
+    }
+    for (const contract of repayments) {
+      outcomes.push(
+        await this.reconcileRepayment(contract.contractId).catch((error) =>
+          sweepFailure(contract.contractId, error),
+        ),
+      );
+    }
+    return outcomes;
   }
 
-  private assertCantonCoinCurrency(
-    terms: Record<string, unknown>,
-    termsName: string,
-  ): void {
+  // ---------------------------------------------------------------- helpers
+
+  private async findNetwork(): Promise<CurrentNetwork | undefined> {
+    const operators = this.config.governance.operatorPartyIds;
+    const contracts = await this.ledger.activeContracts(operators[0]);
+    const matches = (contract: ActiveContract) => {
+      const argument = record(contract.createArgument);
+      return (
+        argument.networkId === this.config.networkId &&
+        sameParties(argument.operators, operators)
+      );
+    };
+    const rules = contracts.find(
+      (contract) => isTemplate(contract, "Tavryn.Rules", "NetworkRules") && matches(contract),
+    );
+    const committee = contracts.find(
+      (contract) =>
+        isTemplate(contract, "Tavryn.Governance", "GovernanceCommittee") && matches(contract),
+    );
+    if (!rules || !committee) return undefined;
+    return { rules, rulesArgument: record(rules.createArgument), committee };
+  }
+
+  private async requireNetwork(): Promise<CurrentNetwork> {
+    const network = await this.findNetwork();
+    if (!network) {
+      throw new TavrynConflictError(
+        "The network has not been bootstrapped yet. Run `npm run bootstrap`.",
+        "NETWORK_NOT_BOOTSTRAPPED",
+      );
+    }
+    return network;
+  }
+
+  private async findRegistry(): Promise<ActiveContract | undefined> {
+    const operators = this.config.governance.operatorPartyIds;
+    return (await this.contractsForRole("buyer")).find((contract) => {
+      if (!isTemplate(contract, "Tavryn.Rules", "BuyerApprovalRegistry")) return false;
+      const argument = record(contract.createArgument);
+      return (
+        argument.networkId === this.config.networkId &&
+        argument.buyer === this.config.parties.buyer &&
+        sameParties(argument.operators, operators)
+      );
+    });
+  }
+
+  // Resolves the offer from the financier's own view, and the approved invoice it is
+  // for from the supplier's view. A closed or consumed one means someone else won.
+  private async fundingInputs(financierRole: FinancierRole, offerContractId: string) {
+    const offer = (await this.contractsForRole(financierRole)).find(
+      (contract) =>
+        contract.contractId === offerContractId &&
+        isTemplate(contract, "Tavryn.Contracts", "FinancingOffer"),
+    );
+    if (!offer) {
+      throw new TavrynConflictError(
+        "This invoice is no longer available for funding.",
+        "INVOICE_UNAVAILABLE",
+      );
+    }
+    const commitment = record(offer.createArgument).invoiceCommitment;
+    const approved = (await this.contractsForRole("supplier")).find(
+      (contract) =>
+        isTemplate(contract, "Tavryn.Contracts", "ApprovedInvoice") &&
+        record(contract.createArgument).invoiceCommitment === commitment,
+    );
+    if (!approved) {
+      throw new TavrynConflictError(
+        "This invoice is no longer available for funding.",
+        "INVOICE_UNAVAILABLE",
+      );
+    }
+    const network = await this.requireNetwork();
+    return { offer, approved, network };
+  }
+
+  private async activeFinanced(financedContractId: string): Promise<ActiveContract> {
+    const contracts = await this.contractsForRole("buyer");
+    const financed = contracts.find(
+      (contract) =>
+        contract.contractId === financedContractId &&
+        isTemplate(contract, "Tavryn.Contracts", "FinancedInvoice"),
+    );
+    if (financed) return financed;
+    throw new TavrynConflictError(
+      "This invoice is not awaiting repayment. If a repayment is in progress, reconcile it instead of paying again.",
+      "REPAYMENT_NOT_AVAILABLE",
+    );
+  }
+
+  private completeFunding(cid: string, financier: string, paymentReference: string) {
+    return this.ledger.exercise(
+      Contracts.PendingFunding,
+      Contracts.PendingFunding.Complete,
+      cid,
+      { paymentReference },
+      [this.config.parties.buyer, this.config.parties.supplier, financier],
+    );
+  }
+
+  private cancelFunding(cid: string, financier: string) {
+    return this.ledger.exercise(
+      Contracts.PendingFunding,
+      Contracts.PendingFunding.Cancel,
+      cid,
+      {},
+      [this.config.parties.buyer, this.config.parties.supplier, financier],
+    );
+  }
+
+  private completeRepayment(cid: string, financier: string, paymentReference: string) {
+    return this.ledger.exercise(
+      Contracts.PendingRepayment,
+      Contracts.PendingRepayment.CompleteRepayment,
+      cid,
+      { paymentReference },
+      [this.config.parties.buyer, financier],
+    );
+  }
+
+  private cancelRepayment(cid: string, financier: string) {
+    return this.ledger.exercise(
+      Contracts.PendingRepayment,
+      Contracts.PendingRepayment.CancelRepayment,
+      cid,
+      {},
+      [this.config.parties.buyer, financier],
+    );
+  }
+
+  // Every remaining offer for a funded invoice is closed. Each financier is left an
+  // OfferClosed fact naming only its own offer's invoice, never the winner or terms.
+  private async closeLosingOffers(invoiceCommitment: string): Promise<void> {
+    try {
+      const offers = (await this.contractsForRole("supplier")).filter(
+        (contract) =>
+          isTemplate(contract, "Tavryn.Contracts", "FinancingOffer") &&
+          record(contract.createArgument).invoiceCommitment === invoiceCommitment,
+      );
+      for (const offer of offers) {
+        await this.ledger
+          .exercise(
+            Contracts.FinancingOffer,
+            Contracts.FinancingOffer.Withdraw,
+            offer.contractId,
+            {},
+            [this.config.parties.supplier],
+          )
+          .catch(() => {
+            console.error("Could not close a losing financing offer", {
+              offerCid: offer.contractId,
+            });
+          });
+      }
+    } catch (error) {
+      console.error("Could not list losing financing offers", {
+        message: error instanceof Error ? error.message : "unknown error",
+      });
+    }
+  }
+
+  private rethrow(error: unknown, context: LedgerErrorContext): never {
+    const mapped = mapLedgerError(error, context);
+    if (mapped && error instanceof LedgerApiError) {
+      // The Canton identifier shows which ledger rule produced the conflict; it carries
+      // no payload data.
+      throw new TavrynConflictError(
+        mapped.message,
+        mapped.code,
+        error.submissionReference,
+        mapped.status,
+        error.code ? { ledgerErrorCode: error.code } : undefined,
+      );
+    }
+    throw error;
+  }
+
+  private assertCantonCoinCurrency(terms: Record<string, unknown>): string {
     const expected = this.config.settlement.cantonCoinSymbol;
     if (!expected) {
       throw new TavrynInputError(
@@ -546,26 +969,21 @@ export class TavrynService {
         "SETTLEMENT_INSTRUMENT_MISMATCH",
       );
     }
-    const currency = stringFieldValue(terms.currency, `${termsName}.currency`);
+    const currency = String(terms.currency);
     if (currency !== expected) {
       throw new TavrynInputError(
         `Canton Coin settlement requires invoice currency ${expected}; use the off-ledger path for ${currency}`,
         "SETTLEMENT_INSTRUMENT_MISMATCH",
       );
     }
+    return currency;
   }
 
-  private assertGovernanceConfigured(threshold: number): void {
-    if (this.config.governance.operatorPartyIds.length < 2) {
-      throw new TavrynInputError(
-        "At least two governance operator parties must be configured",
-      );
+  private financierParty(role: string): string {
+    if (!isFinancierRole(this.config, role)) {
+      throw new TavrynInputError(`Unknown financier role: ${role}`);
     }
-    if (threshold > this.config.governance.operatorPartyIds.length) {
-      throw new TavrynInputError(
-        "Governance threshold cannot exceed the configured operator count",
-      );
-    }
+    return partyForRole(this.config, role);
   }
 
   private governanceOperator(operatorIndex: string): string {
@@ -577,167 +995,104 @@ export class TavrynService {
     return operator;
   }
 
-  private async activeContractForRole(
-    role: Role,
-    contractId: string,
-    templateName: string,
-  ): Promise<ActiveContract> {
-    const contract = (await this.contractsForRole(role)).find(
-      (candidate) =>
-        candidate.contractId === contractId && candidate.templateId.includes(templateName),
-    );
-    if (!contract) {
-      throw new TavrynInputError(
-        `${templateName} contract is not visible to the selected role or is no longer active`,
-      );
-    }
-    return contract;
+  private operatorIndex(party: string): number | undefined {
+    const index = this.config.governance.operatorPartyIds.indexOf(party);
+    return index >= 0 ? index + 1 : undefined;
   }
 
-  private async activeFinancingOfferForRole(
-    role: Role,
-    contractId: string,
-  ): Promise<ActiveContract> {
-    try {
-      return await this.activeContractForRole(role, contractId, "FinancingOffer");
-    } catch (error) {
-      if (
-        error instanceof TavrynInputError &&
-        error.message ===
-          "FinancingOffer contract is not visible to the selected role or is no longer active"
-      ) {
-        throw new TavrynConflictError(
-          "This invoice is no longer available for funding.",
-          "INVOICE_UNAVAILABLE",
-        );
-      }
-      throw error;
+  private encodeAction(
+    action: GovernanceActionInput | { type: "OnboardBuyer" },
+  ): { tag: string; value: string } {
+    switch (action.type) {
+      case "AdmitFinancier":
+      case "RemoveFinancier":
+        return { tag: action.type, value: this.financierParty(action.financierRole) };
+      case "SetMaxAdvanceRate":
+        assertDecimal(action.rate, "rate");
+        return { tag: action.type, value: action.rate };
+      case "OnboardBuyer":
+        return { tag: action.type, value: this.config.parties.buyer };
+      default:
+        throw new TavrynInputError("Unknown governance action");
     }
   }
 
-  private async cancelPendingFundingAfterFailedTransfer(
-    pendingFundingCid: string,
-    financier: string,
-  ): Promise<void> {
-    try {
-      await this.ledger.exercise(
-        PendingFunding,
-        PendingFundingCancel,
-        pendingFundingCid,
-        {},
-        [this.config.parties.buyer, this.config.parties.supplier, financier],
-      );
-    } catch {
-      console.error("PendingFunding cancellation failed after a rejected cash transfer", {
-        pendingFundingCid,
-      });
+  private describeAction(action: unknown): Record<string, unknown> {
+    const value = record(action);
+    const tag = String(value.tag);
+    const target = String(value.value);
+    if (tag === "AdmitFinancier" || tag === "RemoveFinancier") {
+      return { type: tag, party: target, financierRole: roleForFinancierParty(this.config, target) };
     }
-  }
-
-  private async withdrawLosingOffers(
-    invoiceCommitment: string,
-    winningOfferCid: string,
-  ): Promise<void> {
-    try {
-      const offers = (await this.contractsForRole("supplier")).filter((contract) => {
-        if (contract.contractId === winningOfferCid || !contract.templateId.includes("FinancingOffer")) {
-          return false;
-        }
-        const argument = record(contract.createArgument, "FinancingOffer");
-        return argument.invoiceCommitment === invoiceCommitment;
-      });
-      for (const offer of offers) {
-        try {
-          await this.ledger.exercise(
-            Contracts.FinancingOffer,
-            Contracts.FinancingOffer.Withdraw,
-            offer.contractId,
-            {},
-            [this.config.parties.supplier],
-          );
-        } catch (error) {
-          if (!(error instanceof LedgerApiError && error.status === 409)) {
-            console.error("Could not withdraw a losing financing offer", {
-              offerCid: offer.contractId,
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Could not list losing financing offers", {
-        message: error instanceof Error ? error.message : "unknown error",
-      });
-    }
+    if (tag === "SetMaxAdvanceRate") return { type: tag, rate: target };
+    return { type: tag, party: target };
   }
 }
 
-function isLedgerConflict(error: unknown): error is LedgerApiError {
-  if (!(error instanceof LedgerApiError)) {
-    return false;
+function injectFault(name: string): void {
+  // Test-only crash point between the cash transfer and the ledger completion.
+  if (process.env.NODE_ENV === "test" && process.env[name] === "1") {
+    throw new TavrynSettlementError(
+      `Fault injected by ${name}; the lock is kept for reconciliation.`,
+      "SETTLEMENT_FAULT_INJECTED",
+    );
   }
-  if (error.status === 409) {
-    return true;
-  }
-  // The connected Canton 3.5 participant returns ordinary Daml assertions as
-  // HTTP 400/DAML_FAILURE/category 9. Keep this narrowly scoped to the
-  // observed AssertionFailed identifier; auth, package and transport errors
-  // remain 502s instead of being presented as business conflicts.
+}
+
+function sweepFailure(contractId: string, error: unknown): ReconcileOutcome {
+  console.error("Settlement reconciliation failed", {
+    contractId,
+    code: error instanceof TavrynConflictError ? error.publicCode : undefined,
+    message: error instanceof Error ? error.message : "unknown error",
+  });
+  return { outcome: "pending", contractId };
+}
+
+export function isTemplate(contract: ActiveContract, module: string, entity: string): boolean {
+  return contract.templateId.endsWith(`:${module}:${entity}`);
+}
+
+function sameParties(value: unknown, expected: string[]): boolean {
   return (
-    error.status === 400 &&
-    error.code === "DAML_FAILURE" &&
-    error.errorCategory === 9 &&
-    error.contextErrorId?.includes("AssertionFailed") === true
+    Array.isArray(value) &&
+    value.length === expected.length &&
+    value.every((party, index) => party === expected[index])
   );
 }
 
-function validateInvoiceInput(input: InvoiceDraftInput): void {
-  if (!input.invoiceCommitment.trim()) {
-    throw new TavrynInputError("invoiceCommitment is required");
-  }
-  if (!input.terms || typeof input.terms !== "object") {
+function validateTerms(terms: InvoiceTermsInput): void {
+  if (!terms || typeof terms !== "object") {
     throw new TavrynInputError("terms are required");
   }
-  if (!input.terms.externalInvoiceNumber.trim()) {
+  if (!terms.externalInvoiceNumber.trim()) {
     throw new TavrynInputError("terms.externalInvoiceNumber is required");
   }
-  assertDecimal(input.terms.faceValue, "terms.faceValue");
-  if (!input.terms.currency.trim()) {
+  assertDecimal(terms.faceValue, "terms.faceValue");
+  if (!terms.currency.trim()) {
     throw new TavrynInputError("terms.currency is required");
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.terms.issuedDate)) {
-    throw new TavrynInputError("terms.issuedDate must be YYYY-MM-DD");
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.terms.dueDate)) {
-    throw new TavrynInputError("terms.dueDate must be YYYY-MM-DD");
-  }
-  if (input.terms.dueDate <= input.terms.issuedDate) {
+  validateDate(terms.issuedDate, "terms.issuedDate");
+  validateDate(terms.dueDate, "terms.dueDate");
+  if (terms.dueDate <= terms.issuedDate) {
     throw new TavrynInputError("terms.dueDate must be after terms.issuedDate");
   }
 }
 
 function assertDecimal(value: string, name: string): void {
-  if (
-    typeof value !== "string" ||
-    !/^\d+(?:\.\d{1,10})?$/.test(value) ||
-    Number(value) < 0
-  ) {
+  if (typeof value !== "string" || !/^\d+(?:\.\d{1,10})?$/.test(value)) {
     throw new TavrynInputError(`${name} must be a non-negative decimal string`);
   }
 }
 
 function positiveInteger(value: string, name: string): number {
-  if (!/^\d+$/.test(value)) {
+  if (!/^\d+$/.test(value) || Number(value) <= 0 || !Number.isSafeInteger(Number(value))) {
     throw new TavrynInputError(`${name} must be a positive integer`);
   }
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new TavrynInputError(`${name} must be a positive integer`);
-  }
-  return parsed;
+  return Number(value);
 }
 
 function validateDate(value: string, name: string): void {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw new TavrynInputError(`${name} must be YYYY-MM-DD`);
   }
 }
@@ -748,51 +1103,25 @@ function requireContractId(value: string, name: string): void {
   }
 }
 
-function encodeTerms(input: InvoiceTermsInput): unknown {
-  return Types.InvoiceTerms.encode({
-    externalInvoiceNumber: input.externalInvoiceNumber,
-    faceValue: input.faceValue,
-    currency: input.currency,
-    issuedDate: input.issuedDate,
-    dueDate: input.dueDate,
-  });
-}
-
-function createdContractId(result: SubmissionResult, templateName: string): string {
+export function createdContractId(result: SubmissionResult, entity: string): string {
   const created = result.createdContracts.find((event) =>
-    event.templateId.includes(templateName),
+    event.templateId.endsWith(`:${entity}`),
   );
   if (!created?.contractId) {
-    throw new Error(`Canton did not return a ${templateName} contract`);
+    throw new Error(`Canton did not return a ${entity} contract`);
   }
   return created.contractId;
 }
 
-function record(value: unknown, name: string): Record<string, unknown> {
+function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`${name} was not a Daml record`);
+    throw new Error("Expected a Daml record");
   }
   return value as Record<string, unknown>;
 }
 
-function decimalField(
-  value: Record<string, unknown>,
-  field: string,
-  name: string,
-): string {
-  const raw = value[field];
-  if (typeof raw === "string" && /^\d+(?:\.\d{1,10})?$/.test(raw)) {
-    return raw;
-  }
-  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
-    return String(raw);
-  }
+function decimalString(value: unknown, name: string): string {
+  if (typeof value === "string" && /^\d+(?:\.\d+)?$/.test(value)) return value;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return String(value);
   throw new Error(`${name} was not a decimal value`);
-}
-
-function stringFieldValue(value: unknown, name: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`${name} was not a text value`);
-  }
-  return value;
 }

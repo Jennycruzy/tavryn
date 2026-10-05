@@ -1,197 +1,247 @@
-import { randomUUID } from "node:crypto";
+import {
+  assert,
+  contractId,
+  created,
+  hasTemplate,
+  startIntegration,
+  templates,
+  uniqueInvoiceNumber,
+} from "./integration-client.js";
 
-import { loadConfig } from "./config.js";
-import { createDemoSession, sessionHeaders } from "./integration-auth.js";
-import { integrationPort } from "./integration-port.js";
-import { startTavrynServer, stopTavrynServer } from "./server.js";
-import { TavrynService } from "./tavryn-service.js";
+// Two-step Canton Coin settlement against the real ledger and wallet. Four cases:
+//   1. funding and repayment, with the moved amounts checked against the contracts;
+//   2. a crash after the funding transfer, completed after a restart by reconciliation
+//      with the same tracking ID;
+//   3. a transfer the wallet rejects: the lock is cancelled and the invoice reopens;
+//   4. a crash after the repayment transfer: a retry moves no cash, and reconciliation
+//      completes the original repayment.
+// The fault hooks only run with NODE_ENV=test.
+process.env.NODE_ENV = "test";
+const run = await startIntegration();
+const { config, post, get } = run;
+const currency = config.settlement.cantonCoinSymbol;
+assert(currency, "CANTON_COIN_SYMBOL must be configured for settlement integration");
 
-interface JsonResponse {
-  status: number;
-  body: Record<string, any>;
-}
-
-const config = loadConfig();
-const settlementCurrency = config.settlement.cantonCoinSymbol;
-if (!settlementCurrency) {
-  throw new Error("CANTON_COIN_SYMBOL must be configured for settlement integration");
-}
-const service = new TavrynService(config);
-const port = integrationPort(config.httpPort);
-const server = await startTavrynServer(service, port);
-const baseUrl = `http://127.0.0.1:${port}`;
-let demoCookie: string | undefined;
-const invoiceNumber = `TVN-SETTLED-${randomUUID().slice(0, 8).toUpperCase()}`;
-
-try {
-  demoCookie = await createDemoSession(baseUrl, config);
-  const rules = await post("/api/v1/setup/rules", { maxAdvanceRate: "0.95" });
-  const registry = await post("/api/v1/setup/registry", {});
+async function openInvoice(faceValue: string, advance: string, advanceRate: string) {
+  const invoiceNumber = uniqueInvoiceNumber("TVN-CC");
   const draft = await post("/api/v1/invoices/drafts", {
-    invoiceCommitment: `settlement-commitment-${randomUUID()}`,
     terms: {
       externalInvoiceNumber: invoiceNumber,
-      faceValue: "1.00",
-      currency: settlementCurrency,
+      faceValue,
+      currency,
       issuedDate: "2026-09-01",
-      dueDate: "2026-10-01",
+      dueDate: "2026-12-01",
     },
   });
   const approved = await post(
     `/api/v1/invoices/drafts/${encodeURIComponent(contractId(draft, "InvoiceDraft"))}/approve`,
-    {
-      networkRulesCid: contractId(rules, "NetworkRules"),
-      registryCid: contractId(registry, "BuyerApprovalRegistry"),
-    },
+    { eligibleFinancierRoles: ["financierA", "financierB"] },
   );
+  assert(approved.status === 200, `Approval failed: ${JSON.stringify(approved.body)}`);
   const approvedCid = contractId(approved, "ApprovedInvoice");
-  const offerA = await post(
-    `/api/v1/invoices/approved/${encodeURIComponent(approvedCid)}/offers`,
-    { financierRole: "financierA", advance: "0.90", advanceRate: "0.90" },
-  );
-  const offerB = await post(
-    `/api/v1/invoices/approved/${encodeURIComponent(approvedCid)}/offers`,
-    { financierRole: "financierB", advance: "0.88", advanceRate: "0.88" },
-  );
+  const offer = async (role: string, amount: string, rate: string) =>
+    contractId(
+      await post(`/api/v1/invoices/approved/${encodeURIComponent(approvedCid)}/offers`, {
+        financierRole: role,
+        advance: amount,
+        advanceRate: rate,
+      }),
+      "FinancingOffer",
+    );
+  return {
+    invoiceNumber,
+    offerA: await offer("financierA", advance, advanceRate),
+    offerB: await offer("financierB", advance, advanceRate),
+  };
+}
 
-  const funded = await post(
-    `/api/v1/offers/${encodeURIComponent(contractId(offerA, "FinancingOffer"))}/fund`,
-    { financierRole: "financierA" },
+function sameAmount(a: unknown, b: string): boolean {
+  return Math.abs(Number(a) - Number(b)) < 1e-9;
+}
+
+try {
+  await run.service.bootstrapNetwork();
+
+  // 1. Happy path.
+  const happy = await openInvoice("1.00", "0.90", "0.90");
+  const funded = await post(`/api/v1/offers/${encodeURIComponent(happy.offerA)}/fund`, {
+    financierRole: "financierA",
+  });
+  assert(funded.status === 200, `Funding failed: ${JSON.stringify(funded.body)}`);
+  const fundingReceipt = created(funded, "FundingReceipt");
+  assert(
+    sameAmount(funded.body.cashTransfer.amount, "0.90") &&
+      sameAmount(fundingReceipt.createArgument.settlementAmount, "0.90") &&
+      fundingReceipt.createArgument.trackingId === funded.body.cashTransfer.trackingId,
+    "The funding amount or tracking ID does not match the receipt",
+  );
+  const rival = await post(`/api/v1/offers/${encodeURIComponent(happy.offerB)}/fund`, {
+    financierRole: "financierB",
+  });
+  assert(
+    rival.status === 409 && rival.body.code === "INVOICE_UNAVAILABLE",
+    `The rival was not rejected: ${JSON.stringify(rival.body)}`,
   );
   const financedCid = contractId(funded, "FinancedInvoice");
+  const repaid = await post(`/api/v1/financed/${encodeURIComponent(financedCid)}/settle-repay`, {
+    repaymentDate: "2026-10-05",
+  });
+  assert(repaid.status === 200, `Repayment failed: ${JSON.stringify(repaid.body)}`);
+  const repaymentReceipt = created(repaid, "RepaymentReceipt");
   assert(
-    funded.status === 200 &&
-      typeof funded.body.cashTransfer?.updateId === "string" &&
-      typeof funded.body.cashTransfer?.eventId === "string",
-    "Financier A funding did not return a real Canton Coin reference",
-  );
-  assert(
-    funded.body.createdContracts.some((created: any) =>
-      String(created.templateId).includes("FundingReceipt"),
-    ),
-    "Funding did not create the auditor-visible FundingReceipt",
+    sameAmount(repaid.body.cashTransfer.amount, "1.00") &&
+      sameAmount(repaymentReceipt.createArgument.amount, "1.00") &&
+      repaymentReceipt.createArgument.early === true,
+    "The repayment amount does not match the receipt",
   );
 
-  const rejected = await post(
-    `/api/v1/offers/${encodeURIComponent(contractId(offerB, "FinancingOffer"))}/fund`,
-    { financierRole: "financierB" },
-  );
-  assert(rejected.status === 409, "Financier B funding was not rejected");
+  // 2. Crash between the funding transfer and the ledger completion.
+  const crash = await openInvoice("1.00", "0.80", "0.80");
+  process.env.TAVRYN_FAULT_AFTER_TRANSFER = "1";
+  const crashed = await post(`/api/v1/offers/${encodeURIComponent(crash.offerA)}/fund`, {
+    financierRole: "financierA",
+  });
+  delete process.env.TAVRYN_FAULT_AFTER_TRANSFER;
   assert(
-    rejected.body.code === "INVOICE_UNAVAILABLE",
-    "Financier B did not receive the plain invoice-unavailable response",
+    crashed.status === 502 && crashed.body.code === "SETTLEMENT_FAULT_INJECTED",
+    `The fault hook did not fire: ${JSON.stringify(crashed.body)}`,
   );
-  if (rejected.body.submissionReference) {
-    assert(
-      typeof rejected.body.submissionReference.commandId === "string" &&
-        typeof rejected.body.submissionReference.submissionId === "string",
-      "Financier B rejection did not expose a complete failed submission reference",
-    );
-  }
+  const lockedView = await get("/api/v1/roles/supplier/contracts");
+  const lock = lockedView.body.contracts.find(
+    (contract: any) =>
+      String(contract.templateId).endsWith(":PendingFunding") &&
+      contract.createArgument.terms.externalInvoiceNumber === crash.invoiceNumber,
+  );
+  assert(lock, "The funding lock was not kept after the crash");
+  await run.restart();
+  const swept = await run.service.sweepSettlementLocks(0);
+  const recovered = swept.find((outcome) => outcome.contractId === lock.contractId);
+  assert(
+    recovered?.outcome === "completed" && recovered.trackingId === lock.createArgument.trackingId,
+    `The sweeper did not complete the crashed funding: ${JSON.stringify(recovered)}`,
+  );
+  const again = await post(`/api/v1/pending-funding/${encodeURIComponent(lock.contractId)}/reconcile`);
+  assert(again.body.outcome === "already-resolved", "Reconcile is not idempotent");
 
-  const repaid = await post(
-    `/api/v1/financed/${encodeURIComponent(financedCid)}/settle-repay`,
-    { financierRole: "financierA", repaymentDate: "2026-10-01" },
+  // 3. A transfer the wallet rejects (more than the financier holds).
+  const rejected = await openInvoice("100000000.00", "90000000.00", "0.90");
+  const rejection = await post(`/api/v1/offers/${encodeURIComponent(rejected.offerA)}/fund`, {
+    financierRole: "financierA",
+  });
+  assert(rejection.status === 502, `The oversized transfer was not refused: ${JSON.stringify(rejection.body)}`);
+  const reopenedView = await get("/api/v1/roles/financierA/contracts");
+  const offerRestored = reopenedView.body.contracts.some(
+    (contract: any) =>
+      String(contract.templateId).endsWith(":FinancingOffer") &&
+      contract.createArgument.terms.externalInvoiceNumber === rejected.invoiceNumber,
+  );
+  const stillLocked = (await get("/api/v1/roles/supplier/contracts")).body.contracts.some(
+    (contract: any) =>
+      String(contract.templateId).endsWith(":PendingFunding") &&
+      contract.createArgument.terms.externalInvoiceNumber === rejected.invoiceNumber,
+  );
+  assert(offerRestored && !stillLocked, "The rejected transfer did not reopen the invoice");
+
+  // 4. Crash after the repayment transfer, then a retry.
+  const retry = await openInvoice("1.00", "0.70", "0.70");
+  const retryFunded = await post(`/api/v1/offers/${encodeURIComponent(retry.offerA)}/fund`, {
+    financierRole: "financierA",
+  });
+  assert(retryFunded.status === 200, `Funding failed: ${JSON.stringify(retryFunded.body)}`);
+  const retryFinancedCid = contractId(retryFunded, "FinancedInvoice");
+  process.env.TAVRYN_FAULT_AFTER_REPAYMENT_TRANSFER = "1";
+  const firstRepay = await post(
+    `/api/v1/financed/${encodeURIComponent(retryFinancedCid)}/settle-repay`,
+    { repaymentDate: "2026-10-05" },
+  );
+  delete process.env.TAVRYN_FAULT_AFTER_REPAYMENT_TRANSFER;
+  assert(firstRepay.status === 502, `The repayment fault hook did not fire: ${JSON.stringify(firstRepay.body)}`);
+  const balanceBeforeRetry = await run.service.settlement.unlockedBalance("buyer");
+  const secondRepay = await post(
+    `/api/v1/financed/${encodeURIComponent(retryFinancedCid)}/settle-repay`,
+    { repaymentDate: "2026-10-05" },
+  );
+  const balanceAfterRetry = await run.service.settlement.unlockedBalance("buyer");
+  assert(
+    secondRepay.status === 409 && secondRepay.body.code === "REPAYMENT_NOT_AVAILABLE",
+    `The retry was not refused: ${JSON.stringify(secondRepay.body)}`,
   );
   assert(
-    repaid.status === 200 &&
-      typeof repaid.body.cashTransfer?.updateId === "string" &&
-      typeof repaid.body.cashTransfer?.eventId === "string",
-    "Repayment did not return a real Canton Coin reference",
+    Math.abs(balanceBeforeRetry - balanceAfterRetry) < 0.5,
+    "The retried repayment moved cash",
+  );
+  const pendingRepayment = (await get("/api/v1/roles/buyer/contracts")).body.contracts.find(
+    (contract: any) =>
+      String(contract.templateId).endsWith(":PendingRepayment") &&
+      contract.createArgument.terms.externalInvoiceNumber === retry.invoiceNumber,
+  );
+  assert(pendingRepayment, "The repayment lock was not kept");
+  const reconciled = await post(
+    `/api/v1/pending-repayment/${encodeURIComponent(pendingRepayment.contractId)}/reconcile`,
   );
   assert(
-    repaid.body.createdContracts.some((created: any) =>
-      String(created.templateId).includes("RepaymentReceipt"),
-    ),
-    "Repayment did not create the auditor-visible RepaymentReceipt",
+    reconciled.body.outcome === "completed",
+    `Reconciliation did not complete the repayment: ${JSON.stringify(reconciled.body)}`,
   );
 
   const financierBView = await get("/api/v1/roles/financierB/contracts");
   const auditorView = await get("/api/v1/roles/auditor/contracts");
   assert(
-    !financierBView.body.contracts.some((contract: any) =>
-      contract.templateId.includes("FinancedInvoice") ||
-      contract.templateId.includes("FundingReceipt") ||
-      contract.templateId.includes("RepaymentReceipt"),
-    ),
-    "Financier B view contains the winning deal or its settlement receipts",
-  );
-  assert(
-    auditorView.body.contracts.some((contract: any) =>
-      contract.templateId.includes("FundingReceipt"),
-    ) &&
-      auditorView.body.contracts.some((contract: any) =>
-        contract.templateId.includes("RepaymentReceipt"),
-      ),
-    "Auditor view does not contain the complete settlement trail",
+    !hasTemplate(financierBView, "FinancedInvoice") &&
+      !hasTemplate(financierBView, "FundingReceipt") &&
+      !hasTemplate(financierBView, "RepaymentReceipt"),
+    "Financier B can see the winning deal or its receipts",
   );
 
   console.log(
     JSON.stringify(
       {
-        invoiceNumber,
-        currency: settlementCurrency,
-        settlement: "two-step, non-atomic",
-        funding: {
-          ledgerUpdateId: funded.body.updateId,
-          cashUpdateId: funded.body.cashTransfer.updateId,
-          cashEventId: funded.body.cashTransfer.eventId,
+        packageId: config.packageId,
+        currency,
+        settlement: "two-step, non-atomic, reconciled by tracking ID",
+        happyPath: {
+          invoiceNumber: happy.invoiceNumber,
+          fundingLedgerUpdateId: funded.body.updateId,
+          fundingCashUpdateId: funded.body.cashTransfer.updateId,
+          fundingAmount: funded.body.cashTransfer.amount,
+          fundingTrackingId: funded.body.cashTransfer.trackingId,
+          rivalRejection: {
+            status: rival.status,
+            code: rival.body.code,
+            ledgerErrorCode: rival.body.ledgerErrorCode,
+            submissionReference: rival.body.submissionReference,
+          },
+          repaymentLedgerUpdateId: repaid.body.updateId,
+          repaymentCashUpdateId: repaid.body.cashTransfer.updateId,
+          repaymentAmount: repaid.body.cashTransfer.amount,
         },
-        financierBRejection: {
-          status: rejected.status,
-          code: rejected.body.code,
-          ...(rejected.body.submissionReference
-            ? { submissionReference: rejected.body.submissionReference }
-            : { source: "closed-offer preflight" }),
+        crashAfterFundingTransfer: {
+          invoiceNumber: crash.invoiceNumber,
+          trackingId: lock.createArgument.trackingId,
+          recovered,
+          secondReconcile: again.body.outcome,
         },
-        repayment: {
-          ledgerUpdateId: repaid.body.updateId,
-          cashUpdateId: repaid.body.cashTransfer.updateId,
-          cashEventId: repaid.body.cashTransfer.eventId,
+        walletRejectedTransfer: {
+          invoiceNumber: rejected.invoiceNumber,
+          status: rejection.status,
+          code: rejection.body.code,
+          offerRestored,
+          lockRemaining: stillLocked,
         },
-        auditorTemplates: auditorView.body.contracts.map(
-          (contract: any) => contract.templateId,
-        ),
-        financierBTemplates: financierBView.body.contracts.map(
-          (contract: any) => contract.templateId,
-        ),
+        repaymentRetry: {
+          invoiceNumber: retry.invoiceNumber,
+          firstAttempt: firstRepay.body.code,
+          retry: { status: secondRepay.status, code: secondRepay.body.code },
+          buyerBalanceChangeDuringRetry: Number((balanceAfterRetry - balanceBeforeRetry).toFixed(10)),
+          reconciled: reconciled.body,
+        },
+        financierBTemplates: templates(financierBView),
+        auditorTemplates: [...new Set(templates(auditorView))],
       },
       null,
       2,
     ),
   );
 } finally {
-  await stopTavrynServer(server);
-}
-
-async function post(path: string, body: Record<string, unknown>): Promise<JsonResponse> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...sessionHeaders(demoCookie) },
-    body: JSON.stringify(body),
-  });
-  return { status: response.status, body: (await response.json()) as Record<string, any> };
-}
-
-async function get(path: string): Promise<JsonResponse> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    headers: sessionHeaders(demoCookie),
-  });
-  return { status: response.status, body: (await response.json()) as Record<string, any> };
-}
-
-function contractId(response: JsonResponse, templateName: string): string {
-  const contract = response.body.createdContracts?.find((created: any) =>
-    String(created.templateId).includes(templateName),
-  );
-  if (!contract?.contractId) {
-    throw new Error(`No ${templateName} was created: ${JSON.stringify(response.body)}`);
-  }
-  return contract.contractId;
-}
-
-function assert(condition: boolean, message: string): asserts condition {
-  if (!condition) {
-    throw new Error(message);
-  }
+  await run.stop();
 }

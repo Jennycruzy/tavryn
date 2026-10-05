@@ -1,201 +1,141 @@
-import { randomUUID } from "node:crypto";
+import {
+  assert,
+  contractId,
+  hasTemplate,
+  startIntegration,
+  templates,
+  uniqueInvoiceNumber,
+} from "./integration-client.js";
 
-import { loadConfig } from "./config.js";
-import { createDemoSession, sessionHeaders } from "./integration-auth.js";
-import { integrationPort } from "./integration-port.js";
-import { startTavrynServer, stopTavrynServer } from "./server.js";
-import { TavrynService } from "./tavryn-service.js";
-
-interface JsonResponse {
-  status: number;
-  body: Record<string, any>;
-}
-
-const config = loadConfig();
-const service = new TavrynService(config);
-const port = integrationPort(config.httpPort);
-const server = await startTavrynServer(service, port);
-const baseUrl = `http://127.0.0.1:${port}`;
-let demoCookie: string | undefined;
-const invoiceNumber = `TVN-${randomUUID().slice(0, 8).toUpperCase()}`;
-const commitment = `commitment-${randomUUID()}`;
+// Core lifecycle over HTTP against the real ledger: approve once, two private offers,
+// both financiers fund at the same moment, exactly one wins, the loser sees nothing of
+// the winning deal, repayment, and a refused duplicate approval.
+const run = await startIntegration();
+const { config, post, get } = run;
+const invoiceNumber = uniqueInvoiceNumber("TVN");
 
 try {
-  demoCookie = await createDemoSession(baseUrl, config);
-  const rules = await post("/api/v1/setup/rules", { maxAdvanceRate: "0.95" });
-  const registry = await post("/api/v1/setup/registry", {});
-  const draft = await post("/api/v1/invoices/drafts", {
-    invoiceCommitment: commitment,
-    terms: {
-      externalInvoiceNumber: invoiceNumber,
-      faceValue: "100.00",
-      currency: "USD",
-      issuedDate: "2026-09-01",
-      dueDate: "2026-10-01",
-    },
-  });
+  const bootstrap = await run.service.bootstrapNetwork();
+  const terms = {
+    externalInvoiceNumber: invoiceNumber,
+    faceValue: "100.00",
+    currency: "USD",
+    issuedDate: "2026-09-01",
+    dueDate: "2026-12-01",
+  };
+  const draft = await post("/api/v1/invoices/drafts", { terms });
   const approved = await post(
     `/api/v1/invoices/drafts/${encodeURIComponent(contractId(draft, "InvoiceDraft"))}/approve`,
-    {
-      networkRulesCid: contractId(rules, "NetworkRules"),
-      registryCid: contractId(registry, "BuyerApprovalRegistry"),
-    },
+    { eligibleFinancierRoles: ["financierA", "financierB"] },
   );
+  assert(approved.status === 200, `Approval failed: ${JSON.stringify(approved.body)}`);
   const approvedCid = contractId(approved, "ApprovedInvoice");
-  const currentRegistryCid = contractId(approved, "BuyerApprovalRegistry");
-  const offerA = await post(
-    `/api/v1/invoices/approved/${encodeURIComponent(approvedCid)}/offers`,
-    { financierRole: "financierA", advance: "90.00", advanceRate: "0.90" },
-  );
-  const offerB = await post(
-    `/api/v1/invoices/approved/${encodeURIComponent(approvedCid)}/offers`,
-    { financierRole: "financierB", advance: "88.00", advanceRate: "0.88" },
-  );
-  const accepted = await post(
-    `/api/v1/offers/${encodeURIComponent(contractId(offerA, "FinancingOffer"))}/accept`,
-    { financierRole: "financierA" },
-  );
-  const rejected = await post(
-    `/api/v1/offers/${encodeURIComponent(contractId(offerB, "FinancingOffer"))}/accept`,
-    { financierRole: "financierB" },
-  );
-  const financedCid = contractId(accepted, "FinancedInvoice");
-  const repaid = await post(
-    `/api/v1/financed/${encodeURIComponent(financedCid)}/repay`,
-    {
-      financierRole: "financierA",
-      repaymentDate: "2026-10-01",
-      paymentReference: `repayment-${randomUUID()}`,
-    },
-  );
-
-  const duplicateDraft = await post("/api/v1/invoices/drafts", {
-    invoiceCommitment: `duplicate-${randomUUID()}`,
-    terms: {
-      externalInvoiceNumber: invoiceNumber,
-      faceValue: "100.00",
-      currency: "USD",
-      issuedDate: "2026-09-01",
-      dueDate: "2026-10-01",
-    },
+  const offerA = await post(`/api/v1/invoices/approved/${encodeURIComponent(approvedCid)}/offers`, {
+    financierRole: "financierA",
+    advance: "90.00",
+    advanceRate: "0.90",
   });
-  const duplicateApproval = await post(
-    `/api/v1/invoices/drafts/${encodeURIComponent(contractId(duplicateDraft, "InvoiceDraft"))}/approve`,
-    {
-      networkRulesCid: contractId(rules, "NetworkRules"),
-      registryCid: currentRegistryCid,
-    },
+  const offerB = await post(`/api/v1/invoices/approved/${encodeURIComponent(approvedCid)}/offers`, {
+    financierRole: "financierB",
+    advance: "88.00",
+    advanceRate: "0.88",
+  });
+  const offers = {
+    financierA: contractId(offerA, "FinancingOffer"),
+    financierB: contractId(offerB, "FinancingOffer"),
+  };
+
+  // Both financiers fund at the same moment. The ledger decides.
+  const [resultA, resultB] = await Promise.all(
+    (["financierA", "financierB"] as const).map((role) =>
+      post(`/api/v1/offers/${encodeURIComponent(offers[role])}/accept`, {
+        financierRole: role,
+        paymentReference: `bank-${role}-${invoiceNumber}`,
+      }),
+    ),
+  );
+  const winnerRole = resultA.status === 200 ? "financierA" : "financierB";
+  const loserRole = winnerRole === "financierA" ? "financierB" : "financierA";
+  const winner = winnerRole === "financierA" ? resultA : resultB;
+  const loser = winnerRole === "financierA" ? resultB : resultA;
+  assert(winner.status === 200, `Neither financier funded: ${JSON.stringify([resultA.body, resultB.body])}`);
+  assert(
+    loser.status === 409 && loser.body.code === "INVOICE_UNAVAILABLE",
+    `The second financier was not rejected as unavailable: ${JSON.stringify(loser.body)}`,
   );
 
-  const financierBView = await get("/api/v1/roles/financierB/contracts");
+  const financedCid = contractId(winner, "FinancedInvoice");
+  const repaid = await post(`/api/v1/financed/${encodeURIComponent(financedCid)}/repay`, {
+    repaymentDate: "2026-10-05",
+    paymentReference: `bank-repay-${invoiceNumber}`,
+  });
+  assert(repaid.status === 200, `Repayment failed: ${JSON.stringify(repaid.body)}`);
+
+  const duplicateDraft = await post("/api/v1/invoices/drafts", { terms });
+  const duplicate = await post(
+    `/api/v1/invoices/drafts/${encodeURIComponent(contractId(duplicateDraft, "InvoiceDraft"))}/approve`,
+    {},
+  );
+  assert(
+    duplicate.status === 409 && duplicate.body.code === "DUPLICATE_INVOICE",
+    `Duplicate approval was not refused: ${JSON.stringify(duplicate.body)}`,
+  );
+
+  const loserView = await get(`/api/v1/roles/${loserRole}/contracts`);
   const auditorView = await get("/api/v1/roles/auditor/contracts");
-  assert(rejected.status === 409, "Financier B acceptance was rejected with HTTP 409");
-  assert(
-    rejected.body.code === "INVOICE_UNAVAILABLE",
-    "Financier B received the plain unavailable response",
+  const loserContracts: any[] = loserView.body.contracts;
+  const closed = loserContracts.find(
+    (contract) =>
+      String(contract.templateId).endsWith(":OfferClosed") &&
+      contract.createArgument.financier === config.financiers.get(loserRole),
   );
-  if (rejected.body.submissionReference) {
-    assert(
-      typeof rejected.body.submissionReference.commandId === "string" &&
-        typeof rejected.body.submissionReference.submissionId === "string",
-      "Financier B rejection contains a complete failed submission reference",
-    );
-  }
+  assert(closed, "The losing financier has no OfferClosed fact");
   assert(
-    financierBView.body.contracts
-      .filter((contract: any) => contract.templateId.includes("FinancingOffer"))
-      .every((contract: any) => contract.createArgument?.financier !== config.parties.financierA),
-    "Financier B view contains no Financier A offer",
+    Object.keys(closed.createArgument).sort().join(",") ===
+      "buyer,financier,invoiceCommitment,supplier",
+    "OfferClosed carries more than the losing financier's own facts",
   );
   assert(
-    !JSON.stringify(financierBView.body).includes("FinancedInvoice"),
-    "Financier B view contains no financed invoice",
+    !hasTemplate(loserView, "FinancedInvoice") &&
+      !hasTemplate(loserView, "FundingReceipt") &&
+      !hasTemplate(loserView, "InvoiceDetails") &&
+      !loserContracts.some(
+        (contract) =>
+          String(contract.templateId).endsWith(":FinancingOffer") &&
+          contract.createArgument.financier !== config.financiers.get(loserRole),
+      ),
+    "The losing financier can see the winning deal",
   );
   assert(
-    !financierBView.body.contracts.some((contract: any) =>
-      contract.templateId.includes("InvoiceDetails"),
-    ),
-    "Financier B view contains no private invoice terms contract",
-  );
-  assert(
-    auditorView.body.contracts.some((contract: any) =>
-      contract.templateId.includes("RepaymentReceipt"),
-    ),
-    "Auditor view contains the repayment receipt",
-  );
-  assert(
-    duplicateApproval.status === 409 &&
-      duplicateApproval.body.code === "DUPLICATE_OR_INVALID_APPROVAL",
-    "Buyer approval service rejected a duplicate external invoice number",
+    hasTemplate(auditorView, "FundingReceipt") && hasTemplate(auditorView, "RepaymentReceipt"),
+    "The auditor cannot see the complete trail",
   );
 
   console.log(
     JSON.stringify(
       {
         invoiceNumber,
-        funding: {
-          updateId: accepted.body.updateId,
-          offset: accepted.body.offset,
-          financierBRejection: {
-            status: rejected.status,
-            code: rejected.body.code,
-            message: rejected.body.error,
-            ...(rejected.body.submissionReference
-              ? { submissionReference: rejected.body.submissionReference }
-              : { source: "closed-offer preflight" }),
-          },
+        packageId: config.packageId,
+        networkId: config.networkId,
+        rulesCid: bootstrap.rulesCid,
+        simultaneousFunding: {
+          winner: winnerRole,
+          winnerUpdateId: winner.body.updateId,
+          loser: loserRole,
+          loserStatus: loser.status,
+          loserCode: loser.body.code,
+          loserLedgerErrorCode: loser.body.ledgerErrorCode,
+          loserSubmissionReference: loser.body.submissionReference,
         },
-        repayment: {
-          updateId: repaid.body.updateId,
-          offset: repaid.body.offset,
-        },
-        duplicateApproval: {
-          status: duplicateApproval.status,
-          code: duplicateApproval.body.code,
-        },
-        financierBVisibleTemplates: financierBView.body.contracts.map(
-          (contract: any) => contract.templateId,
-        ),
-        auditorVisibleTemplates: auditorView.body.contracts.map(
-          (contract: any) => contract.templateId,
-        ),
+        repayment: { updateId: repaid.body.updateId },
+        duplicateApproval: { status: duplicate.status, code: duplicate.body.code },
+        loserVisibleTemplates: templates(loserView),
+        auditorVisibleTemplates: [...new Set(templates(auditorView))],
       },
       null,
       2,
     ),
   );
 } finally {
-  await stopTavrynServer(server);
-}
-
-async function post(path: string, body: Record<string, unknown>): Promise<JsonResponse> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...sessionHeaders(demoCookie) },
-    body: JSON.stringify(body),
-  });
-  return { status: response.status, body: (await response.json()) as Record<string, any> };
-}
-
-async function get(path: string): Promise<JsonResponse> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    headers: sessionHeaders(demoCookie),
-  });
-  return { status: response.status, body: (await response.json()) as Record<string, any> };
-}
-
-function contractId(response: JsonResponse, templateName: string): string {
-  const contract = response.body.createdContracts?.find((created: any) =>
-    String(created.templateId).includes(templateName),
-  );
-  if (!contract?.contractId) {
-    throw new Error(`No ${templateName} was created: ${JSON.stringify(response.body)}`);
-  }
-  return contract.contractId;
-}
-
-function assert(condition: boolean, message: string): asserts condition {
-  if (!condition) {
-    throw new Error(message);
-  }
+  await run.stop();
 }

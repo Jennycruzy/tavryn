@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { TavrynConfig } from "./config.js";
+import type { OidcConfig, TavrynConfig } from "./config.js";
 
 export interface TemplateBinding {
   templateId: string;
@@ -123,8 +123,100 @@ function numberValue(value: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
 }
 
+// Shared-node tokens expire, so an OIDC token is cached until 60 s before expiry and
+// refreshed once on a 401. A static CANTON_LEDGER_API_TOKEN remains the LocalNet path.
+export class LedgerTokenProvider {
+  private cached?: { token: string; expiresAt: number };
+  private refreshToken?: string;
+
+  constructor(
+    private readonly staticToken: string | undefined,
+    private readonly oidc: OidcConfig | undefined,
+  ) {
+    this.refreshToken = oidc?.refreshToken;
+  }
+
+  async token(forceRefresh = false): Promise<string | undefined> {
+    if (!this.oidc) return this.staticToken;
+    if (!forceRefresh && this.cached && Date.now() < this.cached.expiresAt - 60_000) {
+      return this.cached.token;
+    }
+    const oidc = this.oidc;
+    const form = new URLSearchParams({ client_id: oidc.clientId });
+    if (oidc.clientSecret) form.set("client_secret", oidc.clientSecret);
+    if (oidc.audience) form.set("audience", oidc.audience);
+    if (oidc.scope) form.set("scope", oidc.scope);
+    if (this.refreshToken) {
+      form.set("grant_type", "refresh_token");
+      form.set("refresh_token", this.refreshToken);
+    } else if (oidc.username && oidc.password) {
+      form.set("grant_type", "password");
+      form.set("username", oidc.username);
+      form.set("password", oidc.password);
+    } else {
+      form.set("grant_type", "client_credentials");
+    }
+    let response: Response;
+    try {
+      response = await fetch(oidc.tokenUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: form,
+      });
+    } catch {
+      throw new LedgerApiError(0, { code: "OIDC_UNREACHABLE" });
+    }
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!response.ok || typeof payload.access_token !== "string") {
+      // A rotated refresh token falls back to the password grant once, if configured.
+      if (this.refreshToken && oidc.username && oidc.password) {
+        this.refreshToken = undefined;
+        return this.token(true);
+      }
+      throw new LedgerApiError(response.status === 200 ? 401 : response.status, {
+        code: "OIDC_TOKEN_REJECTED",
+      });
+    }
+    if (typeof payload.refresh_token === "string") {
+      this.refreshToken = payload.refresh_token;
+    }
+    const expiresIn = typeof payload.expires_in === "number" ? payload.expires_in : 300;
+    this.cached = { token: payload.access_token, expiresAt: Date.now() + expiresIn * 1000 };
+    return this.cached.token;
+  }
+}
+
+export interface UserRight {
+  kind: string;
+  party?: string;
+}
+
 export class LedgerApi {
-  constructor(private readonly config: TavrynConfig) {}
+  private readonly tokens: LedgerTokenProvider;
+
+  constructor(private readonly config: TavrynConfig) {
+    this.tokens = new LedgerTokenProvider(config.ledgerApiToken, config.oidc);
+  }
+
+  async userRights(userId: string): Promise<UserRight[]> {
+    const response = await this.request<{ rights?: Array<{ kind?: Record<string, { value?: { party?: string } }> }> }>(
+      `/v2/users/${encodeURIComponent(userId)}/rights`,
+      { method: "GET" },
+    );
+    return (response.rights ?? []).flatMap((right) =>
+      Object.entries(right.kind ?? {}).map(([kind, detail]) => ({
+        kind,
+        party: detail?.value?.party,
+      })),
+    );
+  }
+
+  async packageIds(): Promise<string[]> {
+    const response = await this.request<{ packageIds?: string[] }>("/v2/packages", {
+      method: "GET",
+    });
+    return response.packageIds ?? [];
+  }
 
   async getLedgerEnd(): Promise<number> {
     const response = await this.request<LedgerEndResponse>("/v2/state/ledger-end", {
@@ -285,12 +377,14 @@ export class LedgerApi {
     path: string,
     init: RequestInit,
     submissionReference?: SubmissionReference,
+    retriedAuth = false,
   ): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set("Content-Type", "application/json");
     headers.set("Accept", "application/json");
-    if (this.config.ledgerApiToken) {
-      headers.set("Authorization", `Bearer ${this.config.ledgerApiToken}`);
+    const token = await this.tokens.token(retriedAuth);
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
     }
 
     let response: Response;
@@ -313,6 +407,9 @@ export class LedgerApi {
       } catch {
         payload = text;
       }
+    }
+    if (response.status === 401 && this.config.oidc && !retriedAuth) {
+      return this.request<T>(path, init, submissionReference, true);
     }
     if (!response.ok) {
       throw new LedgerApiError(response.status, payload, submissionReference);

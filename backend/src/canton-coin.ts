@@ -1,8 +1,7 @@
-import { randomUUID } from "node:crypto";
+import { type Role, type TavrynConfig, partyForRole } from "./config.js";
 
-import type { TavrynConfig } from "./config.js";
-
-export type SettlementSenderRole = "buyer" | "financierA" | "financierB";
+// The buyer (repayment) or a financier role (funding).
+export type SettlementSenderRole = Role;
 
 export interface CantonCoinTransfer {
   updateId: string;
@@ -58,11 +57,15 @@ interface WalletTransactionsResponse {
 export class CantonCoinSettlement {
   constructor(private readonly config: TavrynConfig) {}
 
+  isConfigured(senderRole: SettlementSenderRole): boolean {
+    return Boolean(
+      this.config.settlement.validatorApiUrl &&
+        this.config.settlement.walletTokens.get(senderRole),
+    );
+  }
+
   assertConfigured(senderRole: SettlementSenderRole): void {
-    if (
-      !this.config.settlement.validatorApiUrl ||
-      !this.config.settlement.walletTokens[senderRole]
-    ) {
+    if (!this.isConfigured(senderRole)) {
       throw new CantonCoinSettlementError(
         "Canton Coin settlement is not configured for this role.",
         "SETTLEMENT_NOT_CONFIGURED",
@@ -70,20 +73,21 @@ export class CantonCoinSettlement {
     }
   }
 
+  // The caller generates the tracking ID and records it on the ledger before any cash
+  // moves, so a crash after the transfer can always be matched back to its lock.
   async transfer(
     senderRole: SettlementSenderRole,
     receiverParty: string,
     amount: string,
-    purpose: "funding" | "repayment",
+    trackingId: string,
   ): Promise<CantonCoinTransfer> {
     assertPositiveDecimal(amount, "settlement amount");
     this.assertConfigured(senderRole);
     const validatorApiUrl = this.config.settlement.validatorApiUrl as string;
-    const token = this.config.settlement.walletTokens[senderRole] as string;
+    const token = this.config.settlement.walletTokens.get(senderRole) as string;
 
-    const sender = this.config.parties[senderRole];
-    const trackingId = `tavryn-${purpose}-${randomUUID()}`;
-    const description = `Tavryn ${purpose} ${trackingId}`;
+    const sender = partyForRole(this.config, senderRole);
+    const description = transferDescription(trackingId);
     const expiresAt =
       Math.floor(Date.now() / 1000) * 1_000_000 +
       this.config.settlement.transferExpirySeconds * 1_000_000;
@@ -130,23 +134,51 @@ export class CantonCoinSettlement {
         "SETTLEMENT_REFERENCE_UNAVAILABLE",
       );
     }
-    const eventId = transaction.event_id;
-    if (!eventId) {
-      throw new CantonCoinSettlementError(
-        "The wallet transaction did not include an event reference.",
-        "SETTLEMENT_REFERENCE_INVALID",
-      );
-    }
+    return transferFrom(transaction, trackingId, description, amount, sender, receiverParty);
+  }
 
-    return {
-      updateId: updateIdFromEventId(eventId),
-      eventId,
-      trackingId,
-      description,
-      amount,
-      sender,
-      receiver: receiverParty,
-    };
+  // One bounded pass over the sender's wallet history, newest first, stopping at items
+  // older than `notBefore`. Used by reconciliation; it never sends anything.
+  async findCompletedTransfer(
+    senderRole: SettlementSenderRole,
+    receiverParty: string,
+    amount: string,
+    trackingId: string,
+    notBefore: Date,
+  ): Promise<CantonCoinTransfer | undefined> {
+    this.assertConfigured(senderRole);
+    const validatorApiUrl = this.config.settlement.validatorApiUrl as string;
+    const token = this.config.settlement.walletTokens.get(senderRole) as string;
+    const sender = partyForRole(this.config, senderRole);
+    const description = transferDescription(trackingId);
+    let beginAfterId: string | undefined;
+    for (let page = 0; page < 50; page += 1) {
+      const response = await this.request<WalletTransactionsResponse>(
+        validatorApiUrl,
+        token,
+        "/v0/wallet/transactions",
+        { page_size: 100, ...(beginAfterId ? { begin_after_id: beginAfterId } : {}) },
+      );
+      const items = response.items ?? [];
+      const match = items.find((transaction) =>
+        matchesTransfer(transaction, sender, receiverParty, description, trackingId, amount),
+      );
+      if (match) {
+        return transferFrom(match, trackingId, description, amount, sender, receiverParty);
+      }
+      const last = items.at(-1);
+      const lastDate = last?.date ? new Date(last.date) : undefined;
+      if (
+        items.length < 100 ||
+        !last?.event_id ||
+        last.event_id === beginAfterId ||
+        (lastDate && lastDate < notBefore)
+      ) {
+        return undefined;
+      }
+      beginAfterId = last.event_id;
+    }
+    return undefined;
   }
 
   private async findTransaction(
@@ -170,17 +202,8 @@ export class CantonCoinSettlement {
           ...(beginAfterId ? { begin_after_id: beginAfterId } : {}),
         },
       );
-      const match = response.items?.find(
-        (transaction) =>
-          transaction.transaction_type === "transfer" &&
-          (transaction.tracking_id
-            ? transaction.tracking_id === trackingId
-            : transaction.description === description) &&
-          transaction.sender?.party === sender &&
-          sameDecimal(transaction.sender.amount, amount) &&
-          transaction.receivers?.some(
-            (item) => item.party === receiver && sameDecimal(item.amount, amount),
-          ),
+      const match = response.items?.find((transaction) =>
+        matchesTransfer(transaction, sender, receiver, description, trackingId, amount),
       );
       if (match?.event_id) {
         return match;
@@ -197,22 +220,34 @@ export class CantonCoinSettlement {
     return undefined;
   }
 
+  // Unlocked balance, used by the settlement integration to prove that a retried
+  // repayment moves no cash.
+  async unlockedBalance(role: SettlementSenderRole): Promise<number> {
+    this.assertConfigured(role);
+    const response = await this.request<{ effective_unlocked_qty?: string }>(
+      this.config.settlement.validatorApiUrl as string,
+      this.config.settlement.walletTokens.get(role) as string,
+      "/v0/wallet/balance",
+    );
+    return Number(response.effective_unlocked_qty);
+  }
+
   private async request<T>(
     validatorApiUrl: string,
     token: string,
     path: string,
-    body: Record<string, unknown>,
+    body?: Record<string, unknown>,
   ): Promise<T> {
     let response: Response;
     try {
       response = await fetch(`${validatorApiUrl}${path}`, {
-        method: "POST",
+        method: body === undefined ? "GET" : "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
     } catch {
       throw new CantonCoinSettlementError(
@@ -240,6 +275,57 @@ export class CantonCoinSettlement {
     }
     return payload as T;
   }
+}
+
+function transferDescription(trackingId: string): string {
+  return `Tavryn ${trackingId}`;
+}
+
+function matchesTransfer(
+  transaction: WalletTransaction,
+  sender: string,
+  receiver: string,
+  description: string,
+  trackingId: string,
+  amount: string,
+): boolean {
+  return (
+    transaction.transaction_type === "transfer" &&
+    (transaction.tracking_id
+      ? transaction.tracking_id === trackingId
+      : transaction.description === description) &&
+    transaction.sender?.party === sender &&
+    sameDecimal(transaction.sender.amount, amount) &&
+    transaction.receivers?.some(
+      (item) => item.party === receiver && sameDecimal(item.amount, amount),
+    ) === true
+  );
+}
+
+function transferFrom(
+  transaction: WalletTransaction,
+  trackingId: string,
+  description: string,
+  amount: string,
+  sender: string,
+  receiver: string,
+): CantonCoinTransfer {
+  const eventId = transaction.event_id;
+  if (!eventId) {
+    throw new CantonCoinSettlementError(
+      "The wallet transaction did not include an event reference.",
+      "SETTLEMENT_REFERENCE_INVALID",
+    );
+  }
+  return {
+    updateId: updateIdFromEventId(eventId),
+    eventId,
+    trackingId,
+    description,
+    amount,
+    sender,
+    receiver,
+  };
 }
 
 function assertPositiveDecimal(value: string, name: string): void {

@@ -9,12 +9,15 @@
     "dev": "tsx src/server.ts",
     "integration": "tsx src/integration.ts",
     "governance-integration": "tsx src/governance-integration.ts",
-    "settlement-integration": "tsx src/settlement-integration.ts"
+    "settlement-integration": "tsx src/settlement-integration.ts",
+    "bootstrap": "tsx src/bootstrap.ts",
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@daml/types": "3.5.3",
-    "@tavryn.js/ghc-stdlib-DA-Internal-Template-1.0.0": "file:daml.js/ghc-stdlib-DA-Internal-Template-1.0.0",
     "@mojotech/json-type-validation": "3.1.0",
+    "@tavryn.js/daml-prim-DA-Types-1.0.0": "file:daml.js/daml-prim-DA-Types-1.0.0",
+    "@tavryn.js/ghc-stdlib-DA-Internal-Template-1.0.0": "file:daml.js/ghc-stdlib-DA-Internal-Template-1.0.0",
     "dotenv": "16.4.7"
   },
   "devDependencies": {

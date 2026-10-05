@@ -1,122 +1,139 @@
-import { loadConfig } from "./config.js";
-import { createDemoSession, sessionHeaders } from "./integration-auth.js";
-import { integrationPort } from "./integration-port.js";
-import { startTavrynServer, stopTavrynServer } from "./server.js";
-import { TavrynService } from "./tavryn-service.js";
+import {
+  type JsonResponse,
+  assert,
+  contractId,
+  startIntegration,
+  uniqueInvoiceNumber,
+} from "./integration-client.js";
 
-interface JsonResponse {
-  status: number;
-  body: Record<string, any>;
+// Shared control over the network rules, against the real ledger: each change is
+// refused with one operator vote and applied at the threshold, and an invoice opened
+// before the changes still funds afterwards.
+const run = await startIntegration();
+const { config, post, get } = run;
+const candidateRole = "financierC";
+assert(config.financiers.has(candidateRole), "financierC must be configured as the candidate");
+
+async function governed(action: Record<string, unknown>) {
+  const proposal = await post("/api/v1/governance/proposals", { operatorIndex: "1", action });
+  assert(proposal.status === 201, `Proposal failed: ${JSON.stringify(proposal.body)}`);
+  const proposalCid = contractId(proposal, "GovernanceProposal");
+  const vote = (index: string) =>
+    post(`/api/v1/governance/proposals/${encodeURIComponent(proposalCid)}/votes`, {
+      operatorIndex: index,
+    });
+  const execute = () =>
+    post(`/api/v1/governance/proposals/${encodeURIComponent(proposalCid)}/execute`, {
+      operatorIndex: "1",
+    });
+  await vote("1");
+  const below = await execute();
+  assert(
+    below.status === 409 && below.body.code === "GOVERNANCE_THRESHOLD_NOT_MET",
+    `One vote was not rejected: ${JSON.stringify(below.body)}`,
+  );
+  for (let index = 2; index <= config.governance.threshold; index += 1) {
+    await vote(String(index));
+  }
+  const atThreshold = await execute();
+  assert(atThreshold.status === 200, `Threshold execution failed: ${JSON.stringify(atThreshold.body)}`);
+  return { action, below: summary(below), atThreshold: summary(atThreshold) };
 }
 
-const config = loadConfig();
-const port = integrationPort(config.httpPort);
-const server = await startTavrynServer(new TavrynService(config), port);
-const baseUrl = `http://127.0.0.1:${port}`;
-let demoCookie: string | undefined;
+function summary(response: JsonResponse) {
+  return {
+    status: response.status,
+    code: response.body.code,
+    message: response.body.error,
+    updateId: response.body.updateId,
+    submissionReference: response.body.submissionReference,
+  };
+}
 
 try {
-  demoCookie = await createDemoSession(baseUrl, config);
-  const rules = await post("/api/v1/setup/rules", { maxAdvanceRate: "0.95" });
-  const committee = await post("/api/v1/governance/committee", {
-    networkRulesCid: contractId(rules, "NetworkRules"),
-    threshold: String(config.governance.threshold ?? 2),
-  });
-  const committeeCid = contractId(committee, "GovernanceCommittee");
-  const proposal = await post(
-    `/api/v1/governance/committees/${encodeURIComponent(committeeCid)}/admissions`,
-    { operatorIndex: "1" },
-  );
-  const proposalCid = contractId(proposal, "FinancierAdmissionProposal");
-  const voteOne = await post(
-    `/api/v1/governance/admissions/${encodeURIComponent(proposalCid)}/confirm`,
-    { operatorIndex: "1" },
-  );
-  const belowThreshold = await post(
-    `/api/v1/governance/admissions/${encodeURIComponent(proposalCid)}/execute`,
-    { voteContractIds: [contractId(voteOne, "GovernanceVote")] },
-  );
+  await run.service.bootstrapNetwork();
+  const before = (await get("/api/v1/network")).body;
 
-  const voteTwo = await post(
-    `/api/v1/governance/admissions/${encodeURIComponent(proposalCid)}/confirm`,
-    { operatorIndex: "2" },
-  );
-  const admitted = await post(
-    `/api/v1/governance/admissions/${encodeURIComponent(proposalCid)}/execute`,
-    {
-      voteContractIds: [
-        contractId(voteOne, "GovernanceVote"),
-        contractId(voteTwo, "GovernanceVote"),
-      ],
+  // An invoice opened before any governance change.
+  const draft = await post("/api/v1/invoices/drafts", {
+    terms: {
+      externalInvoiceNumber: uniqueInvoiceNumber("TVN-GOV"),
+      faceValue: "100.00",
+      currency: "USD",
+      issuedDate: "2026-09-01",
+      dueDate: "2026-12-01",
     },
+  });
+  const approved = await post(
+    `/api/v1/invoices/drafts/${encodeURIComponent(contractId(draft, "InvoiceDraft"))}/approve`,
+    { eligibleFinancierRoles: ["financierA"] },
   );
-  const newRules = created(admitted, "NetworkRules");
+  const openOffer = await post(
+    `/api/v1/invoices/approved/${encodeURIComponent(contractId(approved, "ApprovedInvoice"))}/offers`,
+    { financierRole: "financierA", advance: "80.00", advanceRate: "0.80" },
+  );
 
-  assert(
-    belowThreshold.status === 409 &&
-      belowThreshold.body.code === "GOVERNANCE_THRESHOLD_NOT_MET",
-    "One vote did not produce the expected governance threshold rejection",
+  const changes = [];
+  const candidateAdmitted = before.rules.financiers.some(
+    (financier: any) => financier.role === candidateRole,
   );
-  assert(admitted.status === 200, "The configured governance threshold did not execute");
-  assert(
-    newRules?.createArgument?.members?.includes(config.governance.candidatePartyId),
-    "The admitted candidate is missing from the replacement NetworkRules contract",
+  if (candidateAdmitted) {
+    changes.push(await governed({ type: "RemoveFinancier", financierRole: candidateRole }));
+  }
+  changes.push(await governed({ type: "AdmitFinancier", financierRole: candidateRole }));
+  const nextRate = before.rules.maxAdvanceRate.startsWith("0.95") ? "0.94" : "0.95";
+  changes.push(await governed({ type: "SetMaxAdvanceRate", rate: nextRate }));
+  const after = (await get("/api/v1/network")).body;
+
+  // The invoice opened before the changes still funds.
+  const fundedOpen = await post(
+    `/api/v1/offers/${encodeURIComponent(contractId(openOffer, "FinancingOffer"))}/accept`,
+    { financierRole: "financierA", paymentReference: "bank-open-before-governance" },
   );
+  assert(fundedOpen.status === 200, `The pre-existing offer no longer funds: ${JSON.stringify(fundedOpen.body)}`);
+
+  // The admitted financier can be made eligible and fund.
+  const draftC = await post("/api/v1/invoices/drafts", {
+    terms: {
+      externalInvoiceNumber: uniqueInvoiceNumber("TVN-C"),
+      faceValue: "100.00",
+      currency: "USD",
+      issuedDate: "2026-09-01",
+      dueDate: "2026-12-01",
+    },
+  });
+  const approvedC = await post(
+    `/api/v1/invoices/drafts/${encodeURIComponent(contractId(draftC, "InvoiceDraft"))}/approve`,
+    { eligibleFinancierRoles: [candidateRole] },
+  );
+  const offerC = await post(
+    `/api/v1/invoices/approved/${encodeURIComponent(contractId(approvedC, "ApprovedInvoice"))}/offers`,
+    { financierRole: candidateRole, advance: "70.00", advanceRate: "0.70" },
+  );
+  const fundedC = await post(
+    `/api/v1/offers/${encodeURIComponent(contractId(offerC, "FinancingOffer"))}/accept`,
+    { financierRole: candidateRole, paymentReference: "bank-financier-c" },
+  );
+  assert(fundedC.status === 200, `The admitted financier could not fund: ${JSON.stringify(fundedC.body)}`);
 
   console.log(
     JSON.stringify(
       {
-        threshold: config.governance.threshold ?? 2,
-        candidatePartyId: config.governance.candidatePartyId,
-        belowThreshold: {
-          status: belowThreshold.status,
-          code: belowThreshold.body.code,
-          submissionReference: belowThreshold.body.submissionReference,
-        },
-        admitted: {
-          status: admitted.status,
-          updateId: admitted.body.updateId,
-          offset: admitted.body.offset,
-          replacementRulesContractId: newRules?.contractId,
-          members: newRules?.createArgument?.members,
-        },
+        packageId: config.packageId,
+        networkId: config.networkId,
+        threshold: config.governance.threshold,
+        operators: config.governance.operatorPartyIds.length,
+        rulesVersionBefore: before.rules.version,
+        rulesVersionAfter: after.rules.version,
+        maxAdvanceRateAfter: after.rules.maxAdvanceRate,
+        changes,
+        preExistingOfferFunded: { status: fundedOpen.status, updateId: fundedOpen.body.updateId },
+        admittedFinancierFunded: { status: fundedC.status, updateId: fundedC.body.updateId },
       },
       null,
       2,
     ),
   );
 } finally {
-  await stopTavrynServer(server);
-}
-
-async function post(path: string, body: Record<string, unknown>): Promise<JsonResponse> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...sessionHeaders(demoCookie) },
-    body: JSON.stringify(body),
-  });
-  return {
-    status: response.status,
-    body: (await response.json()) as Record<string, any>,
-  };
-}
-
-function created(response: JsonResponse, templateName: string): any | undefined {
-  return response.body.createdContracts?.find((event: any) =>
-    String(event.templateId).includes(templateName),
-  );
-}
-
-function contractId(response: JsonResponse, templateName: string): string {
-  const event = created(response, templateName);
-  if (!event?.contractId) {
-    throw new Error(`No ${templateName} was created: ${JSON.stringify(response.body)}`);
-  }
-  return event.contractId;
-}
-
-function assert(condition: boolean, message: string): asserts condition {
-  if (!condition) {
-    throw new Error(message);
-  }
+  await run.stop();
 }

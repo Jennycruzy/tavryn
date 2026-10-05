@@ -11,6 +11,7 @@ import {
   type SubmissionResult,
 } from "./ledger-api.js";
 import {
+  type GovernanceActionInput,
   TavrynConflictError,
   TavrynInputError,
   TavrynSettlementError,
@@ -99,187 +100,72 @@ async function route(
     return;
   }
 
-  if (
-    method === "GET" &&
-    parts.length === 5 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "roles" &&
-    parts[4] === "contracts"
-  ) {
-    const role = parseRole(parts[3]);
-    writeJson(response, 200, {
-      role,
-      contracts: await service.contractsForRole(role),
-    });
+  const path = parts.join("/");
+
+  if (method === "GET" && parts.length === 5 && path.startsWith("api/v1/roles/") && parts[4] === "contracts") {
+    const role = parseRole(service, parts[3]);
+    writeJson(response, 200, { role, contracts: await service.contractsForRole(role) });
     return;
   }
 
-  if (method === "POST" && parts.join("/") === "api/v1/setup/rules") {
+  if (method === "GET" && path === "api/v1/network") {
+    writeJson(response, 200, await service.networkStatus());
+    return;
+  }
+
+  if (method === "POST" && path === "api/v1/governance/proposals") {
     const body = await readJson(request);
-    const result = await service.createNetworkRules(stringField(body, "maxAdvanceRate"));
-    writeSubmission(response, 201, result);
-    return;
-  }
-
-  if (method === "POST" && parts.join("/") === "api/v1/setup/registry") {
-    const result = await service.createBuyerRegistry();
-    writeSubmission(response, 201, result);
-    return;
-  }
-
-  if (method === "POST" && parts.join("/") === "api/v1/governance/committee") {
-    const body = await readJson(request);
-    const result = await service.createGovernanceCommittee(
-      stringField(body, "networkRulesCid"),
-      stringField(body, "threshold"),
-    );
-    writeSubmission(response, 201, result);
-    return;
-  }
-
-  if (
-    method === "POST" &&
-    parts.length === 6 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "governance" &&
-    parts[3] === "committees" &&
-    parts[5] === "admissions"
-  ) {
-    const body = await readJson(request);
-    const candidate = body.candidatePartyId;
-    if (candidate !== undefined && typeof candidate !== "string") {
-      throw new TavrynInputError("candidatePartyId must be a string");
-    }
-    const result = await service.proposeFinancierAdmission(
-      parts[4],
+    const result = await service.propose(
       stringField(body, "operatorIndex"),
-      candidate,
+      parseGovernanceAction(body.action),
     );
     writeSubmission(response, 201, result);
     return;
   }
 
-  if (
-    method === "POST" &&
-    parts.length === 6 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "governance" &&
-    parts[3] === "admissions" &&
-    parts[5] === "confirm"
-  ) {
+  if (method === "POST" && matches(parts, ["api", "v1", "governance", "proposals", "*", "votes"])) {
     const body = await readJson(request);
-    const result = await service.confirmFinancierAdmission(
-      parts[4],
-      stringField(body, "operatorIndex"),
-    );
+    const result = await service.vote(parts[4], stringField(body, "operatorIndex"));
     writeSubmission(response, 201, result);
     return;
   }
 
-  if (
-    method === "POST" &&
-    parts.length === 6 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "governance" &&
-    parts[3] === "admissions" &&
-    parts[5] === "execute"
-  ) {
+  if (method === "POST" && matches(parts, ["api", "v1", "governance", "proposals", "*", "execute"])) {
     const body = await readJson(request);
-    const result = await service.executeFinancierAdmission(
-      parts[4],
-      stringArrayField(body, "voteContractIds"),
-    );
+    const result = await service.execute(parts[4], stringField(body, "operatorIndex"));
     writeSubmission(response, 200, result);
     return;
   }
 
-  if (method === "POST" && parts.join("/") === "api/v1/invoices/drafts") {
+  if (method === "POST" && path === "api/v1/invoices/drafts") {
     const body = await readJson(request);
     const result = await service.createInvoiceDraft({
-      invoiceCommitment: stringField(body, "invoiceCommitment"),
-      terms: {
-        externalInvoiceNumber: stringNestedField(body, "terms", "externalInvoiceNumber"),
-        faceValue: stringNestedField(body, "terms", "faceValue"),
-        currency: stringNestedField(body, "terms", "currency"),
-        issuedDate: stringNestedField(body, "terms", "issuedDate"),
-        dueDate: stringNestedField(body, "terms", "dueDate"),
-      },
+      externalInvoiceNumber: stringNestedField(body, "terms", "externalInvoiceNumber"),
+      faceValue: stringNestedField(body, "terms", "faceValue"),
+      currency: stringNestedField(body, "terms", "currency"),
+      issuedDate: stringNestedField(body, "terms", "issuedDate"),
+      dueDate: stringNestedField(body, "terms", "dueDate"),
     });
     writeSubmission(response, 201, result);
     return;
   }
 
-  if (
-    method === "POST" &&
-    parts.length === 6 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "invoices" &&
-    parts[3] === "drafts" &&
-    parts[5] === "approve"
-  ) {
+  if (method === "POST" && matches(parts, ["api", "v1", "invoices", "drafts", "*", "approve"])) {
     const body = await readJson(request);
-    const result = await service.approveInvoice(
-      parts[4],
-      stringField(body, "networkRulesCid"),
-      stringField(body, "registryCid"),
-    );
+    const roles = body.eligibleFinancierRoles;
+    if (roles !== undefined && (!Array.isArray(roles) || roles.some((role) => typeof role !== "string"))) {
+      throw new TavrynInputError("eligibleFinancierRoles must be an array of strings");
+    }
+    const result = await service.approveInvoice(parts[4], roles as string[] | undefined);
     writeSubmission(response, 200, result);
     return;
   }
 
-  if (
-    method === "POST" &&
-    parts.length === 5 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "offers" &&
-    parts[4] === "fund"
-  ) {
-    const body = await readJson(request);
-    const result = await service.fundOffer(
-      parts[3],
-      parseFinancierRole(stringField(body, "financierRole")),
-    );
-    writeSettledSubmission(response, 200, result);
-    return;
-  }
-
-  if (
-    method === "POST" &&
-    parts.length === 5 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "pending-funding" &&
-    parts[4] === "cancel"
-  ) {
-    // A public cancel endpoint could reopen an invoice after cash moved. Until
-    // reconciliation is implemented, fail closed instead of offering an unsafe
-    // recovery action.
-    writeJson(response, 410, {
-      error: "Funding recovery is not available yet; keep the pending funding locked.",
-      code: "SETTLEMENT_RECONCILIATION_REQUIRED",
-    });
-    return;
-  }
-
-  if (
-    method === "POST" &&
-    parts.length === 6 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "invoices" &&
-    parts[3] === "approved" &&
-    parts[5] === "offers"
-  ) {
+  if (method === "POST" && matches(parts, ["api", "v1", "invoices", "approved", "*", "offers"])) {
     const body = await readJson(request);
     const result = await service.createOffer(
       parts[4],
-      parseFinancierRole(stringField(body, "financierRole")),
+      stringField(body, "financierRole"),
       stringField(body, "advance"),
       stringField(body, "advanceRate"),
     );
@@ -287,57 +173,49 @@ async function route(
     return;
   }
 
-  if (
-    method === "POST" &&
-    parts.length === 5 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "financed" &&
-    parts[4] === "settle-repay"
-  ) {
+  if (method === "POST" && matches(parts, ["api", "v1", "offers", "*", "accept"])) {
     const body = await readJson(request);
-    const result = await service.repayWithSettlement(
+    const result = await service.acceptOffer(
       parts[3],
-      parseFinancierRole(stringField(body, "financierRole")),
-      stringField(body, "repaymentDate"),
+      stringField(body, "financierRole"),
+      stringField(body, "paymentReference"),
     );
+    writeSubmission(response, 200, result);
+    return;
+  }
+
+  if (method === "POST" && matches(parts, ["api", "v1", "offers", "*", "fund"])) {
+    const body = await readJson(request);
+    const result = await service.fundOffer(parts[3], stringField(body, "financierRole"));
     writeSettledSubmission(response, 200, result);
     return;
   }
 
-  if (
-    method === "POST" &&
-    parts.length === 5 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "offers" &&
-    parts[4] === "accept"
-  ) {
+  if (method === "POST" && matches(parts, ["api", "v1", "pending-funding", "*", "reconcile"])) {
+    writeJson(response, 200, await service.reconcileFunding(parts[3]));
+    return;
+  }
+
+  if (method === "POST" && matches(parts, ["api", "v1", "pending-repayment", "*", "reconcile"])) {
+    writeJson(response, 200, await service.reconcileRepayment(parts[3]));
+    return;
+  }
+
+  if (method === "POST" && matches(parts, ["api", "v1", "financed", "*", "repay"])) {
     const body = await readJson(request);
-    const result = await service.acceptOffer(
+    const result = await service.repay(
       parts[3],
-      parseFinancierRole(stringField(body, "financierRole")),
+      stringField(body, "repaymentDate"),
+      stringField(body, "paymentReference"),
     );
     writeSubmission(response, 200, result);
     return;
   }
 
-  if (
-    method === "POST" &&
-    parts.length === 5 &&
-    parts[0] === "api" &&
-    parts[1] === "v1" &&
-    parts[2] === "financed" &&
-    parts[4] === "repay"
-  ) {
+  if (method === "POST" && matches(parts, ["api", "v1", "financed", "*", "settle-repay"])) {
     const body = await readJson(request);
-    const result = await service.repay(
-      parts[3],
-      parseFinancierRole(stringField(body, "financierRole")),
-      stringField(body, "repaymentDate"),
-      stringField(body, "paymentReference"),
-    );
-    writeSubmission(response, 200, result);
+    const result = await service.repayWithSettlement(parts[3], stringField(body, "repaymentDate"));
+    writeSettledSubmission(response, 200, result);
     return;
   }
 
@@ -460,18 +338,34 @@ function stringArrayField(body: Record<string, unknown>, field: string): string[
   return value as string[];
 }
 
-function parseRole(value: string): Role {
-  if (!isRole(value)) {
+function parseRole(service: TavrynService, value: string): Role {
+  if (!isRole(service.config, value)) {
     throw new TavrynInputError("Unknown role");
   }
   return value;
 }
 
-function parseFinancierRole(value: string): "financierA" | "financierB" {
-  if (value !== "financierA" && value !== "financierB") {
-    throw new TavrynInputError("financierRole must be financierA or financierB");
+function parseGovernanceAction(value: unknown): GovernanceActionInput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new TavrynInputError("action must be an object");
   }
-  return value;
+  const action = value as Record<string, unknown>;
+  if (action.type === "AdmitFinancier" || action.type === "RemoveFinancier") {
+    return { type: action.type, financierRole: stringField(action, "financierRole") };
+  }
+  if (action.type === "SetMaxAdvanceRate") {
+    return { type: action.type, rate: stringField(action, "rate") };
+  }
+  throw new TavrynInputError(
+    "action.type must be AdmitFinancier, RemoveFinancier or SetMaxAdvanceRate",
+  );
+}
+
+function matches(parts: string[], pattern: string[]): boolean {
+  return (
+    parts.length === pattern.length &&
+    pattern.every((segment, index) => segment === "*" || segment === parts[index])
+  );
 }
 
 function writeSubmission(
@@ -517,6 +411,7 @@ function writeError(response: ServerResponse, error: unknown): void {
       ...(error.submissionReference
         ? { submissionReference: error.submissionReference }
         : {}),
+      ...(error.details ?? {}),
     });
     return;
   }
@@ -534,14 +429,19 @@ function writeError(response: ServerResponse, error: unknown): void {
       ...(error.paymentReference
         ? { paymentReference: error.paymentReference }
         : {}),
-      ...(error.pendingFundingCid
-        ? { pendingFundingCid: error.pendingFundingCid }
+      ...(error.pendingContractId
+        ? { pendingContractId: error.pendingContractId }
         : {}),
     });
     return;
   }
   if (error instanceof LedgerApiError) {
-    console.error("Canton request failed", { status: error.status });
+    // Server-side only: the Canton error identifiers, never tokens or payload bodies.
+    console.error("Canton request failed", {
+      status: error.status,
+      code: error.code,
+      errorCategory: error.errorCategory,
+    });
     writeJson(response, 502, {
       error: "The ledger could not complete the request.",
       code: "LEDGER_REQUEST_FAILED",
@@ -628,6 +528,38 @@ function hasDemoSession(cookieHeader: string | undefined, expected: string | und
   });
 }
 
+// On startup and every 60 s, settlement locks older than 30 s are reconciled against
+// the wallet history by tracking ID. The sweep never sends cash.
+export function startSettlementSweeper(service: TavrynService, intervalMs = 60_000) {
+  let running = false;
+  const sweep = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const outcomes = await service.sweepSettlementLocks();
+      for (const outcome of outcomes) {
+        if (outcome.outcome !== "pending") {
+          console.log("Settlement lock reconciled", {
+            contractId: outcome.contractId,
+            outcome: outcome.outcome,
+            trackingId: outcome.trackingId,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Settlement sweep failed", {
+        message: error instanceof Error ? error.message : "unknown error",
+      });
+    } finally {
+      running = false;
+    }
+  };
+  void sweep();
+  const timer = setInterval(sweep, intervalMs);
+  timer.unref();
+  return () => clearInterval(timer);
+}
+
 if (process.argv[1]?.endsWith("/server.ts") || process.argv[1]?.endsWith("/server.js")) {
   const config = loadConfig();
   const service = new TavrynService(config);
@@ -635,4 +567,5 @@ if (process.argv[1]?.endsWith("/server.ts") || process.argv[1]?.endsWith("/serve
   server.listen(config.httpPort, "127.0.0.1", () => {
     console.log(`Tavryn backend listening on 127.0.0.1:${config.httpPort}`);
   });
+  startSettlementSweeper(service);
 }
