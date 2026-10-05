@@ -12,6 +12,10 @@ interface JsonResponse {
 }
 
 const config = loadConfig();
+const settlementCurrency = config.settlement.cantonCoinSymbol;
+if (!settlementCurrency) {
+  throw new Error("CANTON_COIN_SYMBOL must be configured for settlement integration");
+}
 const service = new TavrynService(config);
 const port = integrationPort(config.httpPort);
 const server = await startTavrynServer(service, port);
@@ -28,7 +32,7 @@ try {
     terms: {
       externalInvoiceNumber: invoiceNumber,
       faceValue: "1.00",
-      currency: "USD",
+      currency: settlementCurrency,
       issuedDate: "2026-09-01",
       dueDate: "2026-10-01",
     },
@@ -126,6 +130,7 @@ try {
     JSON.stringify(
       {
         invoiceNumber,
+        currency: settlementCurrency,
         settlement: "two-step, non-atomic",
         funding: {
           ledgerUpdateId: funded.body.updateId,
