@@ -323,14 +323,26 @@ export class TavrynService {
   ): Promise<SubmissionResult> {
     requireContractId(offerContractId, "offerContractId");
     const financier = partyForRole(this.config, financierRole);
-    return this.ledger
-      .exercise(
-        Contracts.FinancingOffer,
-        Contracts.FinancingOffer.Accept,
-        offerContractId,
-        {},
-        [this.config.parties.buyer, this.config.parties.supplier, financier],
-      )
+    return this.activeContractForRole("supplier", offerContractId, "FinancingOffer")
+      .then((offer) => {
+        const argument = record(offer.createArgument, "FinancingOffer");
+        const invoiceCommitment = stringFieldValue(
+          argument.invoiceCommitment,
+          "FinancingOffer.invoiceCommitment",
+        );
+        return this.ledger
+          .exercise(
+            Contracts.FinancingOffer,
+            Contracts.FinancingOffer.Accept,
+            offerContractId,
+            {},
+            [this.config.parties.buyer, this.config.parties.supplier, financier],
+          )
+          .then(async (result) => {
+            await this.withdrawLosingOffers(invoiceCommitment, offerContractId);
+            return result;
+          });
+      })
       .catch((error) => {
         if (isLedgerConflict(error)) {
           throw new TavrynConflictError(
@@ -417,6 +429,10 @@ export class TavrynService {
         pendingFundingCid,
       );
     }
+    await this.withdrawLosingOffers(
+      stringFieldValue(offerArgument.invoiceCommitment, "FinancingOffer.invoiceCommitment"),
+      offerContractId,
+    );
     return { ledger: completed, cash };
   }
 
@@ -597,6 +613,42 @@ export class TavrynService {
     } catch {
       console.error("PendingFunding cancellation failed after a rejected cash transfer", {
         pendingFundingCid,
+      });
+    }
+  }
+
+  private async withdrawLosingOffers(
+    invoiceCommitment: string,
+    winningOfferCid: string,
+  ): Promise<void> {
+    try {
+      const offers = (await this.contractsForRole("supplier")).filter((contract) => {
+        if (contract.contractId === winningOfferCid || !contract.templateId.includes("FinancingOffer")) {
+          return false;
+        }
+        const argument = record(contract.createArgument, "FinancingOffer");
+        return argument.invoiceCommitment === invoiceCommitment;
+      });
+      for (const offer of offers) {
+        try {
+          await this.ledger.exercise(
+            Contracts.FinancingOffer,
+            Contracts.FinancingOffer.Withdraw,
+            offer.contractId,
+            {},
+            [this.config.parties.supplier],
+          );
+        } catch (error) {
+          if (!(error instanceof LedgerApiError && error.status === 409)) {
+            console.error("Could not withdraw a losing financing offer", {
+              offerCid: offer.contractId,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Could not list losing financing offers", {
+        message: error instanceof Error ? error.message : "unknown error",
       });
     }
   }
