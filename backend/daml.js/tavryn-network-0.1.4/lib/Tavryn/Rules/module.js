@@ -15,8 +15,8 @@ var pkg9e70a8b3510d617f8a136213f33d6a903a10ca0eeec76bb06ba55d1ed9680f69 = requir
 
 exports.BuyerApprovalRegistry = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Rules:BuyerApprovalRegistry',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Rules:BuyerApprovalRegistry',
+    templateId: '#tavryn-network:Tavryn.Rules:BuyerApprovalRegistry',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Rules:BuyerApprovalRegistry',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -62,12 +62,12 @@ exports.BuyerApprovalRegistry = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.BuyerApprovalRegistry, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.BuyerApprovalRegistry, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.NetworkRules = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Rules:NetworkRules',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Rules:NetworkRules',
+    templateId: '#tavryn-network:Tavryn.Rules:NetworkRules',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Rules:NetworkRules',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -109,7 +109,7 @@ exports.NetworkRules = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.NetworkRules, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.NetworkRules, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.RecordApproval = {
   decoder: damlTypes.lazyMemo(function () {

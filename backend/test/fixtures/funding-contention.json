@@ -1,0 +1,37 @@
+{
+  "status": 409,
+  "body": {
+    "code": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+    "cause": "Rejected transaction is referring to locked contracts ",
+    "correlationId": null,
+    "traceId": "f5f53f8562bdd3c84a5e2c35812faf19",
+    "context": {
+      "participant": "app-provider",
+      "CONTRACT_ID": "List(00ab027bc2463d91cac824b2a4fad72fdc945c1f47a6c74ad4f1c51b144553eee9ca121220f7153da9a6ec5cc96e8f501286f54bdc1090f93f7cf27c13927c699cabb4d031, 0064960026346d51e7fe65c034b53df7aab9134b82a5277ff14b0e1f4830d384afca121220384a9d1afce514a1fdba6006c25087bdfacfa847d378c068a5a2c6481dc9ae7a, 0086808d95bbdf269d337804c7dd26d08f5df1b74e2fc54598e75461305dcdb84bca1212202fa4c9613d3b6ac66471ee39c0e8f986afe3a46034e761092f99a402574e25e7)",
+      "reported_by_participant_id": "PAR::participant::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df",
+      "psid": "global-domain::122072388d49...::35-0",
+      "confirming_parties": "tavryn-governance-operator-2::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df, tavryn-governance-operator-1::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df, tavryn-buyer::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df, tavryn-supplier::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df, tavryn-governance-operator-3::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df, tavryn-financier-b::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df, participant::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df",
+      "category": "2",
+      "tid": "f5f53f8562bdd3c84a5e2c35812faf19",
+      "definite_answer": "false"
+    },
+    "resources": [
+      [
+        "ErrorResource(CONTRACT_ID)",
+        "00ab027bc2463d91cac824b2a4fad72fdc945c1f47a6c74ad4f1c51b144553eee9ca121220f7153da9a6ec5cc96e8f501286f54bdc1090f93f7cf27c13927c699cabb4d031"
+      ],
+      [
+        "ErrorResource(CONTRACT_ID)",
+        "0064960026346d51e7fe65c034b53df7aab9134b82a5277ff14b0e1f4830d384afca121220384a9d1afce514a1fdba6006c25087bdfacfa847d378c068a5a2c6481dc9ae7a"
+      ],
+      [
+        "ErrorResource(CONTRACT_ID)",
+        "0086808d95bbdf269d337804c7dd26d08f5df1b74e2fc54598e75461305dcdb84bca1212202fa4c9613d3b6ac66471ee39c0e8f986afe3a46034e761092f99a402574e25e7"
+      ]
+    ],
+    "errorCategory": 2,
+    "grpcCodeValue": 10,
+    "retryInfo": "1 second",
+    "definiteAnswer": null
+  }
+}

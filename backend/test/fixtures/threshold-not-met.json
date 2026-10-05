@@ -1,0 +1,23 @@
+{
+  "status": 400,
+  "body": {
+    "code": "DAML_FAILURE",
+    "cause": "Interpretation error: Error: User failure: UNHANDLED_EXCEPTION/DA.Exception.AssertionFailed:AssertionFailed (error category 9): TAVRYN_THRESHOLD_NOT_MET",
+    "correlationId": "11aedbaa-1da6-49ad-ab06-782476059e7e",
+    "traceId": "7dbc4aae9c9d400e2d4b41186e2ee9ef",
+    "context": {
+      "participant": "'app-provider'",
+      "error_id": "UNHANDLED_EXCEPTION/DA.Exception.AssertionFailed:AssertionFailed",
+      "exercise_trace": "    in choice c2071d2c:Tavryn.Governance:GovernanceCommittee:Execute on contract 004d793ede (#0)\n    in exercise command c2071d2c:Tavryn.Governance:GovernanceCommittee:Execute on contract 004d793ede.\n",
+      "category": "9",
+      "tid": "7dbc4aae9c9d400e2d4b41186e2ee9ef",
+      "definite_answer": "false",
+      "commands": "{readAs: [], deduplicationPeriod: {duration: 'PT30S'}, submittedAt: '2026-10-05T20:47:04.431056Z', submissionId: '11aedbaa-1da6-49ad-ab06-782476059e7e', actAs: ['tavryn-governance-operator-1::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df'], commandId: 'tavryn-b0255b0b-780f-4fdc-9c91-d24fe50f90f0', userId: 'ledger-api-user', workflowId: }"
+    },
+    "resources": [],
+    "errorCategory": 9,
+    "grpcCodeValue": 9,
+    "retryInfo": null,
+    "definiteAnswer": null
+  }
+}

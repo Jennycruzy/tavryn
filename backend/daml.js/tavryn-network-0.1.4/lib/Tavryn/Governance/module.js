@@ -19,8 +19,8 @@ var Tavryn_Types = require('../../Tavryn/Types/module');
 
 exports.CommitteeBootstrap = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Governance:CommitteeBootstrap',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Governance:CommitteeBootstrap',
+    templateId: '#tavryn-network:Tavryn.Governance:CommitteeBootstrap',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Governance:CommitteeBootstrap',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -84,7 +84,7 @@ exports.CommitteeBootstrap = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.CommitteeBootstrap, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.CommitteeBootstrap, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.Execute = {
   decoder: damlTypes.lazyMemo(function () {
@@ -120,8 +120,8 @@ exports.Finalize = {
 
 exports.GovernanceCommittee = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Governance:GovernanceCommittee',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Governance:GovernanceCommittee',
+    templateId: '#tavryn-network:Tavryn.Governance:GovernanceCommittee',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Governance:GovernanceCommittee',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -177,12 +177,12 @@ exports.GovernanceCommittee = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.GovernanceCommittee, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.GovernanceCommittee, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.GovernanceProposal = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Governance:GovernanceProposal',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Governance:GovernanceProposal',
+    templateId: '#tavryn-network:Tavryn.Governance:GovernanceProposal',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Governance:GovernanceProposal',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -232,12 +232,12 @@ exports.GovernanceProposal = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.GovernanceProposal, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.GovernanceProposal, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.GovernanceVote = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Governance:GovernanceVote',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Governance:GovernanceVote',
+    templateId: '#tavryn-network:Tavryn.Governance:GovernanceVote',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Governance:GovernanceVote',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -273,7 +273,7 @@ exports.GovernanceVote = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.GovernanceVote, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.GovernanceVote, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.Join = {
   decoder: damlTypes.lazyMemo(function () {

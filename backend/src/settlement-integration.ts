@@ -2,7 +2,6 @@ import {
   assert,
   contractId,
   created,
-  hasTemplate,
   startIntegration,
   templates,
   uniqueInvoiceNumber,
@@ -39,6 +38,7 @@ async function openInvoice(faceValue: string, advance: string, advanceRate: stri
   );
   assert(approved.status === 200, `Approval failed: ${JSON.stringify(approved.body)}`);
   const approvedCid = contractId(approved, "ApprovedInvoice");
+  const commitment = created(approved, "ApprovedInvoice").createArgument.invoiceCommitment;
   const offer = async (role: string, amount: string, rate: string) =>
     contractId(
       await post(`/api/v1/invoices/approved/${encodeURIComponent(approvedCid)}/offers`, {
@@ -50,6 +50,7 @@ async function openInvoice(faceValue: string, advance: string, advanceRate: stri
     );
   return {
     invoiceNumber,
+    commitment,
     offerA: await offer("financierA", advance, advanceRate),
     offerB: await offer("financierB", advance, advanceRate),
   };
@@ -186,10 +187,12 @@ try {
 
   const financierBView = await get("/api/v1/roles/financierB/contracts");
   const auditorView = await get("/api/v1/roles/auditor/contracts");
+  // Scoped to the invoice B lost in this run; B keeps its own receipts from earlier runs.
+  const bViewOfLostInvoice = financierBView.body.contracts.filter(
+    (contract: any) => contract.createArgument?.invoiceCommitment === happy.commitment,
+  );
   assert(
-    !hasTemplate(financierBView, "FinancedInvoice") &&
-      !hasTemplate(financierBView, "FundingReceipt") &&
-      !hasTemplate(financierBView, "RepaymentReceipt"),
+    bViewOfLostInvoice.every((contract: any) => String(contract.templateId).endsWith(":OfferClosed")),
     "Financier B can see the winning deal or its receipts",
   );
 
@@ -235,7 +238,10 @@ try {
           buyerBalanceChangeDuringRetry: Number((balanceAfterRetry - balanceBeforeRetry).toFixed(10)),
           reconciled: reconciled.body,
         },
-        financierBTemplates: templates(financierBView),
+        financierBViewOfLostInvoice: bViewOfLostInvoice.map((contract: any) =>
+          String(contract.templateId).split(":").slice(1).join(":"),
+        ),
+        financierBTemplates: [...new Set(templates(financierBView))],
         auditorTemplates: [...new Set(templates(auditorView))],
       },
       null,

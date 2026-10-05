@@ -1,0 +1,23 @@
+{
+  "status": 400,
+  "body": {
+    "code": "DAML_FAILURE",
+    "cause": "Interpretation error: Error: User failure: UNHANDLED_EXCEPTION/DA.Exception.AssertionFailed:AssertionFailed (error category 9): TAVRYN_DUPLICATE_INVOICE",
+    "correlationId": "653b7846-9edd-4e6a-bbbd-3afb10a9a05e",
+    "traceId": "fe329dad3fc8300c9bdd22a52b0e4679",
+    "context": {
+      "participant": "'app-provider'",
+      "error_id": "UNHANDLED_EXCEPTION/DA.Exception.AssertionFailed:AssertionFailed",
+      "exercise_trace": "    in choice c2071d2c:Tavryn.Rules:BuyerApprovalRegistry:RecordApproval on contract 005dc3128e (#3)\n    in choice c2071d2c:Tavryn.Contracts:InvoiceDraft:Approve on contract 0044736873 (#0)\n    in exercise command c2071d2c:Tavryn.Contracts:InvoiceDraft:Approve on contract 0044736873.\n",
+      "category": "9",
+      "tid": "fe329dad3fc8300c9bdd22a52b0e4679",
+      "definite_answer": "false",
+      "commands": "{readAs: [], deduplicationPeriod: {duration: 'PT30S'}, submittedAt: '2026-10-05T20:47:07.254009Z', submissionId: '653b7846-9edd-4e6a-bbbd-3afb10a9a05e', actAs: ['tavryn-buyer::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df'], commandId: 'tavryn-91d9386a-b91a-49b9-9fd2-2d0da91e9948', userId: 'ledger-api-user', workflowId: }"
+    },
+    "resources": [],
+    "errorCategory": 9,
+    "grpcCodeValue": 9,
+    "retryInfo": null,
+    "definiteAnswer": null
+  }
+}

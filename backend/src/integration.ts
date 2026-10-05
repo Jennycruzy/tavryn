@@ -1,6 +1,7 @@
 import {
   assert,
   contractId,
+  created,
   hasTemplate,
   startIntegration,
   templates,
@@ -30,6 +31,7 @@ try {
   );
   assert(approved.status === 200, `Approval failed: ${JSON.stringify(approved.body)}`);
   const approvedCid = contractId(approved, "ApprovedInvoice");
+  const commitment = created(approved, "ApprovedInvoice").createArgument.invoiceCommitment;
   const offerA = await post(`/api/v1/invoices/approved/${encodeURIComponent(approvedCid)}/offers`, {
     financierRole: "financierA",
     advance: "90.00",
@@ -95,15 +97,14 @@ try {
       "buyer,financier,invoiceCommitment,supplier",
     "OfferClosed carries more than the losing financier's own facts",
   );
+  // Earlier runs leave each financier its own permanent receipts, so the check is
+  // scoped to this run's invoice.
+  const thisInvoice = loserContracts.filter(
+    (contract) => contract.createArgument?.invoiceCommitment === commitment,
+  );
   assert(
-    !hasTemplate(loserView, "FinancedInvoice") &&
-      !hasTemplate(loserView, "FundingReceipt") &&
-      !hasTemplate(loserView, "InvoiceDetails") &&
-      !loserContracts.some(
-        (contract) =>
-          String(contract.templateId).endsWith(":FinancingOffer") &&
-          contract.createArgument.financier !== config.financiers.get(loserRole),
-      ),
+    thisInvoice.every((contract) => String(contract.templateId).endsWith(":OfferClosed")) &&
+      !loserContracts.some((contract) => String(contract.templateId).endsWith(":InvoiceDetails")),
     "The losing financier can see the winning deal",
   );
   assert(
@@ -129,7 +130,11 @@ try {
         },
         repayment: { updateId: repaid.body.updateId },
         duplicateApproval: { status: duplicate.status, code: duplicate.body.code },
-        loserVisibleTemplates: templates(loserView),
+        invoiceCommitment: commitment,
+        loserViewOfThisInvoice: thisInvoice.map((contract) =>
+          String(contract.templateId).split(":").slice(1).join(":"),
+        ),
+        loserVisibleTemplates: [...new Set(templates(loserView))],
         auditorVisibleTemplates: [...new Set(templates(auditorView))],
       },
       null,

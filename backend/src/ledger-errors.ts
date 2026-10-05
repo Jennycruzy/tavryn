@@ -118,7 +118,6 @@ const CONTENTION_CODES = new Set([
   "INCONSISTENT_CONTRACTS",
   "SEQUENCER_REQUEST_FAILED_LOCKED_CONTRACTS",
 ]);
-const CONTENTION_CATEGORY = 2;
 
 export function ledgerTag(error: LedgerApiError): string | undefined {
   const sources = [error.cause, error.contextErrorId, safeStringify(error.payload)];
@@ -129,11 +128,10 @@ export function ledgerTag(error: LedgerApiError): string | undefined {
   return undefined;
 }
 
+// Matched on the identifier only. The category is not enough: a list-size refusal
+// (JSON_API_MAXIMUM_LIST_ELEMENTS_NUMBER_REACHED) also carries category 2.
 export function isContention(error: LedgerApiError): boolean {
-  return (
-    (error.code !== undefined && CONTENTION_CODES.has(error.code)) ||
-    error.errorCategory === CONTENTION_CATEGORY
-  );
+  return error.code !== undefined && CONTENTION_CODES.has(error.code);
 }
 
 /**

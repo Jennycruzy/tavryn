@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { Tavryn as TavrynBindings } from "../daml.js/tavryn-0.1.4/lib/index.js";
+import { Tavryn as TavrynBindings } from "../daml.js/tavryn-network-0.1.4/lib/index.js";
 
 import {
   type FinancierRole,
@@ -26,6 +26,28 @@ import { type LedgerErrorContext, mapLedgerError } from "./ledger-errors.js";
 import { reconcileDecision } from "./reconcile.js";
 
 const { Contracts, Governance } = TavrynBindings;
+
+// Every template a role view may show. Wallet holdings and other packages are never read.
+const PACKAGE_NAME = "tavryn-network";
+const ALL_TEMPLATES = [
+  "Tavryn.Rules:NetworkRules",
+  "Tavryn.Rules:BuyerApprovalRegistry",
+  "Tavryn.Governance:CommitteeBootstrap",
+  "Tavryn.Governance:GovernanceCommittee",
+  "Tavryn.Governance:GovernanceProposal",
+  "Tavryn.Governance:GovernanceVote",
+  "Tavryn.Contracts:InvoiceDraft",
+  "Tavryn.Contracts:InvoiceDetails",
+  "Tavryn.Contracts:FundingSlot",
+  "Tavryn.Contracts:ApprovedInvoice",
+  "Tavryn.Contracts:FinancingOffer",
+  "Tavryn.Contracts:OfferClosed",
+  "Tavryn.Contracts:PendingFunding",
+  "Tavryn.Contracts:FundingReceipt",
+  "Tavryn.Contracts:FinancedInvoice",
+  "Tavryn.Contracts:PendingRepayment",
+  "Tavryn.Contracts:RepaymentReceipt",
+].map((template) => `#${PACKAGE_NAME}:${template}`);
 
 export interface InvoiceTermsInput {
   externalInvoiceNumber: string;
@@ -144,7 +166,19 @@ export class TavrynService {
   }
 
   contractsForRole(role: Role): Promise<ActiveContract[]> {
-    return this.ledger.activeContracts(partyForRole(this.config, role));
+    return this.ledger.activeContracts(partyForRole(this.config, role), ALL_TEMPLATES);
+  }
+
+  private contractsOf(roleOrParty: { role: Role } | { party: string }, ...entities: string[]) {
+    const party = "role" in roleOrParty ? partyForRole(this.config, roleOrParty.role) : roleOrParty.party;
+    return this.ledger.activeContracts(
+      party,
+      entities.map((entity) => {
+        const qualified = ALL_TEMPLATES.find((template) => template.endsWith(`:${entity}`));
+        if (!qualified) throw new Error(`Unknown Tavryn template: ${entity}`);
+        return qualified;
+      }),
+    );
   }
 
   // ---------------------------------------------------------------- network and governance
@@ -158,7 +192,7 @@ export class TavrynService {
     let network = await this.findNetwork();
     const steps: Record<string, string> = {};
     if (!network) {
-      const visible = await this.ledger.activeContracts(operators[0]);
+      const visible = await this.contractsOf({ party: operators[0] }, "CommitteeBootstrap");
       let bootstrap = visible.find(
         (contract) =>
           isTemplate(contract, "Tavryn.Governance", "CommitteeBootstrap") &&
@@ -240,7 +274,11 @@ export class TavrynService {
   async networkStatus(): Promise<Record<string, unknown>> {
     const operators = this.config.governance.operatorPartyIds;
     const network = await this.findNetwork();
-    const operatorView = await this.ledger.activeContracts(operators[0]);
+    const operatorView = await this.contractsOf(
+      { party: operators[0] },
+      "GovernanceProposal",
+      "GovernanceVote",
+    );
     const registry = network ? await this.findRegistry() : undefined;
     const votes = operatorView.filter((contract) =>
       isTemplate(contract, "Tavryn.Governance", "GovernanceVote"),
@@ -347,7 +385,7 @@ export class TavrynService {
     requireContractId(proposalCid, "proposalCid");
     const executor = this.governanceOperator(operatorIndex);
     const network = await this.requireNetwork();
-    const votes = (await this.ledger.activeContracts(executor)).filter(
+    const votes = (await this.contractsOf({ party: executor }, "GovernanceVote")).filter(
       (contract) =>
         isTemplate(contract, "Tavryn.Governance", "GovernanceVote") &&
         record(contract.createArgument).proposal === proposalCid,
@@ -563,7 +601,7 @@ export class TavrynService {
 
   async reconcileFunding(pendingFundingCid: string): Promise<ReconcileOutcome> {
     requireContractId(pendingFundingCid, "pendingFundingCid");
-    const pending = (await this.contractsForRole("supplier")).find(
+    const pending = (await this.contractsOf({ role: "supplier" }, "PendingFunding")).find(
       (contract) =>
         contract.contractId === pendingFundingCid &&
         isTemplate(contract, "Tavryn.Contracts", "PendingFunding"),
@@ -700,7 +738,7 @@ export class TavrynService {
 
   async reconcileRepayment(pendingRepaymentCid: string): Promise<ReconcileOutcome> {
     requireContractId(pendingRepaymentCid, "pendingRepaymentCid");
-    const pending = (await this.contractsForRole("buyer")).find(
+    const pending = (await this.contractsOf({ role: "buyer" }, "PendingRepayment")).find(
       (contract) =>
         contract.contractId === pendingRepaymentCid &&
         isTemplate(contract, "Tavryn.Contracts", "PendingRepayment"),
@@ -759,10 +797,10 @@ export class TavrynService {
     const cutoff = Date.now() - minimumAgeMs;
     const old = (contract: ActiveContract) =>
       new Date(String(record(contract.createArgument).lockedAt)).getTime() < cutoff;
-    const funding = (await this.contractsForRole("supplier")).filter(
+    const funding = (await this.contractsOf({ role: "supplier" }, "PendingFunding")).filter(
       (contract) => isTemplate(contract, "Tavryn.Contracts", "PendingFunding") && old(contract),
     );
-    const repayments = (await this.contractsForRole("buyer")).filter(
+    const repayments = (await this.contractsOf({ role: "buyer" }, "PendingRepayment")).filter(
       (contract) => isTemplate(contract, "Tavryn.Contracts", "PendingRepayment") && old(contract),
     );
     const outcomes: ReconcileOutcome[] = [];
@@ -787,7 +825,11 @@ export class TavrynService {
 
   private async findNetwork(): Promise<CurrentNetwork | undefined> {
     const operators = this.config.governance.operatorPartyIds;
-    const contracts = await this.ledger.activeContracts(operators[0]);
+    const contracts = await this.contractsOf(
+      { party: operators[0] },
+      "NetworkRules",
+      "GovernanceCommittee",
+    );
     const matches = (contract: ActiveContract) => {
       const argument = record(contract.createArgument);
       return (
@@ -819,7 +861,7 @@ export class TavrynService {
 
   private async findRegistry(): Promise<ActiveContract | undefined> {
     const operators = this.config.governance.operatorPartyIds;
-    return (await this.contractsForRole("buyer")).find((contract) => {
+    return (await this.contractsOf({ role: "buyer" }, "BuyerApprovalRegistry")).find((contract) => {
       if (!isTemplate(contract, "Tavryn.Rules", "BuyerApprovalRegistry")) return false;
       const argument = record(contract.createArgument);
       return (
@@ -833,7 +875,7 @@ export class TavrynService {
   // Resolves the offer from the financier's own view, and the approved invoice it is
   // for from the supplier's view. A closed or consumed one means someone else won.
   private async fundingInputs(financierRole: FinancierRole, offerContractId: string) {
-    const offer = (await this.contractsForRole(financierRole)).find(
+    const offer = (await this.contractsOf({ role: financierRole }, "FinancingOffer")).find(
       (contract) =>
         contract.contractId === offerContractId &&
         isTemplate(contract, "Tavryn.Contracts", "FinancingOffer"),
@@ -845,7 +887,7 @@ export class TavrynService {
       );
     }
     const commitment = record(offer.createArgument).invoiceCommitment;
-    const approved = (await this.contractsForRole("supplier")).find(
+    const approved = (await this.contractsOf({ role: "supplier" }, "ApprovedInvoice")).find(
       (contract) =>
         isTemplate(contract, "Tavryn.Contracts", "ApprovedInvoice") &&
         record(contract.createArgument).invoiceCommitment === commitment,
@@ -861,7 +903,7 @@ export class TavrynService {
   }
 
   private async activeFinanced(financedContractId: string): Promise<ActiveContract> {
-    const contracts = await this.contractsForRole("buyer");
+    const contracts = await this.contractsOf({ role: "buyer" }, "FinancedInvoice");
     const financed = contracts.find(
       (contract) =>
         contract.contractId === financedContractId &&
@@ -918,7 +960,7 @@ export class TavrynService {
   // OfferClosed fact naming only its own offer's invoice, never the winner or terms.
   private async closeLosingOffers(invoiceCommitment: string): Promise<void> {
     try {
-      const offers = (await this.contractsForRole("supplier")).filter(
+      const offers = (await this.contractsOf({ role: "supplier" }, "FinancingOffer")).filter(
         (contract) =>
           isTemplate(contract, "Tavryn.Contracts", "FinancingOffer") &&
           record(contract.createArgument).invoiceCommitment === invoiceCommitment,

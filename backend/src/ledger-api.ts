@@ -211,6 +211,17 @@ export class LedgerApi {
     );
   }
 
+  async grantActAs(userId: string, parties: string[]): Promise<void> {
+    await this.request(`/v2/users/${encodeURIComponent(userId)}/rights`, {
+      method: "POST",
+      body: JSON.stringify({
+        userId,
+        identityProviderId: "",
+        rights: parties.map((party) => ({ kind: { CanActAs: { value: { party } } } })),
+      }),
+    });
+  }
+
   async packageIds(): Promise<string[]> {
     const response = await this.request<{ packageIds?: string[] }>("/v2/packages", {
       method: "GET",
@@ -225,20 +236,33 @@ export class LedgerApi {
     return Number(response.offset);
   }
 
-  async activeContracts(party: string): Promise<ActiveContract[]> {
+  // Reads only the named templates ("#package-name:Module:Entity"), then keeps the
+  // configured package's contracts. Template filters take a package name, not an ID.
+  // A wildcard read also returns wallet holdings and older packages, and the JSON API
+  // refuses any list longer than its node limit (200 on LocalNet).
+  async activeContracts(party: string, templates: string[]): Promise<ActiveContract[]> {
+    if (!this.config.packageId) {
+      throw new Error("CANTON_PACKAGE_ID is required for active-contract reads");
+    }
+    if (templates.length === 0) {
+      throw new Error("At least one template is required for an active-contract read");
+    }
     const activeAtOffset = await this.getLedgerEnd();
     const body = {
       activeAtOffset,
       eventFormat: {
         filtersByParty: {
           [party]: {
-            cumulative: [
-              {
-                identifierFilter: {
-                  WildcardFilter: { value: {} },
+            cumulative: templates.map((template) => ({
+              identifierFilter: {
+                TemplateFilter: {
+                  value: {
+                    templateId: template,
+                    includeCreatedEventBlob: false,
+                  },
                 },
               },
-            ],
+            })),
           },
         },
         verbose: true,
@@ -269,9 +293,6 @@ export class LedgerApi {
       ];
     });
 
-    if (!this.config.packageId) {
-      throw new Error("CANTON_PACKAGE_ID is required for active-contract reads");
-    }
     return contracts.filter(
       (contract) => contract.templateId.split(":", 1)[0] === this.config.packageId,
     );

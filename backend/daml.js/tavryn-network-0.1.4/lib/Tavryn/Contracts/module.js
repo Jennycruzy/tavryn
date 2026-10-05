@@ -54,8 +54,8 @@ exports.Approve = {
 
 exports.ApprovedInvoice = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:ApprovedInvoice',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:ApprovedInvoice',
+    templateId: '#tavryn-network:Tavryn.Contracts:ApprovedInvoice',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:ApprovedInvoice',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -111,7 +111,7 @@ exports.ApprovedInvoice = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.ApprovedInvoice, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.ApprovedInvoice, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.BeginFunding = {
   decoder: damlTypes.lazyMemo(function () {
@@ -233,8 +233,8 @@ exports.CreateOffer = {
 
 exports.FinancedInvoice = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:FinancedInvoice',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:FinancedInvoice',
+    templateId: '#tavryn-network:Tavryn.Contracts:FinancedInvoice',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:FinancedInvoice',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -300,12 +300,12 @@ exports.FinancedInvoice = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.FinancedInvoice, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.FinancedInvoice, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.FinancingOffer = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:FinancingOffer',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:FinancingOffer',
+    templateId: '#tavryn-network:Tavryn.Contracts:FinancingOffer',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:FinancingOffer',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -385,12 +385,12 @@ exports.FinancingOffer = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.FinancingOffer, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.FinancingOffer, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.FundingReceipt = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:FundingReceipt',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:FundingReceipt',
+    templateId: '#tavryn-network:Tavryn.Contracts:FundingReceipt',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:FundingReceipt',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -436,12 +436,12 @@ exports.FundingReceipt = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.FundingReceipt, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.FundingReceipt, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.FundingSlot = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:FundingSlot',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:FundingSlot',
+    templateId: '#tavryn-network:Tavryn.Contracts:FundingSlot',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:FundingSlot',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -487,12 +487,12 @@ exports.FundingSlot = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.FundingSlot, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.FundingSlot, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.InvoiceDetails = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:InvoiceDetails',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:InvoiceDetails',
+    templateId: '#tavryn-network:Tavryn.Contracts:InvoiceDetails',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:InvoiceDetails',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -530,12 +530,12 @@ exports.InvoiceDetails = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.InvoiceDetails, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.InvoiceDetails, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.InvoiceDraft = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:InvoiceDraft',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:InvoiceDraft',
+    templateId: '#tavryn-network:Tavryn.Contracts:InvoiceDraft',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:InvoiceDraft',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -581,12 +581,12 @@ exports.InvoiceDraft = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.InvoiceDraft, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.InvoiceDraft, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.OfferClosed = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:OfferClosed',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:OfferClosed',
+    templateId: '#tavryn-network:Tavryn.Contracts:OfferClosed',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:OfferClosed',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -620,12 +620,12 @@ exports.OfferClosed = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.OfferClosed, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.OfferClosed, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.PendingFunding = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:PendingFunding',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:PendingFunding',
+    templateId: '#tavryn-network:Tavryn.Contracts:PendingFunding',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:PendingFunding',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -707,12 +707,12 @@ exports.PendingFunding = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.PendingFunding, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.PendingFunding, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.PendingRepayment = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:PendingRepayment',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:PendingRepayment',
+    templateId: '#tavryn-network:Tavryn.Contracts:PendingRepayment',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:PendingRepayment',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -788,7 +788,7 @@ exports.PendingRepayment = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.PendingRepayment, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.PendingRepayment, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.Repay = {
   decoder: damlTypes.lazyMemo(function () {
@@ -807,8 +807,8 @@ exports.Repay = {
 
 exports.RepaymentReceipt = damlTypes.assembleTemplate(
   {
-    templateId: '#tavryn:Tavryn.Contracts:RepaymentReceipt',
-    templateIdWithPackageId: '#32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673:Tavryn.Contracts:RepaymentReceipt',
+    templateId: '#tavryn-network:Tavryn.Contracts:RepaymentReceipt',
+    templateIdWithPackageId: '#c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9:Tavryn.Contracts:RepaymentReceipt',
     keyDecoder: jtv.constant(undefined),
     keyEncode: function () { throw 'EncodeError'; },
     decoder: damlTypes.lazyMemo(function () {
@@ -854,7 +854,7 @@ exports.RepaymentReceipt = damlTypes.assembleTemplate(
   },
 );
 
-damlTypes.registerTemplate(exports.RepaymentReceipt, ['32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673', '#tavryn']);
+damlTypes.registerTemplate(exports.RepaymentReceipt, ['c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9', '#tavryn-network']);
 
 exports.Withdraw = {
   decoder: damlTypes.lazyMemo(function () {

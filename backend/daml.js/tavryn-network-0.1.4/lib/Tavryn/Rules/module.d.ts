@@ -24,7 +24,7 @@ export declare interface BuyerApprovalRegistryInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<BuyerApprovalRegistry, undefined>>;
 }
 export declare const BuyerApprovalRegistry:
-  damlTypes.Template<BuyerApprovalRegistry, undefined, '#tavryn:Tavryn.Rules:BuyerApprovalRegistry'> &
+  damlTypes.Template<BuyerApprovalRegistry, undefined, '#tavryn-network:Tavryn.Rules:BuyerApprovalRegistry'> &
   damlTypes.ToInterface<BuyerApprovalRegistry, never> &
   BuyerApprovalRegistryInterface
 
@@ -45,7 +45,7 @@ export declare interface NetworkRulesInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<NetworkRules, undefined>>;
 }
 export declare const NetworkRules:
-  damlTypes.Template<NetworkRules, undefined, '#tavryn:Tavryn.Rules:NetworkRules'> &
+  damlTypes.Template<NetworkRules, undefined, '#tavryn-network:Tavryn.Rules:NetworkRules'> &
   damlTypes.ToInterface<NetworkRules, never> &
   NetworkRulesInterface
 

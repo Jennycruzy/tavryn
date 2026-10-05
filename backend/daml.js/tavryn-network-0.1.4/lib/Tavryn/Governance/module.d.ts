@@ -34,7 +34,7 @@ export declare interface CommitteeBootstrapInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<CommitteeBootstrap, undefined>>;
 }
 export declare const CommitteeBootstrap:
-  damlTypes.Template<CommitteeBootstrap, undefined, '#tavryn:Tavryn.Governance:CommitteeBootstrap'> &
+  damlTypes.Template<CommitteeBootstrap, undefined, '#tavryn-network:Tavryn.Governance:CommitteeBootstrap'> &
   damlTypes.ToInterface<CommitteeBootstrap, never> &
   CommitteeBootstrapInterface
 
@@ -73,7 +73,7 @@ export declare interface GovernanceCommitteeInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<GovernanceCommittee, undefined>>;
 }
 export declare const GovernanceCommittee:
-  damlTypes.Template<GovernanceCommittee, undefined, '#tavryn:Tavryn.Governance:GovernanceCommittee'> &
+  damlTypes.Template<GovernanceCommittee, undefined, '#tavryn-network:Tavryn.Governance:GovernanceCommittee'> &
   damlTypes.ToInterface<GovernanceCommittee, never> &
   GovernanceCommitteeInterface
 
@@ -95,7 +95,7 @@ export declare interface GovernanceProposalInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<GovernanceProposal, undefined>>;
 }
 export declare const GovernanceProposal:
-  damlTypes.Template<GovernanceProposal, undefined, '#tavryn:Tavryn.Governance:GovernanceProposal'> &
+  damlTypes.Template<GovernanceProposal, undefined, '#tavryn-network:Tavryn.Governance:GovernanceProposal'> &
   damlTypes.ToInterface<GovernanceProposal, never> &
   GovernanceProposalInterface
 
@@ -113,7 +113,7 @@ export declare interface GovernanceVoteInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<GovernanceVote, undefined>>;
 }
 export declare const GovernanceVote:
-  damlTypes.Template<GovernanceVote, undefined, '#tavryn:Tavryn.Governance:GovernanceVote'> &
+  damlTypes.Template<GovernanceVote, undefined, '#tavryn-network:Tavryn.Governance:GovernanceVote'> &
   damlTypes.ToInterface<GovernanceVote, never> &
   GovernanceVoteInterface
 

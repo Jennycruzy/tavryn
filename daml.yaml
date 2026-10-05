@@ -1,5 +1,5 @@
 sdk-version: 3.5.12
-name: tavryn
+name: tavryn-network
 source: daml
 version: 0.1.4
 dependencies:

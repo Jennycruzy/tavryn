@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "@tavryn.js/tavryn-0.1.4",
+  "name": "@tavryn.js/tavryn-network-0.1.4",
   "version": "3.5.12",
   "license": "UNLICENSED",
   "main": "lib/index.js",

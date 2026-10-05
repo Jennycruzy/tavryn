@@ -51,7 +51,7 @@ export declare interface ApprovedInvoiceInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<ApprovedInvoice, undefined>>;
 }
 export declare const ApprovedInvoice:
-  damlTypes.Template<ApprovedInvoice, undefined, '#tavryn:Tavryn.Contracts:ApprovedInvoice'> &
+  damlTypes.Template<ApprovedInvoice, undefined, '#tavryn-network:Tavryn.Contracts:ApprovedInvoice'> &
   damlTypes.ToInterface<ApprovedInvoice, never> &
   ApprovedInvoiceInterface
 
@@ -142,7 +142,7 @@ export declare interface FinancedInvoiceInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<FinancedInvoice, undefined>>;
 }
 export declare const FinancedInvoice:
-  damlTypes.Template<FinancedInvoice, undefined, '#tavryn:Tavryn.Contracts:FinancedInvoice'> &
+  damlTypes.Template<FinancedInvoice, undefined, '#tavryn-network:Tavryn.Contracts:FinancedInvoice'> &
   damlTypes.ToInterface<FinancedInvoice, never> &
   FinancedInvoiceInterface
 
@@ -173,7 +173,7 @@ export declare interface FinancingOfferInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<FinancingOffer, undefined>>;
 }
 export declare const FinancingOffer:
-  damlTypes.Template<FinancingOffer, undefined, '#tavryn:Tavryn.Contracts:FinancingOffer'> &
+  damlTypes.Template<FinancingOffer, undefined, '#tavryn-network:Tavryn.Contracts:FinancingOffer'> &
   damlTypes.ToInterface<FinancingOffer, never> &
   FinancingOfferInterface
 
@@ -196,7 +196,7 @@ export declare interface FundingReceiptInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<FundingReceipt, undefined>>;
 }
 export declare const FundingReceipt:
-  damlTypes.Template<FundingReceipt, undefined, '#tavryn:Tavryn.Contracts:FundingReceipt'> &
+  damlTypes.Template<FundingReceipt, undefined, '#tavryn-network:Tavryn.Contracts:FundingReceipt'> &
   damlTypes.ToInterface<FundingReceipt, never> &
   FundingReceiptInterface
 
@@ -216,7 +216,7 @@ export declare interface FundingSlotInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<FundingSlot, undefined>>;
 }
 export declare const FundingSlot:
-  damlTypes.Template<FundingSlot, undefined, '#tavryn:Tavryn.Contracts:FundingSlot'> &
+  damlTypes.Template<FundingSlot, undefined, '#tavryn-network:Tavryn.Contracts:FundingSlot'> &
   damlTypes.ToInterface<FundingSlot, never> &
   FundingSlotInterface
 
@@ -235,7 +235,7 @@ export declare interface InvoiceDetailsInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<InvoiceDetails, undefined>>;
 }
 export declare const InvoiceDetails:
-  damlTypes.Template<InvoiceDetails, undefined, '#tavryn:Tavryn.Contracts:InvoiceDetails'> &
+  damlTypes.Template<InvoiceDetails, undefined, '#tavryn-network:Tavryn.Contracts:InvoiceDetails'> &
   damlTypes.ToInterface<InvoiceDetails, never> &
   InvoiceDetailsInterface
 
@@ -255,7 +255,7 @@ export declare interface InvoiceDraftInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<InvoiceDraft, undefined>>;
 }
 export declare const InvoiceDraft:
-  damlTypes.Template<InvoiceDraft, undefined, '#tavryn:Tavryn.Contracts:InvoiceDraft'> &
+  damlTypes.Template<InvoiceDraft, undefined, '#tavryn-network:Tavryn.Contracts:InvoiceDraft'> &
   damlTypes.ToInterface<InvoiceDraft, never> &
   InvoiceDraftInterface
 
@@ -272,7 +272,7 @@ export declare interface OfferClosedInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<OfferClosed, undefined>>;
 }
 export declare const OfferClosed:
-  damlTypes.Template<OfferClosed, undefined, '#tavryn:Tavryn.Contracts:OfferClosed'> &
+  damlTypes.Template<OfferClosed, undefined, '#tavryn-network:Tavryn.Contracts:OfferClosed'> &
   damlTypes.ToInterface<OfferClosed, never> &
   OfferClosedInterface
 
@@ -307,7 +307,7 @@ export declare interface PendingFundingInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<PendingFunding, undefined>>;
 }
 export declare const PendingFunding:
-  damlTypes.Template<PendingFunding, undefined, '#tavryn:Tavryn.Contracts:PendingFunding'> &
+  damlTypes.Template<PendingFunding, undefined, '#tavryn-network:Tavryn.Contracts:PendingFunding'> &
   damlTypes.ToInterface<PendingFunding, never> &
   PendingFundingInterface
 
@@ -339,7 +339,7 @@ export declare interface PendingRepaymentInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<PendingRepayment, undefined>>;
 }
 export declare const PendingRepayment:
-  damlTypes.Template<PendingRepayment, undefined, '#tavryn:Tavryn.Contracts:PendingRepayment'> &
+  damlTypes.Template<PendingRepayment, undefined, '#tavryn-network:Tavryn.Contracts:PendingRepayment'> &
   damlTypes.ToInterface<PendingRepayment, never> &
   PendingRepaymentInterface
 
@@ -370,7 +370,7 @@ export declare interface RepaymentReceiptInterface {
     damlTypes.ChoiceFrom<damlTypes.Template<RepaymentReceipt, undefined>>;
 }
 export declare const RepaymentReceipt:
-  damlTypes.Template<RepaymentReceipt, undefined, '#tavryn:Tavryn.Contracts:RepaymentReceipt'> &
+  damlTypes.Template<RepaymentReceipt, undefined, '#tavryn-network:Tavryn.Contracts:RepaymentReceipt'> &
   damlTypes.ToInterface<RepaymentReceipt, never> &
   RepaymentReceiptInterface
 

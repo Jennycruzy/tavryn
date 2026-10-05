@@ -12,4 +12,4 @@ var Test = require('./Test');
 exports.Tavryn = Tavryn;
 exports.Test = Test;
 
-exports.packageId = '32685dd0bfd6956f87fb560756a8497602ddef17ba13c29d298225fe5cd36673';
+exports.packageId = 'c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9';

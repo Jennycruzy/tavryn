@@ -1,0 +1,25 @@
+{
+  "status": 404,
+  "body": {
+    "code": "TEMPLATES_OR_INTERFACES_NOT_FOUND",
+    "cause": "Templates do not exist: [0000000000000000000000000000000000000000000000000000000000000000:Tavryn.Contracts:FinancingOffer].",
+    "correlationId": null,
+    "traceId": "a008c1c54058d88ee7381f89a45788b1",
+    "context": {
+      "participant": "app-provider",
+      "definite_answer": "false",
+      "tid": "a008c1c54058d88ee7381f89a45788b1",
+      "category": "11"
+    },
+    "resources": [
+      [
+        "ErrorResource(TEMPLATE_ID)",
+        "0000000000000000000000000000000000000000000000000000000000000000:Tavryn.Contracts:FinancingOffer"
+      ]
+    ],
+    "errorCategory": 11,
+    "grpcCodeValue": 5,
+    "retryInfo": null,
+    "definiteAnswer": null
+  }
+}
