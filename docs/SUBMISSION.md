@@ -26,9 +26,10 @@ on LocalNet an action fails below the threshold and succeeds at it
 (`docs/evidence/P4_GOVERNANCE_2026-10-05-VPS.json`).
 
 Do not select **BitSafe Gold** unless a Decentralized Party is actually deployed on
-DevNet or MainNet and the deployment-path application is completed by its deadline. Do
-not select the **Grofty Wallet Bounty** unless users can connect, sign, and transact with
-Grofty in Tavryn's working core flow.
+DevNet or MainNet and the deployment-path application is completed by its deadline. The
+**Grofty Wallet Bounty** is deliberately not selected: the Grofty browser extension could
+not be installed for testing, so users cannot connect, sign and transact with Grofty in
+Tavryn's core flow, and no Grofty integration is claimed.
 
 ### Elevator pitch
 

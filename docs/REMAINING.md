@@ -25,9 +25,7 @@ owner decision, or a real human interaction; none of it is claimed without its a
 
 | Item | Needed from the owner | Finish action |
 |---|---|---|
-| DevNet (P7) | A working HackCanton login in `backend/.env.devnet`, nine distinct parties with `actAs` for the team's ledger user (supplier, buyer, auditor, financiers A–C, three operators), the synchronizer ID, permission to upload `tavryn-network-0.1.4.dar`, and DevNet Canton Coin in the buyer and financier A wallets | Upload, `TAVRYN_ENV_FILE=.env.devnet npm run bootstrap`, the three integrations, and `docs/evidence/P7_DEVNET_<date>.json` |
-| Grofty (P8) | "Grofty DevNet: yes" (with funds) or "no" | Prove one funding and one repayment signed in Grofty, or write the exclusion into `SUBMISSION.md` |
-| Mana (P0) | Completion date and artifact, or leave unclaimed | Add to `PROGRESS.md` |
+| DevNet (P7) | Login works and the wallet is onboarded (2026-10-05). Still needed in the node Console: nine parties (supplier, buyer, auditor, financiers A–C, three operators) and the `tavryn-network-0.1.4.dar` upload (release v0.1.4); the guest user cannot do either through the API (HTTP 403). DevNet Canton Coin from the wallet faucet | Upload, `TAVRYN_ENV_FILE=.env.devnet npm run bootstrap`, the three integrations, and `docs/evidence/P7_DEVNET_<date>.json` |
 | Invoice fixtures (P6) | Three permissioned invoices, or approval to use clearly labelled synthetic ones | `fixtures/invoices/` with provenance |
 | Interviews (P9) | Five real, consented conversations | Dates and anonymized notes in `INTERVIEWS.md` and `VALIDATION.md` |
 | Demo video (P10) | A recording of `DEMO.md` under five minutes | Link and checksum |
