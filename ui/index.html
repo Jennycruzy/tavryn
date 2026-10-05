@@ -59,13 +59,7 @@
               <h2 id="role-heading">View the network as</h2>
             </div>
           </div>
-          <div class="role-buttons" id="roleButtons" role="tablist" aria-label="Select party role">
-            <button class="role-button" data-role="supplier" role="tab">Supplier</button>
-            <button class="role-button" data-role="buyer" role="tab">Buyer</button>
-            <button class="role-button" data-role="financierA" role="tab">Financier A</button>
-            <button class="role-button" data-role="financierB" role="tab">Financier B</button>
-            <button class="role-button" data-role="auditor" role="tab">Auditor</button>
-          </div>
+          <div class="role-buttons" id="roleButtons" role="tablist" aria-label="Select party role"></div>
           <div class="role-context" id="roleContext"></div>
         </section>
 
@@ -74,31 +68,32 @@
             <section class="panel setup-panel" id="setupPanel">
               <div class="panel-heading">
                 <div>
-                  <p class="eyebrow">NETWORK CONTROL</p>
-                  <h2>Start the ledger</h2>
+                  <p class="eyebrow">NETWORK RULES</p>
+                  <h2>Governed by its operators</h2>
                 </div>
-                <span class="pill" id="setupState">SETUP REQUIRED</span>
+                <span class="pill" id="setupState">LOADING</span>
               </div>
               <p class="panel-intro">
-                Create the buyer approval registry and network advance rules once. They are
-                live Canton contracts, not demo state.
+                The rules are a live Canton contract signed by every operator. They change only
+                when enough operators vote; no single operator can change them.
               </p>
               <div class="setup-row">
                 <div class="setup-fact">
-                  <span>Approval registry</span>
-                  <strong id="registryState">Not loaded</strong>
+                  <span>Control</span>
+                  <strong id="operatorsState">—</strong>
                 </div>
                 <div class="setup-fact">
                   <span>Advance ceiling</span>
-                  <strong id="rulesState">Not loaded</strong>
+                  <strong id="rulesState">—</strong>
                 </div>
-                <div class="setup-rate">
-                  <label for="maxAdvanceRate">Maximum advance rate</label>
-                  <input id="maxAdvanceRate" inputmode="decimal" placeholder="0.95" aria-label="Maximum advance rate" />
+                <div class="setup-fact">
+                  <span>Admitted financiers</span>
+                  <strong id="financiersState">—</strong>
                 </div>
-                <button class="button button-primary" id="setupButton" type="button">
-                  Load / create setup
-                </button>
+                <div class="setup-fact">
+                  <span>Buyer registry</span>
+                  <strong id="registryState">—</strong>
+                </div>
               </div>
             </section>
 
