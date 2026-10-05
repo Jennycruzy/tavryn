@@ -485,7 +485,11 @@ function renderPrivacy() {
 
 function renderResult() {
   const result = state.lastResult;
-  if (!result) return;
+  if (!result) {
+    // A new role starts with an empty log, so another role's result is never shown here.
+    $("resultBody").innerHTML = `<div class="result-placeholder"><span class="placeholder-mark">✦</span><p>Actions will return the real Canton update reference here.</p></div>`;
+    return;
+  }
   const failure = result.kind === "failure";
   const refs = [];
   if (result.updateId) refs.push(["Ledger update", result.updateId]);
