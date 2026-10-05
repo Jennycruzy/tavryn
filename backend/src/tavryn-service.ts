@@ -672,10 +672,22 @@ export class TavrynService {
 }
 
 function isLedgerConflict(error: unknown): error is LedgerApiError {
-  // Canton uses HTTP 409 for a real state/validation conflict. Authentication,
-  // network and participant failures must stay 502s so the UI does not claim
-  // that a rival won when the participant was simply unavailable.
-  return error instanceof LedgerApiError && error.status === 409;
+  if (!(error instanceof LedgerApiError)) {
+    return false;
+  }
+  if (error.status === 409) {
+    return true;
+  }
+  // The connected Canton 3.5 participant returns ordinary Daml assertions as
+  // HTTP 400/DAML_FAILURE/category 9. Keep this narrowly scoped to the
+  // observed AssertionFailed identifier; auth, package and transport errors
+  // remain 502s instead of being presented as business conflicts.
+  return (
+    error.status === 400 &&
+    error.code === "DAML_FAILURE" &&
+    error.errorCategory === 9 &&
+    error.contextErrorId?.includes("AssertionFailed") === true
+  );
 }
 
 function validateInvoiceInput(input: InvoiceDraftInput): void {

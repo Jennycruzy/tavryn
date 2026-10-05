@@ -53,6 +53,10 @@ export class LedgerApiError extends Error {
   readonly status: number;
   readonly payload: unknown;
   readonly submissionReference?: SubmissionReference;
+  readonly code?: string;
+  readonly cause?: string;
+  readonly errorCategory?: number;
+  readonly contextErrorId?: string;
 
   constructor(
     status: number,
@@ -68,6 +72,12 @@ export class LedgerApiError extends Error {
     this.status = status;
     this.payload = payload;
     this.submissionReference = submissionReference;
+    const details = objectRecord(payload);
+    const context = objectRecord(details?.context);
+    this.code = stringValue(details?.code);
+    this.cause = stringValue(details?.cause);
+    this.errorCategory = numberValue(details?.errorCategory);
+    this.contextErrorId = stringValue(context?.error_id);
   }
 }
 
@@ -97,6 +107,20 @@ interface ActiveContractResponse {
 
 interface LedgerEndResponse {
   offset: number | string;
+}
+
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
 }
 
 export class LedgerApi {
