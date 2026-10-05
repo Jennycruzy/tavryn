@@ -177,7 +177,15 @@ function labelForContract(contract) {
   const name = templateName(contract);
   const arg = argument(contract);
   if (name === "InvoiceDraft") return `${arg.terms?.externalInvoiceNumber || "Invoice draft"} · ${amount(arg.terms?.faceValue)} ${arg.terms?.currency || ""}`;
-  if (name === "ApprovedInvoice") return `Approved invoice · ${shortCid(arg.invoiceCommitment)}`;
+  if (name === "ApprovedInvoice") {
+    // The supplier and buyer hold the private details; label the invoice by its number.
+    const details = (state.contracts[state.role] || []).find((item) =>
+      templateName(item) === "InvoiceDetails" && argument(item).invoiceCommitment === arg.invoiceCommitment);
+    const terms = argument(details).terms;
+    return terms
+      ? `${terms.externalInvoiceNumber} · ${amount(terms.faceValue)} ${terms.currency}`
+      : `Approved invoice · ${shortCid(arg.invoiceCommitment)}`;
+  }
   if (name === "FinancingOffer") return `${arg.terms?.externalInvoiceNumber || "Offer"} · ${amount(arg.advance)} ${arg.terms?.currency || ""}`;
   if (name === "FinancedInvoice") return `${arg.terms?.externalInvoiceNumber || "Financed invoice"} · ${roleLabel(roleForParty(arg.financier)) || "financier"}`;
   return `${name} · ${shortCid(contractId(contract))}`;
