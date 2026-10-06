@@ -289,6 +289,7 @@ async function route(
       stringField(body, "financierRole"),
       stringField(body, "advance"),
       stringField(body, "advanceRate"),
+      typeof body.fee === "string" && body.fee.trim() ? body.fee.trim() : undefined,
     );
     writeSubmission(response, 201, result);
     return;
@@ -319,6 +320,24 @@ async function route(
 
   if (method === "POST" && matches(parts, ["api", "v1", "pending-repayment", "*", "reconcile"])) {
     writeJson(response, 200, await service.reconcileRepayment(parts[3]));
+    return;
+  }
+
+  if (method === "POST" && matches(parts, ["api", "v1", "balances", "*", "pay"])) {
+    const body = await readJson(request);
+    const result = await service.payBalance(
+      parts[3],
+      financierRoleFor(account, body),
+      stringField(body, "paymentReference"),
+    );
+    writeSubmission(response, 200, result);
+    return;
+  }
+
+  if (method === "POST" && matches(parts, ["api", "v1", "balances", "*", "settle"])) {
+    const body = await readJson(request);
+    const result = await service.settleBalance(parts[3], financierRoleFor(account, body));
+    writeSettledSubmission(response, 200, result);
     return;
   }
 

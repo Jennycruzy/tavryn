@@ -32,6 +32,9 @@ export interface TavrynConfig {
   synchronizerId?: string;
   participantId?: string;
   packageId?: string;
+  // Earlier versions of the same package whose contracts are still active. Commands use
+  // packageId; reads accept contracts created under any of these too.
+  previousPackageIds: string[];
   // Role views show invoice activity created at or after this ledger offset, so a demo
   // can start from a clean page without archiving anything. Unset shows everything.
   viewFromOffset?: number;
@@ -186,6 +189,10 @@ export function loadConfig(): TavrynConfig {
     synchronizerId: optional("CANTON_SYNCHRONIZER_ID"),
     participantId: optional("CANTON_PARTICIPANT_ID"),
     packageId: optional("CANTON_PACKAGE_ID"),
+    previousPackageIds: (optional("CANTON_PREVIOUS_PACKAGE_IDS") ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
     viewFromOffset: optional("TAVRYN_VIEW_FROM_OFFSET")
       ? optionalPositiveInteger("TAVRYN_VIEW_FROM_OFFSET", 1)
       : undefined,

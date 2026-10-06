@@ -9,6 +9,7 @@ interface RaceOffer {
   offerContractId: string;
   financierRole: string;
   advance: string;
+  fee?: string;
 }
 
 export interface RaceCandidate {
@@ -52,7 +53,12 @@ export async function raceCandidates(service: TavrynService): Promise<RaceCandid
       offers: [],
       offset: 0,
     };
-    entry.offers.push({ offerContractId: contract.contractId, financierRole: role, advance: String(argument.advance) });
+    entry.offers.push({
+      offerContractId: contract.contractId,
+      financierRole: role,
+      advance: String(argument.advance),
+      ...(argument.fee !== null && argument.fee !== undefined ? { fee: String(argument.fee) } : {}),
+    });
     entry.offset = Math.max(entry.offset, Number(contract.offset ?? 0));
     byInvoice.set(key, entry);
   }
@@ -118,7 +124,7 @@ export async function prepareRaceInvoice(service: TavrynService): Promise<RaceCa
   const approved = await service.approveInvoice(created(draft, "InvoiceDraft"), ["financierA", "financierB"]);
   const approvedCid = created(approved, "ApprovedInvoice");
   for (const role of ["financierA", "financierB"]) {
-    await service.createOffer(approvedCid, role, "16200000.00", "0.8000");
+    await service.createOffer(approvedCid, role, "16200000.00", "0.8000", "405000.00");
   }
   return (await raceCandidates(service)).find((entry) => entry.invoiceNumber === number);
 }

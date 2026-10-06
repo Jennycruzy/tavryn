@@ -139,6 +139,7 @@ testSingleApproval = script do
       financier = p.financierA
       advance = 50.0
       advanceRate = 0.50
+      fee = None
   submitMustFail (actAs [p.buyer, p.supplier, p.financierA]) do
     exerciseCmd fakeOfferCid Accept with
       approvedInvoiceCid = fakeApprovedCid

@@ -89,6 +89,8 @@ function friendlyError(status, payload) {
     DEMO_AUTH_FAILED: "That passphrase isn't right.",
     WRITE_RATE_LIMITED: "Too many changes at once. Please wait a minute and try again.",
     FORBIDDEN: "Your company can't do that.",
+    INVALID_FEE: "The fee can't be negative, and the advance plus the fee can't be more than the invoice amount.",
+    BALANCE_NOT_AVAILABLE: "This balance has already been paid.",
     ACCOUNT_REQUIRED: "Please sign in again.",
     DUPLICATE_DOCUMENT: payload?.error || "This exact file was already submitted for another invoice.",
     INVOICE_HAS_DOCUMENT: "This invoice number already has a different file attached.",
@@ -446,6 +448,7 @@ function supplierActions() {
         <div class="field wide"><label for="approvedCid">Invoice</label><select id="approvedCid" name="approvedCid" required>${optionList(approved, "Choose an invoice", approvedLabel)}</select></div>
         <div class="field"><label for="offerFinancier">Lender</label><select id="offerFinancier" name="financierRole" required>${lenderOptions(lenders)}</select></div>
         <div class="field"><label for="offerAdvance">Amount to advance</label><input id="offerAdvance" name="advance" inputmode="decimal" placeholder="0.90" required /><span class="hint" id="advanceHint">Up to ${percent(state.network?.rules?.maxAdvanceRate)} of the invoice.</span></div>
+        <div class="field"><label for="offerFee">Lender's fee (optional)</label><input id="offerFee" name="fee" inputmode="decimal" placeholder="e.g. 405000" /><span class="hint" id="feeHint">Agreed now. The rest comes back to you when the buyer pays.</span></div>
       </div>
       <div class="form-actions"><button class="button button-secondary" type="submit">Send private offer</button><span class="hint">Only this lender sees the offer.</span></div>
     </form>` : ""}
@@ -492,10 +495,16 @@ function buyerActions() {
 
 function lenderActions() {
   const offers = contractsFor(state.role, "FinancingOffer");
+  const balances = contractsFor(state.role, "BalanceDue");
+  const balanceLabel = (contract) => {
+    const arg = argument(contract);
+    return `${money(arg.balance, arg.currency)} to the supplier · collected ${money(arg.collected, arg.currency)}, advance ${money(arg.advance, arg.currency)}, fee ${money(arg.fee, arg.currency)}`;
+  };
   const closed = contractsFor(state.role, "OfferClosed");
   const offerLabel = (contract) => {
     const arg = argument(contract);
-    return `${arg.terms.externalInvoiceNumber} · advance ${money(arg.advance, arg.terms.currency)} (${percent(arg.advanceRate)}) · due ${niceDate(arg.terms.dueDate)}`;
+    const fee = arg.fee !== null && arg.fee !== undefined ? ` · fee ${money(arg.fee, arg.terms.currency)}` : "";
+    return `${arg.terms.externalInvoiceNumber} · advance ${money(arg.advance, arg.terms.currency)} (${percent(arg.advanceRate)})${fee} · due ${niceDate(arg.terms.dueDate)}`;
   };
   return `
     ${offers.length ? `
@@ -504,6 +513,15 @@ function lenderActions() {
         <div class="field wide" id="fundReferenceField" hidden><label for="fundReference">Bank transfer reference</label><input id="fundReference" name="paymentReference" placeholder="The reference of your transfer to the supplier" /><span class="hint">Naira moves by bank transfer. Tavryn records your reference and locks the invoice to you.</span></div></div>
       <div class="form-actions"><button class="button button-primary" type="submit">Finance this invoice</button><span class="hint">You pay the supplier now and the buyer repays you by the due date.</span></div>
     </form>` : `<div class="notice"><strong>No open offers</strong>Offers made to you will appear here.</div>`}
+    ${balances.length ? `
+    <form class="action-form" data-action="pay-balance">
+      <p class="form-title">Pay the supplier's balance</p>
+      <div class="form-grid">
+        <div class="field wide"><label for="balanceCid">Balance due</label><select id="balanceCid" name="balanceCid" required>${optionList(balances, "Choose a balance", balanceLabel)}</select></div>
+        <div class="field wide" id="balanceReferenceField" hidden><label for="balanceReference">Bank transfer reference</label><input id="balanceReference" name="paymentReference" placeholder="The reference of your transfer to the supplier" /></div>
+      </div>
+      <div class="form-actions"><button class="button button-primary" type="submit">Pay balance</button><span class="hint">The buyer paid you the full invoice. This returns the rest, less your agreed fee.</span></div>
+    </form>` : ""}
     ${closed.length ? `<div class="notice"><strong>${closed.length === 1 ? "1 offer is" : `${closed.length} offers are`} no longer available</strong>Another lender financed ${closed.length === 1 ? "that invoice" : "those invoices"} first. You aren't told who, or at what price.</div>` : ""}
   `;
 }
@@ -582,12 +600,18 @@ function activityItem(contract) {
     case "PendingFunding":
       return [`Payment on its way · ${invoiceLabel(arg.terms)}`, `${money(arg.settlementAmount, arg.instrument)} from ${lenderName(arg.financier)}`, "In progress", "wait"];
     case "FinancedInvoice":
-      return [`${invoiceLabel(arg.terms)} · financed`, `${lender} advanced ${money(arg.advance, arg.terms.currency)} · repayment due ${niceDate(arg.terms.dueDate)}`, "Financed", "good"];
+      return [`${invoiceLabel(arg.terms)} · financed`, `${lender} advanced ${money(arg.advance, arg.terms.currency)}${arg.fee !== null && arg.fee !== undefined ? ` · fee ${money(arg.fee, arg.terms.currency)}` : ""} · repayment due ${niceDate(arg.terms.dueDate)}`, "Financed", "good"];
     case "FundingReceipt":
       return [`Payment made · ${money(arg.settlementAmount, unit(arg.instrument))}`,
         `${lender} paid the supplier${arg.instrument === "OFF_LEDGER" ? ` by bank transfer · ref ${arg.paymentReference}` : ""}`, "Paid", "good"];
     case "PendingRepayment":
       return [`Repayment on its way · ${invoiceLabel(arg.terms)}`, money(arg.settlementAmount, arg.instrument), "In progress", "wait"];
+    case "BalanceDue":
+      return [`Balance due to the supplier · ${money(arg.balance, arg.currency)}`,
+        `Buyer paid ${money(arg.collected, arg.currency)} · advance ${money(arg.advance, arg.currency)} · fee ${money(arg.fee, arg.currency)}`, "Balance due", "wait"];
+    case "BalanceReceipt":
+      return [`Balance paid to the supplier · ${money(arg.amount, unit(arg.instrument))}`,
+        arg.instrument === "OFF_LEDGER" ? `By bank transfer · ref ${arg.paymentReference}` : "In Canton Coin", "Settled", "good"];
     case "RepaymentReceipt":
       return [`Repaid · ${money(arg.amount, unit(arg.instrument))}`, `On ${niceDate(arg.repaymentDate)}${arg.early ? ", before the due date" : ""}${arg.instrument === "OFF_LEDGER" ? ` · ref ${arg.paymentReference}` : ""}`, "Repaid", "good"];
     default:
@@ -682,12 +706,14 @@ async function handleAction(form) {
       setResult({ ok: true, title: "Invoice approved", message: `It can now be financed once, by ${eligibleFinancierRoles.map(roleLabel).join(" or ")}.`, updateId: result.updateId });
     } else if (action === "create-offer") {
       const face = approvedFaceValue(value("approvedCid"));
-      const advance = Number(value("advance"));
+      const advance = Number(value("advance").replaceAll(",", ""));
       if (!face || !(advance > 0) || advance > face) throw new Error("The advance must be more than zero and no more than the invoice amount.");
       const advanceRate = rateFor(advance, face);
       const max = Number(state.network?.rules?.maxAdvanceRate ?? 1);
       if (Number(advanceRate) > max) throw new Error(`That's more than the network's maximum advance of ${percent(max)}.`);
-      result = await api(`/api/v1/invoices/approved/${encodeURIComponent(value("approvedCid"))}/offers`, { method: "POST", body: JSON.stringify({ financierRole: value("financierRole"), advance: value("advance"), advanceRate }) });
+      const fee = value("fee").replaceAll(",", "");
+      if (fee && !(Number(fee) >= 0 && advance + Number(fee) <= face)) throw new Error("The advance plus the fee can't be more than the invoice amount.");
+      result = await api(`/api/v1/invoices/approved/${encodeURIComponent(value("approvedCid"))}/offers`, { method: "POST", body: JSON.stringify({ financierRole: value("financierRole"), advance: value("advance"), advanceRate, ...(fee ? { fee } : {}) }) });
       state.currentStep = "offered";
       await loadRole("supplier");
       setResult({ ok: true, title: "Offer sent", message: `${roleLabel(value("financierRole"))} can now see this offer. No other lender can.`, updateId: result.updateId });
@@ -720,6 +746,19 @@ async function handleAction(form) {
         state.currentStep = "repaid";
         await loadRole("buyer");
         setResult({ ok: true, title: "Lender repaid", message: `${money(result.cashTransfer?.amount)} paid. The invoice is closed.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+      }
+    } else if (action === "pay-balance") {
+      const due = contractsFor(state.role, "BalanceDue").find((contract) => contractId(contract) === value("balanceCid"));
+      const arg = due ? argument(due) : {};
+      if (arg.currency && arg.currency !== currency()) {
+        if (!value("paymentReference")) throw new Error("Enter the reference of your bank transfer to the supplier.");
+        result = await api(`/api/v1/balances/${encodeURIComponent(value("balanceCid"))}/pay`, { method: "POST", body: JSON.stringify({ financierRole: state.role, paymentReference: value("paymentReference") }) });
+        await loadRole(state.role);
+        setResult({ ok: true, title: "Balance paid", message: `Your transfer ${value("paymentReference")} of ${money(arg.balance, arg.currency)} is recorded. The invoice is fully settled.`, updateId: result.updateId });
+      } else {
+        result = await api(`/api/v1/balances/${encodeURIComponent(value("balanceCid"))}/settle`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
+        await loadRole(state.role);
+        setResult({ ok: true, title: "Balance paid", message: `${money(result.cashTransfer?.amount)} paid to the supplier. The invoice is fully settled.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
       }
     } else if (action === "propose") {
       const type = value("type");
@@ -777,13 +816,28 @@ function updateProposalFields() {
   document.querySelectorAll('[data-for="rate"]').forEach((field) => { field.hidden = type !== "SetMaxAdvanceRate"; });
 }
 
+function updateFeeHint() {
+  const hint = $("feeHint");
+  const select = $("approvedCid");
+  if (!hint || !select) return;
+  const face = approvedFaceValue(select.value);
+  const advance = Number(($("offerAdvance")?.value || "").replaceAll(",", ""));
+  const fee = Number(($("offerFee")?.value || "").replaceAll(",", ""));
+  hint.textContent = face && advance > 0 && fee >= 0 && $("offerFee").value
+    ? (advance + fee <= face
+      ? `You get ${amount(advance)} now and ${amount(face - advance - fee)} when the buyer pays.`
+      : "The advance plus the fee is more than the invoice.")
+    : "Agreed now. The rest comes back to you when the buyer pays.";
+}
+
 function updateAdvanceHint() {
+  updateFeeHint();
   const hint = $("advanceHint");
   const select = $("approvedCid");
   const input = $("offerAdvance");
   if (!hint || !select || !input) return;
   const face = approvedFaceValue(select.value);
-  const advance = Number(input.value);
+  const advance = Number(input.value.replaceAll(",", ""));
   const max = percent(state.network?.rules?.maxAdvanceRate);
   hint.textContent = face && advance > 0
     ? `${percent(advance / face)} of the invoice · maximum ${max}.`
@@ -865,6 +919,11 @@ function updatePaymentFields() {
     const terms = offer ? argument(offer).terms : undefined;
     $("fundReferenceField").hidden = !terms || terms.currency === currency();
     $("offerFile").innerHTML = terms ? documentLink(terms.externalInvoiceNumber) : "";
+  }
+  const balanceSelect = $("balanceCid");
+  if (balanceSelect) {
+    const due = contractsFor(state.role, "BalanceDue").find((contract) => contractId(contract) === balanceSelect.value);
+    $("balanceReferenceField").hidden = !due || argument(due).currency === currency();
   }
   const financedSelect = $("financedCid");
   if (financedSelect) {

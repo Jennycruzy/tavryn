@@ -4,7 +4,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 
-import { Tavryn as TavrynBindings } from "../daml.js/tavryn-network-0.1.4/lib/index.js";
+import { Tavryn as TavrynBindings } from "../daml.js/tavryn-network-0.1.5/lib/index.js";
 import { loadConfig, partyForRole } from "../src/config.js";
 import { LedgerApi, LedgerApiError } from "../src/ledger-api.js";
 import { TavrynService, createdContractId } from "../src/tavryn-service.js";

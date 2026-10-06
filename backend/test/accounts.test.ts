@@ -66,6 +66,7 @@ const fakeService = {
   createInvoiceDraft: async () => { calls.push("draft"); return submission; },
   acceptOffer: async (_cid: string, role: string) => { calls.push(`accept:${role}`); return submission; },
   vote: async (_cid: string, index: string) => { calls.push(`vote:${index}`); return submission; },
+  payBalance: async (_cid: string, role: string) => { calls.push(`balance:${role}`); return submission; },
 } as unknown as TavrynService;
 
 test("each company can act only as itself", async () => {
@@ -130,7 +131,11 @@ test("each company can act only as itself", async () => {
     assert.equal((await post("/api/v1/race/prepare", lenderB, {})).status, 403);
     assert.equal((await post("/api/v1/invoices/drafts", presenter, { terms })).status, 403);
 
-    assert.deepEqual(calls, ["draft", "accept:financierB", "vote:2", "draft"]);
+    assert.equal((await post("/api/v1/balances/b1/pay", buyer, { paymentReference: "r" })).status, 403);
+    assert.equal((await post("/api/v1/balances/b1/pay", lenderB, { financierRole: "financierA", paymentReference: "r" })).status, 403);
+    assert.equal((await post("/api/v1/balances/b1/pay", lenderB, { paymentReference: "r" })).status, 200);
+
+    assert.deepEqual(calls, ["draft", "accept:financierB", "vote:2", "draft", "balance:financierB"]);
   } finally {
     await stopTavrynServer(app);
   }

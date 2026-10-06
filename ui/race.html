@@ -94,7 +94,7 @@
         if (outcome?.status === "funded") verdict = `<div class="verdict funded">✓ Financed<small>${outcome.paymentReference ? `transfer ${escape(outcome.paymentReference)} · ` : ""}${outcome.elapsedMs} ms · record ${escape((outcome.updateId || "").slice(0, 18))}…</small></div>`;
         if (outcome?.status === "refused") verdict = `<div class="verdict refused">✗ No longer available<small>Refused by Canton · ${outcome.elapsedMs} ms · not told who won or the price</small></div>`;
         if (outcome?.status === "failed") verdict = `<div class="verdict failed">Couldn't complete<small>${escape(outcome.message || outcome.code || "")}</small></div>`;
-        $(slot).innerHTML = `<h2>${label(offer.financierRole)}</h2><span class="offer">Offer: ${money(offer.advance, state.current.currency)} now</span>${verdict}`;
+        $(slot).innerHTML = `<h2>${label(offer.financierRole)}</h2><span class="offer">Offer: ${money(offer.advance, state.current.currency)} now${offer.fee ? ` · fee ${money(offer.fee, state.current.currency)}` : ""}</span>${verdict}`;
       }
 
       function render(outcomes, running = false) {

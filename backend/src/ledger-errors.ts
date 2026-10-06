@@ -102,6 +102,11 @@ const TAGGED: Record<string, MappedLedgerError> = {
     code: "INVALID_ADVANCE",
     message: "The advance must be positive and no more than face value times the rate.",
   },
+  TAVRYN_INVALID_FEE: {
+    status: 400,
+    code: "INVALID_FEE",
+    message: "The fee must not be negative, and the advance plus the fee cannot exceed the invoice amount.",
+  },
   TAVRYN_REPAYMENT_BEFORE_ISSUE: {
     status: 400,
     code: "REPAYMENT_BEFORE_ISSUE",

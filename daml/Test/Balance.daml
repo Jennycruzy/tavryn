@@ -1,0 +1,148 @@
+module Test.Balance where
+
+import DA.Date (Month(..), date)
+import Daml.Script
+
+import Tavryn.Contracts
+import Test.Support
+
+-- | An offer with the lender's fee agreed up front.
+offerWithFee
+  : Network -> ContractId ApprovedInvoice -> Party -> Decimal -> Decimal -> Optional Decimal
+  -> Script (ContractId FinancingOffer)
+offerWithFee network approvedCid financier advance advanceRate fee = do
+  let p = network.parties
+  (rulesCid, _) <- currentRules network
+  submit (actAs [p.buyer, p.supplier]) do
+    exerciseCmd approvedCid CreateOffer with
+      rulesCid
+      financier
+      advance
+      advanceRate
+      fee
+
+-- Invoice 100, advance 80, fee 2: when the buyer pays 100 to the lender, the lender owes
+-- the supplier 18. Off-ledger (bank) path.
+testBalanceAfterBankRepayment : Script ()
+testBalanceAfterBankRepayment = script do
+  network <- setupNetwork
+  let p = network.parties
+  invoiceCid <- approvedInvoice network "INV-BALANCE" [p.financierA, p.financierB]
+
+  -- A fee that would leave the supplier a negative balance, or a negative fee, is refused.
+  (rulesCid, _) <- currentRules network
+  submitMustFail (actAs [p.buyer, p.supplier]) do
+    exerciseCmd invoiceCid CreateOffer with
+      rulesCid
+      financier = p.financierA
+      advance = 80.0
+      advanceRate = 0.80
+      fee = Some 25.0
+  submitMustFail (actAs [p.buyer, p.supplier]) do
+    exerciseCmd invoiceCid CreateOffer with
+      rulesCid
+      financier = p.financierA
+      advance = 80.0
+      advanceRate = 0.80
+      fee = Some (-1.0)
+
+  offerCid <- offerWithFee network invoiceCid p.financierA 80.0 0.80 (Some 2.0)
+  Some offer <- queryContractId p.financierA offerCid
+  assert (offer.fee == Some 2.0)
+
+  financedCid <- submit (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd offerCid Accept with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      paymentReference = "NIP-ADVANCE"
+  Some financed <- queryContractId p.financierA financedCid
+  assert (financed.fee == Some 2.0)
+
+  _ <- submit (actAs [p.buyer, p.financierA]) do
+    exerciseCmd financedCid Repay with
+      repaymentDate = date 2026 Jan 31
+      paymentReference = "NIP-REPAY"
+
+  -- The balance is exactly invoice less advance less fee, visible to the lender, the
+  -- supplier and the auditor, and not to the buyer.
+  [(dueCid, due)] <- query @BalanceDue p.supplier
+  assert (due.balance == 18.0 && due.fee == 2.0 && due.advance == 80.0 && due.collected == 100.0)
+  [_] <- query @BalanceDue p.financierA
+  [_] <- query @BalanceDue p.auditor
+  [] <- query @BalanceDue p.buyer
+
+  -- Only the lender records paying the balance, and a reference is required.
+  submitMustFail p.supplier do
+    exerciseCmd dueCid PayBalance with
+      paymentReference = "NIP-BALANCE"
+      instrument = "OFF_LEDGER"
+      trackingId = ""
+  submitMustFail p.financierA do
+    exerciseCmd dueCid PayBalance with
+      paymentReference = ""
+      instrument = "OFF_LEDGER"
+      trackingId = ""
+  receiptCid <- submit p.financierA do
+    exerciseCmd dueCid PayBalance with
+      paymentReference = "NIP-BALANCE"
+      instrument = "OFF_LEDGER"
+      trackingId = ""
+  Some receipt <- queryContractId p.auditor receiptCid
+  assert (receipt.amount == 18.0 && receipt.paymentReference == "NIP-BALANCE")
+  [] <- query @BalanceDue p.supplier
+  pure ()
+
+-- The two-step Canton Coin repayment creates the same balance, and an offer without a
+-- fee (made before 0.1.5) creates none.
+testBalanceAfterTwoStepRepayment : Script ()
+testBalanceAfterTwoStepRepayment = script do
+  network <- setupNetwork
+  let p = network.parties
+  (rulesCid, _) <- currentRules network
+
+  invoiceCid <- approvedInvoice network "INV-BALANCE-CC" [p.financierA]
+  offerCid <- offerWithFee network invoiceCid p.financierA 90.0 0.90 (Some 1.5)
+  pendingCid <- submit (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd offerCid BeginFunding with
+      approvedInvoiceCid = invoiceCid
+      rulesCid
+      trackingId = "fund-fee"
+      settlementAmount = 90.0
+      instrument = "CC"
+  financedCid <- submit (actAs [p.buyer, p.supplier, p.financierA]) do
+    exerciseCmd pendingCid Complete with paymentReference = "cc-fund"
+  pendingRepaymentCid <- submit (actAs [p.buyer, p.financierA]) do
+    exerciseCmd financedCid BeginRepayment with
+      repaymentDate = date 2026 Feb 1
+      trackingId = "repay-fee"
+      settlementAmount = 100.0
+      instrument = "CC"
+  _ <- submit (actAs [p.buyer, p.financierA]) do
+    exerciseCmd pendingRepaymentCid CompleteRepayment with paymentReference = "cc-repay"
+  [(dueCid, due)] <- query @BalanceDue p.supplier
+  assert (due.balance == 8.5 && due.currency == "CC")
+  submitMustFail p.financierA do
+    exerciseCmd dueCid PayBalance with
+      paymentReference = "cc-balance"
+      instrument = "USD"
+      trackingId = "balance-1"
+  _ <- submit p.financierA do
+    exerciseCmd dueCid PayBalance with
+      paymentReference = "cc-balance"
+      instrument = "CC"
+      trackingId = "balance-1"
+
+  -- No fee agreed: repayment closes the invoice as before, with no balance record.
+  legacyCid <- approvedInvoice network "INV-NO-FEE" [p.financierB]
+  legacyOfferCid <- offerTo network legacyCid p.financierB 60.0 0.60
+  legacyFinancedCid <- submit (actAs [p.buyer, p.supplier, p.financierB]) do
+    exerciseCmd legacyOfferCid Accept with
+      approvedInvoiceCid = legacyCid
+      rulesCid
+      paymentReference = "NIP-LEGACY"
+  _ <- submit (actAs [p.buyer, p.financierB]) do
+    exerciseCmd legacyFinancedCid Repay with
+      repaymentDate = date 2026 Jan 31
+      paymentReference = "NIP-LEGACY-REPAY"
+  [] <- query @BalanceDue p.financierB
+  pure ()

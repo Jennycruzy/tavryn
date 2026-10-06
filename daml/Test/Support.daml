@@ -151,3 +151,4 @@ offerTo network approvedCid financier advance advanceRate = do
       financier
       advance
       advanceRate
+      fee = None

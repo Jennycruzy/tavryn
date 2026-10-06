@@ -1,6 +1,6 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
-import { Tavryn as TavrynBindings } from "../daml.js/tavryn-network-0.1.4/lib/index.js";
+import { Tavryn as TavrynBindings } from "../daml.js/tavryn-network-0.1.5/lib/index.js";
 
 import {
   type FinancierRole,
@@ -47,6 +47,8 @@ const ALL_TEMPLATES = [
   "Tavryn.Contracts:FinancedInvoice",
   "Tavryn.Contracts:PendingRepayment",
   "Tavryn.Contracts:RepaymentReceipt",
+  "Tavryn.Contracts:BalanceDue",
+  "Tavryn.Contracts:BalanceReceipt",
 ].map((template) => `#${PACKAGE_NAME}:${template}`);
 
 export interface InvoiceTermsInput {
@@ -498,10 +500,12 @@ export class TavrynService {
     financierRole: FinancierRole,
     advance: string,
     advanceRate: string,
+    fee?: string,
   ): Promise<SubmissionResult> {
     requireContractId(approvedInvoiceContractId, "approvedInvoiceContractId");
     assertDecimal(advance, "advance");
     assertDecimal(advanceRate, "advanceRate");
+    if (fee !== undefined) assertDecimal(fee, "fee");
     const financier = this.financierParty(financierRole);
     const network = await this.requireNetwork();
     return this.ledger
@@ -509,7 +513,7 @@ export class TavrynService {
         Contracts.ApprovedInvoice,
         Contracts.ApprovedInvoice.CreateOffer,
         approvedInvoiceContractId,
-        { rulesCid: network.rules.contractId, financier, advance, advanceRate },
+        { rulesCid: network.rules.contractId, financier, advance, advanceRate, fee: fee ?? null },
         [this.config.parties.buyer, this.config.parties.supplier],
       )
       .catch((error) => this.rethrow(error, "other"));
@@ -746,6 +750,82 @@ export class TavrynService {
         pendingRepaymentCid,
       );
     }
+  }
+
+  /** The financier records paying the supplier's balance by bank transfer. */
+  async payBalance(
+    balanceDueContractId: string,
+    financierRole: FinancierRole,
+    paymentReference: string,
+  ): Promise<SubmissionResult> {
+    requireContractId(balanceDueContractId, "balanceDueContractId");
+    if (!paymentReference.trim()) {
+      throw new TavrynInputError("paymentReference is required");
+    }
+    const financier = this.financierParty(financierRole);
+    await this.activeBalanceDue(balanceDueContractId, financierRole);
+    return this.ledger
+      .exercise(
+        Contracts.BalanceDue,
+        Contracts.BalanceDue.PayBalance,
+        balanceDueContractId,
+        { paymentReference, instrument: "OFF_LEDGER", trackingId: "" },
+        [financier],
+      )
+      .catch((error) => this.rethrow(error, "settlement"));
+  }
+
+  /**
+   * The financier pays the supplier's balance in Canton Coin. The tracking ID is derived
+   * from the balance record, so a retry finds the earlier transfer instead of paying twice.
+   */
+  async settleBalance(balanceDueContractId: string, financierRole: FinancierRole): Promise<SettledSubmission> {
+    requireContractId(balanceDueContractId, "balanceDueContractId");
+    const financier = this.financierParty(financierRole);
+    this.settlement.assertConfigured(financierRole);
+    const due = await this.activeBalanceDue(balanceDueContractId, financierRole);
+    const argument = record(due.createArgument);
+    const instrument = this.assertCantonCoinCurrency({ currency: argument.currency });
+    const amount = decimalString(argument.balance, "BalanceDue.balance");
+    const supplier = this.config.parties.supplier;
+    const trackingId = `tavryn-balance-${createHash("sha256").update(balanceDueContractId).digest("hex").slice(0, 32)}`;
+    const cash =
+      (await this.settlement.findCompletedTransfer(
+        financierRole,
+        supplier,
+        amount,
+        trackingId,
+        new Date(Date.now() - 7 * 86_400_000),
+      )) ?? (await this.settlement.transfer(financierRole, supplier, amount, trackingId));
+    try {
+      const ledger = await this.ledger.exercise(
+        Contracts.BalanceDue,
+        Contracts.BalanceDue.PayBalance,
+        balanceDueContractId,
+        { paymentReference: cash.updateId, instrument, trackingId },
+        [financier],
+      );
+      return { ledger, cash };
+    } catch {
+      throw new TavrynSettlementError(
+        "Canton Coin moved, but the ledger could not record the balance yet. Try again: the same transfer will be found and not repeated.",
+        "SETTLEMENT_LEDGER_BALANCE_FAILED",
+        cash.updateId,
+        balanceDueContractId,
+      );
+    }
+  }
+
+  private async activeBalanceDue(balanceDueContractId: string, financierRole: FinancierRole): Promise<ActiveContract> {
+    const due = (await this.contractsOf({ role: financierRole }, "BalanceDue")).find(
+      (contract) =>
+        contract.contractId === balanceDueContractId && isTemplate(contract, "Tavryn.Contracts", "BalanceDue"),
+    );
+    if (due && record(due.createArgument).financier === this.financierParty(financierRole)) return due;
+    throw new TavrynConflictError(
+      "This balance is not waiting to be paid by you. It may already be paid.",
+      "BALANCE_NOT_AVAILABLE",
+    );
   }
 
   async reconcileRepayment(pendingRepaymentCid: string): Promise<ReconcileOutcome> {

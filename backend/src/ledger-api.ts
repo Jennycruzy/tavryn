@@ -308,9 +308,10 @@ export class LedgerApi {
       ];
     });
 
-    return contracts.filter(
-      (contract) => contract.templateId.split(":", 1)[0] === this.config.packageId,
-    );
+    // Contracts keep the package version they were created with; after an upgrade the
+    // earlier versions' contracts are still part of the network.
+    const accepted = new Set([this.config.packageId, ...this.config.previousPackageIds]);
+    return contracts.filter((contract) => accepted.has(contract.templateId.split(":", 1)[0]));
   }
 
   private async streamActiveContracts(body: unknown): Promise<ActiveContractResponse[]> {

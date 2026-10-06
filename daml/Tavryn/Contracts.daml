@@ -129,6 +129,8 @@ template ApprovedInvoice
         financier : Party
         advance : Decimal
         advanceRate : Decimal
+        -- Added in 0.1.5: the lender's fee, agreed up front. Absent on older offers.
+        fee : Optional Decimal
       controller buyer, supplier
       do
         rules <- fetch rulesCid
@@ -140,6 +142,7 @@ template ApprovedInvoice
         details <- fetch invoiceDetails
         assertMsg "TAVRYN_INVALID_ADVANCE"
           (advance > 0.0 && advance <= details.terms.faceValue * advanceRate)
+        assertMsg "TAVRYN_INVALID_FEE" (validFee details.terms advance fee)
         create FinancingOffer with
           supplier
           buyer
@@ -150,6 +153,7 @@ template ApprovedInvoice
           operators
           advance
           advanceRate
+          fee
 
 template FinancingOffer
   with
@@ -162,6 +166,7 @@ template FinancingOffer
     operators : [Party]
     advance : Decimal
     advanceRate : Decimal
+    fee : Optional Decimal
   where
     ensure invoiceCommitment /= ""
       && advance > 0.0 && advance <= terms.faceValue
@@ -228,6 +233,7 @@ template FinancingOffer
           settlementAmount
           instrument
           lockedAt
+          fee
 
     -- Closing a losing offer leaves the financier a ledger fact that the invoice is
     -- gone, with no winner, amount or terms.
@@ -269,6 +275,7 @@ financedFrom offer auditor = FinancedInvoice with
   terms = offer.terms
   advance = offer.advance
   advanceRate = offer.advanceRate
+  fee = offer.fee
 
 template OfferClosed
   with
@@ -298,6 +305,7 @@ template PendingFunding
     settlementAmount : Decimal
     instrument : Text
     lockedAt : Time
+    fee : Optional Decimal
   where
     ensure invoiceCommitment /= "" && trackingId /= "" && settlementAmount > 0.0
     signatory buyer, supplier, financier
@@ -319,6 +327,7 @@ template PendingFunding
           terms
           advance
           advanceRate
+          fee
         _ <- create FundingReceipt with
           buyer
           supplier
@@ -353,6 +362,7 @@ template PendingFunding
           operators
           advance
           advanceRate
+          fee
         create ApprovedInvoice with
           supplier
           buyer
@@ -391,6 +401,7 @@ template FinancedInvoice
     terms : InvoiceTerms
     advance : Decimal
     advanceRate : Decimal
+    fee : Optional Decimal
   where
     ensure invoiceCommitment /= ""
       && advance > 0.0 && advance <= terms.faceValue
@@ -407,7 +418,7 @@ template FinancedInvoice
       do
         assertMsg "TAVRYN_REPAYMENT_BEFORE_ISSUE" (repaymentDate >= terms.issuedDate)
         assertMsg "TAVRYN_PAYMENT_REFERENCE_REQUIRED" (paymentReference /= "")
-        create RepaymentReceipt with
+        receiptCid <- create RepaymentReceipt with
           buyer
           financier
           auditor
@@ -418,6 +429,8 @@ template FinancedInvoice
           instrument = "OFF_LEDGER"
           trackingId = ""
           paymentReference
+        _ <- createBalanceDue financier supplier auditor invoiceCommitment terms advance fee
+        pure receiptCid
 
     choice BeginRepayment : ContractId PendingRepayment
       with
@@ -446,6 +459,7 @@ template FinancedInvoice
           settlementAmount
           instrument
           lockedAt
+          fee
 
 template PendingRepayment
   with
@@ -462,6 +476,7 @@ template PendingRepayment
     settlementAmount : Decimal
     instrument : Text
     lockedAt : Time
+    fee : Optional Decimal
   where
     ensure invoiceCommitment /= "" && trackingId /= "" && settlementAmount > 0.0
     signatory buyer, supplier, financier
@@ -473,7 +488,7 @@ template PendingRepayment
       controller buyer, financier
       do
         assertMsg "TAVRYN_PAYMENT_REFERENCE_REQUIRED" (paymentReference /= "")
-        create RepaymentReceipt with
+        receiptCid <- create RepaymentReceipt with
           buyer
           financier
           auditor
@@ -484,6 +499,8 @@ template PendingRepayment
           instrument
           trackingId
           paymentReference
+        _ <- createBalanceDue financier supplier auditor invoiceCommitment terms advance fee
+        pure receiptCid
 
     choice CancelRepayment : ContractId FinancedInvoice
       controller buyer, financier
@@ -497,6 +514,7 @@ template PendingRepayment
           terms
           advance
           advanceRate
+          fee
 
 template RepaymentReceipt
   with
@@ -513,4 +531,87 @@ template RepaymentReceipt
   where
     ensure invoiceCommitment /= "" && paymentReference /= "" && amount > 0.0
     signatory buyer, financier
+    observer auditor
+
+-- | Added in 0.1.5. A fee is valid when it is not negative and the advance plus the fee
+-- does not exceed the invoice amount, so the supplier's balance is never negative.
+validFee : InvoiceTerms -> Decimal -> Optional Decimal -> Bool
+validFee _ _ None = True
+validFee terms advance (Some amount) = amount >= 0.0 && advance + amount <= terms.faceValue
+
+-- | When the buyer has paid the full invoice to the financier, the financier owes the
+-- supplier the rest: invoice amount less the advance and the agreed fee. Offers made
+-- before 0.1.5 carry no fee and create nothing.
+createBalanceDue
+  : Party -> Party -> Party -> Text -> InvoiceTerms -> Decimal -> Optional Decimal
+  -> Update (Optional (ContractId BalanceDue))
+createBalanceDue _ _ _ _ _ _ None = pure None
+createBalanceDue financier supplier auditor invoiceCommitment terms advance (Some feeAmount) = do
+  let balance = terms.faceValue - advance - feeAmount
+  if balance <= 0.0
+    then pure None
+    else Some <$> create BalanceDue with
+      financier
+      supplier
+      auditor
+      invoiceCommitment
+      currency = terms.currency
+      collected = terms.faceValue
+      advance
+      fee = feeAmount
+      balance
+
+-- | Added in 0.1.5. What the financier owes the supplier once the buyer has paid.
+template BalanceDue
+  with
+    financier : Party
+    supplier : Party
+    auditor : Party
+    invoiceCommitment : Text
+    currency : Text
+    collected : Decimal
+    advance : Decimal
+    fee : Decimal
+    balance : Decimal
+  where
+    ensure invoiceCommitment /= "" && balance > 0.0 && fee >= 0.0
+      && collected == advance + fee + balance
+    signatory financier, supplier
+    observer auditor
+
+    -- The financier records the transfer of the balance to the supplier: a bank
+    -- reference with an OFF_LEDGER instrument, or a Canton Coin transfer.
+    choice PayBalance : ContractId BalanceReceipt
+      with
+        paymentReference : Text
+        instrument : Text
+        trackingId : Text
+      controller financier
+      do
+        assertMsg "TAVRYN_PAYMENT_REFERENCE_REQUIRED" (paymentReference /= "")
+        assertMsg "TAVRYN_INSTRUMENT_MISMATCH" (instrument == "OFF_LEDGER" || instrument == currency)
+        create BalanceReceipt with
+          financier
+          supplier
+          auditor
+          invoiceCommitment
+          amount = balance
+          instrument
+          trackingId
+          paymentReference
+
+-- | Added in 0.1.5. The supplier's balance has been paid; the invoice is fully settled.
+template BalanceReceipt
+  with
+    financier : Party
+    supplier : Party
+    auditor : Party
+    invoiceCommitment : Text
+    amount : Decimal
+    instrument : Text
+    trackingId : Text
+    paymentReference : Text
+  where
+    ensure invoiceCommitment /= "" && paymentReference /= "" && amount > 0.0
+    signatory financier, supplier
     observer auditor
