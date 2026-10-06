@@ -55,6 +55,13 @@ Times are end to end through Tavryn's server, including its ledger reads.
 Canton Coin settlement (LocalNet): **5 of 5** fundings and **5 of 5** repayments completed,
 median 3.4 s to fund and 2.8 s to repay, each with the amount on the receipt.
 
+Canton Coin settlement (HackCanton DevNet, 6 October 2026): a lender's own DevNet wallet
+paid the supplier **80 CC** through Tavryn in 17.2 s end to end; the lender's balance fell
+by exactly 80, the supplier received one 80 CC holding, and the rival lender was refused
+with "This invoice is no longer available"
+([`evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`](evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json)).
+Repayment on DevNet is not claimed: the buyer party there has no wallet.
+
 Records: [`evidence/METRICS_localnet_2026-10-06.json`](evidence/METRICS_localnet_2026-10-06.json),
 [`evidence/METRICS_devnet_2026-10-06.json`](evidence/METRICS_devnet_2026-10-06.json).
 Reproduce with `npx tsx scripts/race-benchmark.ts <rounds> <label> [cantonCoinRounds]`

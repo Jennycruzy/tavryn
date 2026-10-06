@@ -20,15 +20,21 @@ owner decision, or a real human interaction; none of it is claimed without its a
 - Canton errors are mapped by identifier; auth, package and transport failures stay 502.
 - OIDC token support and `TAVRYN_ENV_FILE` for DevNet; idempotent `npm run bootstrap`.
 - UI governance view and a recorded browser click-through.
+- Canton Coin funding on the HackCanton DevNet from a lender's own wallet
+  (`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`); a wallet token of `oidc` reuses
+  the DevNet login for that wallet.
+- Three synthetic, labelled sample invoices with their draft fields (`fixtures/invoices/`).
+- Public site checked in fresh browser contexts
+  (`docs/evidence/P11_PUBLIC_LINK_2026-10-06/`).
 
 ## Owner-required handoff
 
 | Item | Needed from the owner | Finish action |
 |---|---|---|
-| Invoice fixtures (P6) | Three permissioned invoices, or approval to use clearly labelled synthetic ones | `fixtures/invoices/` with provenance |
+| Invoice fixtures (P6) | Optional: real permissioned invoices to replace the synthetic ones | `fixtures/invoices/` with provenance |
 | Interviews (P9) | Five real, consented conversations | Dates and anonymized notes in `INTERVIEWS.md` and `VALIDATION.md` |
 | Demo video (P10) | A recording of `DEMO.md` under five minutes | Link and checksum |
-| Public link (P11) | Live at https://tavryn.site (2026-10-06, dedicated nginx block, Lets Encrypt, no passphrase). Owner to check in a private window | - |
+| Submission (P11) | Create the HackCanton project page from `SUBMISSION.md` and post the diary entries | Page link |
 
 ## Production roadmap (not shipped)
 
@@ -37,5 +43,7 @@ owner decision, or a real human interaction; none of it is claimed without its a
 - Remove rival financier names from shared payloads with explicit disclosure, proven
   across participants.
 - Shard the approval registry; page large role views past the JSON API list limit.
-- Invoice ingestion with extraction and supplier corrections.
+- Invoice ingestion with extraction and supplier corrections (the corrections a supplier
+  makes today are recorded in `fixtures/invoices/`).
+- Canton Coin repayment on DevNet, once the buyer has a wallet there.
 - Decentralization Manager integration for the governance committee.

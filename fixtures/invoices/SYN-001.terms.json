@@ -1,0 +1,19 @@
+{
+  "synthetic": true,
+  "source": "SYN-001-harlow-fasteners.html",
+  "terms": {
+    "externalInvoiceNumber": "HF-2026-04417",
+    "faceValue": "10330.00",
+    "currency": "USD",
+    "issuedDate": "2026-10-01",
+    "dueDate": "2026-11-30"
+  },
+  "corrections": [
+    {
+      "field": "dueDate",
+      "printed": "Net 60",
+      "entered": "2026-11-30",
+      "why": "computed from the issue date"
+    }
+  ]
+}

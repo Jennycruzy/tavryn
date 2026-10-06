@@ -58,6 +58,10 @@ succeeded 5 of 5. Details and sources: [docs/VALIDATION.md](docs/VALIDATION.md).
 
 - **Live on the HackCanton DevNet:** the full flow and the shared rules ran on the
   hackathon's network on 5 October 2026 ([record](docs/evidence/P7_DEVNET_2026-10-05.json)).
+- **Canton Coin on the DevNet:** on 6 October 2026 a lender paid a supplier 80 CC from its
+  own DevNet wallet through Tavryn, the receipt on the ledger carries the same payment
+  reference, and the rival lender was refused ([record](docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json)).
+  Canton Coin repayment is proven on LocalNet.
 - **A recorded walkthrough of the app:** every step from invoice to repayment, plus a
   rule change refused with one approval and applied with two
   ([video and screenshots](docs/evidence/P5_CLICKTHROUGH_2026-10-06/)).

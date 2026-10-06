@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-06T10:30:35.210Z",
+  "method": "fresh Chromium contexts with no cookies or storage (equivalent to a private window), headless, from the VPS",
+  "results": [
+    {
+      "name": "landing-desktop",
+      "url": "https://tavryn.site/",
+      "status": 200,
+      "finalUrl": "https://tavryn.site/",
+      "title": "Tavryn: an invoice should only be financed once",
+      "horizontalScroll": false,
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "name": "landing-phone",
+      "url": "https://tavryn.site/",
+      "status": 200,
+      "finalUrl": "https://tavryn.site/",
+      "title": "Tavryn: an invoice should only be financed once",
+      "horizontalScroll": false,
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "name": "app-supplier",
+      "url": "https://tavryn.site/app",
+      "status": 200,
+      "finalUrl": "https://tavryn.site/app",
+      "title": "Supplier · Tavryn",
+      "horizontalScroll": false,
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "name": "app-financierB",
+      "url": "https://tavryn.site/app#financierB",
+      "status": 200,
+      "finalUrl": "https://tavryn.site/app#financierB",
+      "title": "Lender B · Tavryn",
+      "horizontalScroll": false,
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "name": "www",
+      "url": "https://www.tavryn.site/",
+      "status": 200,
+      "finalUrl": "https://www.tavryn.site/",
+      "title": "Tavryn: an invoice should only be financed once",
+      "horizontalScroll": false,
+      "consoleErrors": [],
+      "failedRequests": []
+    }
+  ]
+}

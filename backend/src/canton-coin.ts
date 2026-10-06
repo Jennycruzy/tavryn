@@ -1,4 +1,5 @@
 import { type Role, type TavrynConfig, partyForRole } from "./config.js";
+import { LedgerTokenProvider } from "./ledger-api.js";
 
 // The buyer (repayment) or a financier role (funding).
 export type SettlementSenderRole = Role;
@@ -54,8 +55,29 @@ interface WalletTransactionsResponse {
   items?: WalletTransaction[];
 }
 
+// A wallet token of "oidc" means the role's wallet belongs to the OIDC login itself (a
+// DevNet wallet user), so its token comes from the same refreshing provider as the ledger.
+const OIDC_WALLET_TOKEN = "oidc";
+
 export class CantonCoinSettlement {
-  constructor(private readonly config: TavrynConfig) {}
+  private readonly oidcTokens: LedgerTokenProvider;
+
+  constructor(private readonly config: TavrynConfig) {
+    this.oidcTokens = new LedgerTokenProvider(undefined, config.oidc);
+  }
+
+  private async walletToken(role: SettlementSenderRole): Promise<string> {
+    const configured = this.config.settlement.walletTokens.get(role) as string;
+    if (configured !== OIDC_WALLET_TOKEN) return configured;
+    const token = await this.oidcTokens.token();
+    if (!token) {
+      throw new CantonCoinSettlementError(
+        "Canton Coin settlement is not configured for this role.",
+        "SETTLEMENT_NOT_CONFIGURED",
+      );
+    }
+    return token;
+  }
 
   isConfigured(senderRole: SettlementSenderRole): boolean {
     return Boolean(
@@ -84,7 +106,7 @@ export class CantonCoinSettlement {
     assertPositiveDecimal(amount, "settlement amount");
     this.assertConfigured(senderRole);
     const validatorApiUrl = this.config.settlement.validatorApiUrl as string;
-    const token = this.config.settlement.walletTokens.get(senderRole) as string;
+    const token = await this.walletToken(senderRole);
 
     const sender = partyForRole(this.config, senderRole);
     const description = transferDescription(trackingId);
@@ -148,7 +170,7 @@ export class CantonCoinSettlement {
   ): Promise<CantonCoinTransfer | undefined> {
     this.assertConfigured(senderRole);
     const validatorApiUrl = this.config.settlement.validatorApiUrl as string;
-    const token = this.config.settlement.walletTokens.get(senderRole) as string;
+    const token = await this.walletToken(senderRole);
     const sender = partyForRole(this.config, senderRole);
     const description = transferDescription(trackingId);
     let beginAfterId: string | undefined;
@@ -226,7 +248,7 @@ export class CantonCoinSettlement {
     this.assertConfigured(role);
     const response = await this.request<{ effective_unlocked_qty?: string }>(
       this.config.settlement.validatorApiUrl as string,
-      this.config.settlement.walletTokens.get(role) as string,
+      await this.walletToken(role),
       "/v0/wallet/balance",
     );
     return Number(response.effective_unlocked_qty);

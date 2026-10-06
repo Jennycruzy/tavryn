@@ -80,6 +80,9 @@ lenders.
 - Real Canton Coin moves for funding and repayment, with amounts recorded on the
   receipts. The two steps are reconciled by tracking ID: a crash after the cash moves is
   completed automatically, and a retried repayment never pays twice.
+- On the HackCanton DevNet, a lender paid the supplier 80 CC from its own DevNet wallet
+  through Tavryn; the rival lender was refused
+  (`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`).
 - Shared governance: the network rules are signed by every operator and change only when
   two of three vote. One vote is refused ("Not enough operator approvals (1 of 2).
   Nothing changed."); two votes admit a financier or change the maximum advance rate.
@@ -90,9 +93,10 @@ lenders.
 
 ### Honest current boundary
 
-Settlement is two-step and not atomic, with reconciliation. The lifecycle and governance also run on the HackCanton DevNet node; Canton Coin
-settlement is proven on LocalNet only. Customer interviews and the public link are
-still pending. The demo backend acts for every party through one ledger user; production needs
+Settlement is two-step and not atomic, with reconciliation. The lifecycle, governance and
+Canton Coin funding run on the HackCanton DevNet node; Canton Coin repayment is proven on
+LocalNet only, because the DevNet buyer party has no wallet. Customer interviews are still
+pending. The demo backend acts for every party through one ledger user; production needs
 one participant or wallet per organization.
 
 ## Judge-facing positioning
@@ -104,7 +108,7 @@ one participant or wallet per organization.
 | Is it technically non-trivial? | Competing private offers contend for one terms-free funding right without revealing invoice terms. | Daml contracts, role-scoped backend, real update IDs |
 | Does it work? | The core lifecycle runs on LocalNet through the real JSON Ledger API. | Reproducible integration output and short demo |
 | Can it become a business? | Buyers sponsor reverse-factoring programmes; financiers pay per verified invoice because they carry the duplicate-financing risk. | Pilot design, integrations, and interview evidence |
-| Is it complete? | Core invariant and governance run on LocalNet and the HackCanton DevNet node, with a recorded browser click-through; the two-step Canton Coin path is proven on LocalNet. Interviews remain an explicit gate. | Progress matrix with no inflated claims |
+| Is it complete? | Core invariant and governance run on LocalNet and the HackCanton DevNet node, with a recorded browser click-through; two-step Canton Coin funding is proven on LocalNet and DevNet, repayment on LocalNet. Interviews remain an explicit gate. | Progress matrix with no inflated claims |
 
 ## Language discipline
 
@@ -144,6 +148,35 @@ receivable, or private invoice details. Duplicate buyer approval was also refuse
 proves the product's load-bearing claim before UI polish. Next: rerun the new two-step
 Canton Coin path end to end and record both wallet and ledger references.
 
+### Entry 2, the rules belong to the network, not to us
+
+Rebuilt Tavryn's rules (which lenders may join, the maximum advance) so every operator
+signs them and a change needs two of three votes. Proof: on LocalNet and the HackCanton
+DevNet, one vote was refused ("Not enough operator approvals (1 of 2). Nothing changed.")
+and two applied the change; an invoice already in flight still funded
+(`docs/evidence/P4_GOVERNANCE_2026-10-05-VPS.json`, `P7_DEVNET_2026-10-05.json`). Why it
+matters: a lender network nobody owns is the point; a single admin would be another
+registry to trust. Next: measure the race under load.
+
+### Entry 3, 45 races, 45 single winners
+
+Ran 45 rounds where two lenders pay for the same invoice at the same instant: 30 on
+LocalNet, 15 on the DevNet. Exactly one won every time; Canton itself refused the second
+(`LOCAL_VERDICT_LOCKED_CONTRACTS`), and the loser was told in 0.75 s (median, LocalNet).
+Every duplicate approval was refused. Proof: `docs/evidence/METRICS_*_2026-10-06.json`.
+Why it matters: First Brands and Tricolor (2025) failed on invoices and collateral
+pledged more than once; this is the failure Tavryn removes. Next: real Canton Coin on the
+DevNet.
+
+### Entry 4, real Canton Coin on the DevNet
+
+A lender paid a supplier 80 CC from its own DevNet wallet, through Tavryn. The lender's
+balance fell by exactly 80, the supplier received an 80 CC holding, the ledger receipt
+carries the same payment reference, and the rival lender was refused. Admitting that
+lender took two of three operator votes. Proof:
+`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`. Why it matters: money, not just
+records, now moves on the hackathon network. Next: customer conversations.
+
 ### Reusable diary template
 
 **Result:** What became demonstrably true today?
@@ -179,6 +212,8 @@ Canton Coin path end to end and record both wallet and ledger references.
 - [x] Governance threshold proof
 - [x] Role-switching UI with governance view and recorded browser click-through
 - [x] DevNet lifecycle and governance evidence (`docs/evidence/P7_DEVNET_2026-10-05.json`)
+- [x] DevNet Canton Coin funding (`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`)
+- [x] Sample invoices, synthetic and labelled (`fixtures/invoices/`)
 - [ ] Customer interview evidence
 - [ ] Under-five-minute demo video
-- [ ] Public demo link checked in a private browser
+- [x] Public demo link checked in fresh browser contexts (`docs/evidence/P11_PUBLIC_LINK_2026-10-06/`)

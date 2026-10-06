@@ -1,0 +1,25 @@
+{
+  "synthetic": true,
+  "source": "SYN-002-voss-packaging.html",
+  "terms": {
+    "externalInvoiceNumber": "VV-26-10093",
+    "faceValue": "11253.00",
+    "currency": "EUR",
+    "issuedDate": "2026-10-03",
+    "dueDate": "2026-11-17"
+  },
+  "corrections": [
+    {
+      "field": "faceValue",
+      "printed": "line subtotal 9,816.00",
+      "entered": "11253.00",
+      "why": "total after the credit note, including VAT"
+    },
+    {
+      "field": "dueDate",
+      "printed": "Payable within 45 days",
+      "entered": "2026-11-17",
+      "why": "computed from the issue date"
+    }
+  ]
+}

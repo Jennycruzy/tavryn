@@ -1,0 +1,77 @@
+{
+  "date": "2026-10-06",
+  "environment": "HackCanton S3 shared DevNet node hackcanton-01 (NODERS)",
+  "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+  "setup": {
+    "faucet": "DevNet validator /v0/wallet/tap into the lender wallet; holding 009aff06aa17b9b24f288c6c262949a5d870b13d5c2a1515c2942b28f667951802ca121220a8e3fa15ed6539572134a8889f567ff0bfa34add4ca13105f4dedf2afd7a5702",
+    "supplierPreapproval": {
+      "proposalCreatedBySupplier": "1220b4daffef3400b80ba7e060bbc0868f563231fcb2ed836aeb28e04513ff1c7683",
+      "acceptedByLenderWalletAsProvider": "1220af1b4a0803717694c6bcd8499399ad054381037b3743a64d72bbadf424fb9e52",
+      "why": "Canton Coin reaches a receiver in one step only with a TransferPreapproval; the supplier party has no wallet of its own"
+    },
+    "splice": "validator 0.8.4"
+  },
+  "lender": {
+    "role": "financierD",
+    "party": "a1f68d5f-0f28-4568-8b6b-a754b4f94ee8::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+    "wallet": "the owner's DevNet wallet user on hackcanton-01, funded from the DevNet faucet",
+    "admission": {
+      "action": {
+        "type": "AdmitFinancier",
+        "financierRole": "financierD"
+      },
+      "below": {
+        "status": 409,
+        "code": "GOVERNANCE_THRESHOLD_NOT_MET"
+      },
+      "atThreshold": {
+        "status": 200,
+        "updateId": "122031f2a93e6b7f031dfb1942d18480667b0a139d2678ae00e02c31b3afbd33f78b"
+      }
+    }
+  },
+  "invoice": {
+    "externalInvoiceNumber": "TVN-DEVNET-CC-MUWJBGA8-SC4L",
+    "faceValue": "100.00",
+    "currency": "CC"
+  },
+  "funding": {
+    "updateId": "1220aba355b4a6f2ff45794b7594fd71f51b0ad982895ef714718ad3b1137553424f",
+    "cashTransfer": {
+      "updateId": "122030dcdea0dce334ce310eaf22a10a172a9363e07e64e7b28e6334f4b293f039d9",
+      "eventId": "#122030dcdea0dce334ce310eaf22a10a172a9363e07e64e7b28e6334f4b293f039d9:0",
+      "trackingId": "tavryn-funding-10bd73b2-a0ec-4d9f-b1bc-f0e76c43e960",
+      "description": "Tavryn tavryn-funding-10bd73b2-a0ec-4d9f-b1bc-f0e76c43e960",
+      "amount": "80.0000000000",
+      "sender": "a1f68d5f-0f28-4568-8b6b-a754b4f94ee8::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "receiver": "a1f68d5f-tavryn-supplier::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e"
+    },
+    "receipt": {
+      "contractId": "00686289059c969caab3c4faad41c8bb567299352132dcd6867ae5388c6dfc74d1ca121220538f4ae3b98d08abb2e669935a11eefa12f77f1f5a9745c374494127fe2d0aa1",
+      "settlementAmount": "80.0000000000",
+      "instrument": "CC",
+      "trackingId": "tavryn-funding-10bd73b2-a0ec-4d9f-b1bc-f0e76c43e960"
+    },
+    "lenderUnlockedBalance": {
+      "before": 15603.4233910921,
+      "after": 15523.4233910921
+    },
+    "supplierReceivedHoldings": [
+      {
+        "contractId": "0005906651ad1839a82f3afdb8a47f6917d6ac8e49b2df84b8f89df2c176fd4da8ca12122000b19410a757e8e8e478294799d3b0f67f771b8259f25c36247f66d3c7da677f",
+        "amount": "80.0000000000"
+      }
+    ],
+    "elapsedMs": 17198
+  },
+  "rival": {
+    "role": "financierA",
+    "status": 409,
+    "code": "INVOICE_UNAVAILABLE",
+    "message": "This invoice is no longer available for funding."
+  },
+  "notClaimed": [
+    "Repayment on DevNet: the buyer party has no DevNet wallet, so the repayment leg is proven on LocalNet only.",
+    "Atomic settlement: funding is two-step (ledger lock, wallet transfer, ledger completion) with reconciliation by tracking ID."
+  ]
+}

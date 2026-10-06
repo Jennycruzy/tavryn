@@ -1,0 +1,25 @@
+{
+  "synthetic": true,
+  "source": "SYN-003-meridian-logistics.html",
+  "terms": {
+    "externalInvoiceNumber": "MRL/INV/2026/318",
+    "faceValue": "20250.00",
+    "currency": "USD",
+    "issuedDate": "2026-10-05",
+    "dueDate": "2026-11-04"
+  },
+  "corrections": [
+    {
+      "field": "faceValue",
+      "printed": "subtotal 22,500.00",
+      "entered": "20250.00",
+      "why": "the 10% retention is not payable until Milestone 3 acceptance"
+    },
+    {
+      "field": "dueDate",
+      "printed": "30 days after sign-off",
+      "entered": "2026-11-04",
+      "why": "sign-off date 2026-10-05 plus 30 days"
+    }
+  ]
+}
