@@ -28,7 +28,7 @@ owner decision, or a real human interaction; none of it is claimed without its a
 | Invoice fixtures (P6) | Three permissioned invoices, or approval to use clearly labelled synthetic ones | `fixtures/invoices/` with provenance |
 | Interviews (P9) | Five real, consented conversations | Dates and anonymized notes in `INTERVIEWS.md` and `VALIDATION.md` |
 | Demo video (P10) | A recording of `DEMO.md` under five minutes | Link and checksum |
-| Public link (P11) | Live at https://tavryn.38-49-216-59.sslip.io (2026-10-06, dedicated nginx block + Lets Encrypt; app behind demo passphrase). Owner to check in a private window; a custom domain can replace it | - |
+| Public link (P11) | Live at https://tavryn.site (2026-10-06, dedicated nginx block, Lets Encrypt, no passphrase). Owner to check in a private window | - |
 
 ## Production roadmap (not shipped)
 

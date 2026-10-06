@@ -44,6 +44,13 @@ All settings are listed in [`.env.example`](../.env.example). The main ones:
 Use another settings file with `TAVRYN_ENV_FILE`, for example
 `TAVRYN_ENV_FILE=.env.devnet npm start`. Never commit either file.
 
+## Starting a demo from a clean page
+
+Set `TAVRYN_VIEW_FROM_OFFSET` to the current ledger end (shown by `GET /health`, plus one)
+and restart. Each company's page then shows only invoice activity from that point on.
+Nothing is archived: removing the setting shows the full history again. The network rules
+are always shown.
+
 ## Automated checks
 
 Each runs against a real network, not a mock:
