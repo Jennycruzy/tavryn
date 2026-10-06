@@ -124,7 +124,7 @@ exists and can be reproduced. `Pending` is not a pass.
   configured as the local `origin`; remote access not yet verified).
 - Grofty DAR question: user must confirm whether access was requested and whether a Grofty
   user can sign a Tavryn DAR on MainNet after participant package vetting.
-- Interviews: 1 of 5 recorded (buyer-side finance manager, 2026-10-06, quoted by role with consent); no numbers or quotes invented.
+- Interviews: 2 of 5 recorded (buyer-side finance manager and construction accounts manager, 2026-10-06, quoted by role with consent); no numbers or quotes invented.
 
 ## P3 settlement spike log
 

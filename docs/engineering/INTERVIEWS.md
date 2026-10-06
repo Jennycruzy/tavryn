@@ -9,7 +9,7 @@ without permission.
 | Request | Profile | Contact route | Requested on | Response | Interview date |
 |---|---|---|---|---|---|
 | I1 | Buyer-side supplier payments: finance manager, large supermarket and distribution company | Owner's network | 2026-10-06 | Answered all five questions; consented to be quoted by role only | Recorded 2026-10-06 |
-| I2 | Buyer-side supplier payments | Pending user input | Pending | Pending | Pending |
+| I2 | Buyer-side supplier payments: accounts manager, large construction company | Owner's network | 2026-10-06 | Answered all five questions; consented to be quoted by role, company not named | Recorded 2026-10-06 |
 | I3 | SME supplier | Pending user input | Pending | Pending | Pending |
 | I4 | SME supplier | Pending user input | Pending | Pending | Pending |
 | I5 | Invoice financier | Pending user input | Pending | Pending | Pending |
@@ -52,3 +52,41 @@ taking the risk."
 - The business model is corrected: buyers will not pay per invoice; lenders should,
   because they carry the risk. Tavryn's pricing is lender-paid.
 - Not yet tested: whether lenders will pay, and how much. That needs I5.
+
+## I2. Accounts manager, large construction company
+
+Quoted by role only, with consent ("Yes, no problem. Just don't mention the company.").
+Answers as given to the owner.
+
+**How do you check that an invoice hasn't already been financed somewhere else?**
+"We confirm that the contractor or supplier actually did the work and that the invoice is
+still unpaid. Sometimes a bank or finance company will call us and ask, 'Is this invoice
+genuine? Have you paid it?' We can answer that. But we cannot tell them whether that
+supplier has already shown the same invoice to another lender."
+
+**Has double financing or a duplicate invoice ever cost you anything?**
+"We've had duplicate invoices before. Maybe somebody submits something, then another
+person in their office sends it again. If nobody checks properly, you can pay twice. We
+have controls for that. For financing, I have seen situations where payment had to be held
+because there was confusion about who was supposed to receive the money."
+
+**Would you share your deals in a common registry to prevent it?**
+"Not full details. Construction pricing is sensitive. I don't want another contractor
+knowing what we are paying somebody. But if you can just check whether an invoice has
+already been used, without showing the whole contract, that is different."
+
+**Would you pay per checked invoice? Who should pay?**
+"I would expect the bank or finance company to pay. If they are about to give somebody
+₦20 million based on one invoice, paying a small amount to check it makes sense."
+
+**What we take from it**
+
+- Lenders already verify invoices by phoning the buyer, one call at a time. The buyer can
+  confirm the invoice is genuine and unpaid, but not whether another lender financed it.
+  Tavryn's buyer approval replaces the phone call, and the funding slot answers the
+  question the buyer cannot.
+- A concrete cost: a payment held because it was unclear who should receive it. Tavryn's
+  receipts record exactly one financier per invoice, so the buyer knows whom to repay.
+- Same privacy condition as I1: no full details, but an "already used" check is
+  acceptable.
+- Same answer on pricing as I1: the lender pays, because it carries the risk.

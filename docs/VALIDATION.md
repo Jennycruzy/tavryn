@@ -102,8 +102,8 @@ in `backend/`.
 
 ## 5. Conversations with users
 
-One of five conversations is recorded so far; the rest are in progress (suppliers and
-lenders). Findings are added only with the person's consent. Nothing is invented. Full
+Two of five conversations are recorded so far, both on the buyer side; supplier and
+lender conversations are in progress. Findings are added only with the person's consent. Nothing is invented. Full
 answers: [`engineering/INTERVIEWS.md`](engineering/INTERVIEWS.md).
 
 **Finance manager, large supermarket and distribution company (buyer side, 6 Oct 2026).**
@@ -120,6 +120,22 @@ answers: [`engineering/INTERVIEWS.md`](engineering/INTERVIEWS.md).
 - On who pays: "if a finance company wants to check before giving a supplier money, I think
   they should pay for the check. They are the ones taking the risk." Buyers will not pay
   per invoice; Tavryn's pricing is lender-paid.
+
+**Accounts manager, large construction company (buyer side, 6 Oct 2026).**
+
+- On how lenders check today: "Sometimes a bank or finance company will call us and ask,
+  'Is this invoice genuine? Have you paid it?' We can answer that. But we cannot tell them
+  whether that supplier has already shown the same invoice to another lender."
+- On the cost: "I have seen situations where payment had to be held because there was
+  confusion about who was supposed to receive the money."
+- On privacy: "Construction pricing is sensitive. ... But if you can just check whether an
+  invoice has already been used, without showing the whole contract, that is different."
+- On who pays: "If they are about to give somebody ₦20 million based on one invoice,
+  paying a small amount to check it makes sense."
+
+Both buyers, separately: they cannot see whether an invoice is financed elsewhere, they
+refuse a registry that shows their prices, they would accept an "already used" check, and
+the lender should pay for it.
 
 Questions asked:
 
