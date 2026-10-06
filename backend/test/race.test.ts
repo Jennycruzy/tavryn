@@ -45,7 +45,10 @@ test("both requests are sent, and Canton's refusal is reported as refused", asyn
     await new Promise((resolve) => setTimeout(resolve, 20));
     events.push(`end:${role}`);
     if (role === "financierB") {
-      throw Object.assign(new Error("This invoice is no longer available for funding."), { publicCode: "INVOICE_UNAVAILABLE" });
+      throw Object.assign(new Error("This invoice is no longer available for funding."), {
+        publicCode: "INVOICE_UNAVAILABLE",
+        details: { ledgerErrorCode: "LOCAL_VERDICT_LOCKED_CONTRACTS" },
+      });
     }
     return { transaction: { updateId: "u-a" }, createdContracts: [] };
   });
@@ -57,6 +60,21 @@ test("both requests are sent, and Canton's refusal is reported as refused", asyn
   assert.match(String(byRole.financierA.paymentReference), /^RACE-A-/);
   assert.equal(byRole.financierB.status, "refused");
   assert.equal(byRole.financierB.code, "INVOICE_UNAVAILABLE");
+  assert.equal(byRole.financierB.rejectedBy, "canton");
+  assert.equal(byRole.financierB.cantonCode, "LOCAL_VERDICT_LOCKED_CONTRACTS");
+});
+
+test("a request stopped by Tavryn's own ledger read is not credited to Canton", async () => {
+  const service = fakeService(async (_cid, role) => {
+    if (role === "financierB") {
+      throw Object.assign(new Error("gone"), { publicCode: "INVOICE_UNAVAILABLE" });
+    }
+    return { transaction: { updateId: "u-a" }, createdContracts: [] };
+  });
+  const { outcomes } = await runRace(service, "INV-1");
+  const loser = outcomes.find((outcome) => outcome.financierRole === "financierB");
+  assert.equal(loser?.rejectedBy, "ledger-read");
+  assert.equal(loser?.cantonCode, undefined);
 });
 
 test("any other failure is shown as a failure, not as a refusal", async () => {

@@ -57,7 +57,10 @@
         : { supplier: "Supplier", buyer: "Buyer", auditor: "Auditor" }[account.role] || account.role;
       const escape = (value) => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
 
-      fetch("/api/v1/auth/me").then((response) => { if (response.ok) location.replace("/app"); });
+      // Already signed in: go to the workspace, unless a specific company was asked for.
+      if (!new URLSearchParams(location.search).get("use")) {
+        fetch("/api/v1/auth/me").then((response) => { if (response.ok) location.replace("/app"); });
+      }
 
       fetch("/api/v1/auth/demo-accounts").then((response) => response.ok ? response.json() : { accounts: [] }).then(({ accounts }) => {
         if (!accounts?.length) return;
@@ -68,6 +71,9 @@
             <div class="creds">${escape(account.email)} / ${escape(account.password)}</div></div>
             <button class="button button-secondary" type="button" data-index="${index}">Use</button>
           </div>`).join("");
+        const wanted = new URLSearchParams(location.search).get("use");
+        const preset = accounts.find((account) => account.email === wanted);
+        if (preset) { $("email").value = preset.email; $("password").value = preset.password; }
         $("demoList").addEventListener("click", (event) => {
           const button = event.target.closest("button[data-index]");
           if (!button) return;

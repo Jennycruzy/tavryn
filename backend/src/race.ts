@@ -14,6 +14,7 @@ interface RaceOffer {
 
 export interface RaceCandidate {
   invoiceNumber: string;
+  invoiceCommitment: string;
   faceValue: string;
   currency: string;
   dueDate: string;
@@ -28,6 +29,12 @@ export interface RaceOutcome {
   elapsedMs: number;
   updateId?: string;
   paymentReference?: string;
+  // Who stopped a losing request: Canton itself, or Tavryn's read of the ledger before
+  // sending (when the invoice was already gone by the time this request started).
+  rejectedBy?: "canton" | "ledger-read";
+  cantonCode?: string;
+  // What this lender's own ledger view holds for the invoice after the race.
+  ledgerView?: string[];
 }
 
 const templateName = (contract: { templateId: string }) => contract.templateId.split(":").pop();
@@ -47,6 +54,7 @@ export async function raceCandidates(service: TavrynService): Promise<RaceCandid
     const key = String(argument.invoiceCommitment);
     const entry = byInvoice.get(key) ?? {
       invoiceNumber: terms.externalInvoiceNumber,
+      invoiceCommitment: key,
       faceValue: String(terms.faceValue),
       currency: String(terms.currency),
       dueDate: String(terms.dueDate),
@@ -96,16 +104,38 @@ export async function runRace(
       };
     } catch (error) {
       const code = record(error).publicCode as string | undefined;
+      const cantonCode = record(record(error).details).ledgerErrorCode as string | undefined;
       return {
         financierRole: offer.financierRole,
         status: code === "INVOICE_UNAVAILABLE" ? "refused" : "failed",
         code,
         message: error instanceof Error ? error.message : undefined,
         elapsedMs: Date.now() - started,
+        ...(code === "INVOICE_UNAVAILABLE" ? { rejectedBy: cantonCode ? "canton" as const : "ledger-read" as const } : {}),
+        ...(cantonCode ? { cantonCode } : {}),
       };
     }
   }));
+  // Each lender's own view of this invoice, read as that lender after the race.
+  for (const outcome of outcomes) {
+    outcome.ledgerView = await lenderView(service, outcome.financierRole, candidate.invoiceCommitment).catch(() => []);
+  }
   return { invoiceNumber, outcomes };
+}
+
+async function lenderView(service: TavrynService, role: string, invoiceCommitment: string): Promise<string[]> {
+  const contracts = await service.contractsForRole(role as never);
+  const lines: string[] = [];
+  for (const contract of contracts) {
+    const argument = record(contract.createArgument);
+    if (argument.invoiceCommitment !== invoiceCommitment) continue;
+    const name = templateName(contract);
+    if (name === "FinancedInvoice") lines.push("Financed invoice: this lender is owed the invoice amount");
+    if (name === "FundingReceipt") lines.push(`Payment receipt: advance paid to the supplier (ref ${argument.paymentReference})`);
+    if (name === "OfferClosed") lines.push("Notice: this invoice is no longer available. No winner, amount or terms");
+    if (name === "FinancingOffer") lines.push("Offer still open");
+  }
+  return lines;
 }
 
 // Demo setup for repeated takes: one invoice created, approved and offered to two lenders,

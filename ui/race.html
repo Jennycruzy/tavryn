@@ -35,6 +35,12 @@
       .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; }
       .controls .button-primary { height: 52px; padding: 0 28px; font-size: 1.05rem; }
       .footnote { text-align: center; color: var(--muted); font-size: 0.86rem; }
+      .records { font-size: 0.86rem; color: var(--ink-soft); }
+      .records strong { display: block; color: var(--ink); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+      .records ul { margin: 0; padding-left: 18px; }
+      .lender details { font-size: 0.8rem; color: var(--muted); }
+      .lender details code { display: block; font-family: var(--mono); overflow-wrap: anywhere; margin-top: 4px; color: var(--ink-soft); }
+      .lender .open { font-size: 0.86rem; color: var(--blue); font-weight: 600; text-decoration: none; }
       .pulse { animation: pulse 0.9s ease-in-out infinite; }
       @keyframes pulse { 50% { opacity: 0.45; } }
       @media (max-width: 700px) { .lenders { grid-template-columns: 1fr; } .invoice .amount { font-size: 2.2rem; } }
@@ -52,7 +58,7 @@
         </div>
       </div>
 
-      <p class="live-label">Live demo · both lenders submit to Canton</p>
+      <p class="live-label">Live demo · two lenders pay for the same invoice at the same moment</p>
 
       <section class="card invoice" aria-live="polite">
         <span class="number" id="number">No invoice ready</span>
@@ -69,7 +75,7 @@
       <div class="controls">
         <button class="button button-primary" type="button" id="race" disabled>Both lenders pay now</button>
       </div>
-      <p class="footnote" id="note">The result is returned by Canton, not decided by this page.</p>
+      <p class="footnote" id="note">The result comes from Canton, not from this page. The winner can change from run to run.</p>
     </main>
 
     <script type="module">
@@ -87,14 +93,31 @@
         return payload;
       }
 
+      const EMAILS = { financierA: "credit@lender-a.demo", financierB: "credit@lender-b.demo", financierC: "credit@lender-c.demo" };
+
       function lenderCard(slot, offer, outcome, running) {
         if (!offer) { $(slot).innerHTML = `<h2>-</h2>`; return; }
+        const name = label(offer.financierRole);
+        const currency = state.current.currency;
         let verdict = `<div class="verdict">Waiting</div>`;
-        if (running) verdict = `<div class="verdict pulse">Submitting to Canton…</div>`;
-        if (outcome?.status === "funded") verdict = `<div class="verdict funded">✓ Financed<small>${outcome.paymentReference ? `transfer ${escape(outcome.paymentReference)} · ` : ""}${outcome.elapsedMs} ms · record ${escape((outcome.updateId || "").slice(0, 18))}…</small></div>`;
-        if (outcome?.status === "refused") verdict = `<div class="verdict refused">✗ No longer available<small>Refused by Canton · ${outcome.elapsedMs} ms · not told who won or the price</small></div>`;
+        if (running) verdict = `<div class="verdict pulse">Sending payment to Canton…</div>`;
+        if (outcome?.status === "funded") {
+          verdict = `<div class="verdict funded">✓ ${name} financed the invoice<small>Paid ${money(offer.advance, currency)} to the supplier${outcome.paymentReference ? ` · bank ref ${escape(outcome.paymentReference)}` : ""}</small></div>`;
+        }
+        if (outcome?.status === "refused") {
+          verdict = outcome.rejectedBy === "canton"
+            ? `<div class="verdict refused">✗ Refused by Canton<small>The invoice's one funding ticket was already taken. No money moved.</small></div>`
+            : `<div class="verdict refused">✗ Stopped before sending<small>The ledger already showed this invoice financed, so no payment was sent.</small></div>`;
+        }
         if (outcome?.status === "failed") verdict = `<div class="verdict failed">Couldn't complete<small>${escape(outcome.message || outcome.code || "")}</small></div>`;
-        $(slot).innerHTML = `<h2>${label(offer.financierRole)}</h2><span class="offer">Offer: ${money(offer.advance, state.current.currency)} now${offer.fee ? ` · fee ${money(offer.fee, state.current.currency)}` : ""}</span>${verdict}`;
+        const records = outcome?.ledgerView?.length
+          ? `<div class="records"><strong>${name}'s own records now show</strong><ul>${outcome.ledgerView.map((line) => `<li>${escape(line)}</li>`).join("")}</ul></div>`
+          : "";
+        const details = outcome && outcome.status !== "failed"
+          ? `<details><summary>Details</summary>${outcome.updateId ? `<code>Committed transaction: ${escape(outcome.updateId)}</code>` : ""}${outcome.cantonCode ? `<code>Canton's answer: ${escape(outcome.cantonCode)}</code>` : ""}<code>Answered in ${outcome.elapsedMs} ms</code></details>`
+          : "";
+        const open = outcome ? `<a class="open" href="/login?use=${encodeURIComponent(EMAILS[offer.financierRole] || "")}" target="_blank" rel="noopener">Open ${name}'s workspace →</a>` : "";
+        $(slot).innerHTML = `<h2>${name}</h2><span class="offer">Offer: ${money(offer.advance, currency)} now${offer.fee ? ` · fee ${money(offer.fee, currency)}` : ""}</span>${verdict}${records}${details}${open}`;
       }
 
       function render(outcomes, running = false) {
@@ -162,7 +185,7 @@
           const { outcomes } = await api("/api/v1/race", { method: "POST", body: JSON.stringify({ invoiceNumber: state.current.invoiceNumber }) });
           state.busy = false;
           render(outcomes);
-          $("note").textContent = "Both requests reached Canton at the same moment. Canton committed one and refused the other.";
+          $("note").textContent = "Both lenders paid at the same moment. Only one could take the invoice's funding ticket. Opening a workspace signs you in as that lender in a new tab; sign in again here afterwards.";
         } catch (error) {
           state.busy = false;
           render();
