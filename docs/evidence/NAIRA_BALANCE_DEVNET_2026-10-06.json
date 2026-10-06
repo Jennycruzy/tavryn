@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-06",
+  "environment": "HackCanton S3 shared DevNet node hackcanton-01 (NODERS)",
+  "invoice": {
+    "source": "fixtures/invoices/SYN-003 (synthetic)",
+    "terms": {
+      "externalInvoiceNumber": "MRL/INV/2026/318-MUWZPFOW",
+      "faceValue": "20250000.00",
+      "currency": "NGN",
+      "issuedDate": "2026-10-05",
+      "dueDate": "2026-11-04"
+    }
+  },
+  "funding": {
+    "advance": "16200000.00",
+    "winner": "financierB",
+    "updateId": "1220764bdc4435820e5f48fac4d8d01a027a84a7d6ada8adb975f09ea721064c65e4",
+    "receipt": {
+      "buyer": "a1f68d5f-tavryn-buyer::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "supplier": "a1f68d5f-tavryn-supplier::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "financier": "a1f68d5f-tavryn-financier-b::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "auditor": "a1f68d5f-tavryn-auditor::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "financedInvoice": "0029417e207bbd1d7e75ef24f1d736f1688c944e7009c8a1d869ae06aba5deae50ca12122000f1f93f9b546a25a50010dc74a78e470a059dbbc91c28a962593bf68d113fca",
+      "invoiceCommitment": "b5f168117fe851a66752a649dd4807b95fd1105e4f6d8952dd7072a3b12ef2e3",
+      "settlementAmount": "16200000.0000000000",
+      "instrument": "OFF_LEDGER",
+      "trackingId": "",
+      "paymentReference": "NIP-SYNTHETIC-FUND-B-MUWZPFOW"
+    }
+  },
+  "rival": {
+    "status": 409,
+    "code": "INVOICE_UNAVAILABLE",
+    "message": "This invoice is no longer available for funding."
+  },
+  "repayment": {
+    "updateId": "12203cf59e98c3ab2cb145ac39c98353b25eee7653c6412b123efdb7049367ae3b94",
+    "receipt": {
+      "buyer": "a1f68d5f-tavryn-buyer::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "financier": "a1f68d5f-tavryn-financier-b::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "auditor": "a1f68d5f-tavryn-auditor::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "invoiceCommitment": "b5f168117fe851a66752a649dd4807b95fd1105e4f6d8952dd7072a3b12ef2e3",
+      "repaymentDate": "2026-11-04",
+      "early": false,
+      "amount": "20250000.0000000000",
+      "instrument": "OFF_LEDGER",
+      "trackingId": "",
+      "paymentReference": "NIP-SYNTHETIC-REPAY-MUWZPFOW"
+    }
+  },
+  "balance": {
+    "fee": "405000.00",
+    "due": {
+      "financier": "a1f68d5f-tavryn-financier-b::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "supplier": "a1f68d5f-tavryn-supplier::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "auditor": "a1f68d5f-tavryn-auditor::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "invoiceCommitment": "b5f168117fe851a66752a649dd4807b95fd1105e4f6d8952dd7072a3b12ef2e3",
+      "currency": "NGN",
+      "collected": "20250000.0000000000",
+      "advance": "16200000.0000000000",
+      "fee": "405000.0000000000",
+      "balance": "3645000.0000000000"
+    },
+    "paid": {
+      "updateId": "12201a06b51cd6ac10bbda13f0316fc6f0786b1fa166b53a8a12c02bdbc23c65599c",
+      "receipt": {
+        "financier": "a1f68d5f-tavryn-financier-b::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+        "supplier": "a1f68d5f-tavryn-supplier::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+        "auditor": "a1f68d5f-tavryn-auditor::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+        "invoiceCommitment": "b5f168117fe851a66752a649dd4807b95fd1105e4f6d8952dd7072a3b12ef2e3",
+        "amount": "3645000.0000000000",
+        "instrument": "OFF_LEDGER",
+        "trackingId": "",
+        "paymentReference": "NIP-SYNTHETIC-BALANCE-MUWZPFOW"
+      }
+    }
+  },
+  "notClaimed": [
+    "No naira moved: the payment references are synthetic. In a pilot they would be the banks' NIP transfer references."
+  ]
+}

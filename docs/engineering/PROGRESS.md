@@ -29,6 +29,9 @@ exists and can be reproduced. `Pending` is not a pass.
   0.1.4 DAR reported 0 errors, and LocalNet accepted the upload (HTTP 200).
 - Reads accept contracts from both package versions (`CANTON_PREVIOUS_PACKAGE_IDS`), so the
   network rules, registry and in-flight invoices created under 0.1.4 stay visible.
+- DevNet: the owner uploaded 0.1.5 through the hackcanton-01 Console (the guest API user
+  still gets 403); the naira invoice ran with the fee and the balance, ₦3,645,000 paid to
+  the supplier (`docs/evidence/NAIRA_BALANCE_DEVNET_2026-10-06.json`).
 - Evidence: `docs/evidence/BALANCE_LOCALNET_2026-10-06.json`, the full flow with the fee and
   balance in `docs/evidence/P5_ACCOUNTS_2026-10-06/`, and the race page in
   `docs/evidence/RACE_PAGE_2026-10-06.png`.

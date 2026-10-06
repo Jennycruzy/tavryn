@@ -79,7 +79,10 @@ succeeded 5 of 5. Details and sources: [docs/VALIDATION.md](docs/VALIDATION.md).
 - **A naira invoice on the DevNet:** a ₦20.25m Lagos invoice (synthetic) went through the
   pilot path, where cash moves through the banks and Tavryn records each payment
   reference. Two lenders paid at the same moment, one won, and the buyer's repayment was
-  recorded ([record](docs/evidence/NAIRA_DEVNET_2026-10-06.json)).
+  recorded ([record](docs/evidence/NAIRA_DEVNET_2026-10-06.json)). With the lender's fee
+  agreed in the offer, the full loop also ran on the DevNet: ₦16.2m advanced, ₦20.25m
+  repaid to the lender, ₦3,645,000 balance paid to the supplier
+  ([record](docs/evidence/NAIRA_BALANCE_DEVNET_2026-10-06.json)).
 - **The lender race:** a demo page (`/race`, sign in as the demo presenter) sends two
   lenders' real financing requests to Canton at the same instant and shows which one
   Canton accepted. The winner varies from run to run.

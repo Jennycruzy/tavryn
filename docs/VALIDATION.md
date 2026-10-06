@@ -94,6 +94,10 @@ paid at the same moment, funded by exactly one at ₦16,200,000, and repaid, wit
 payment reference recorded on the receipts; the second lender was told "This invoice is no
 longer available". The references are synthetic and no naira moved
 ([`evidence/NAIRA_DEVNET_2026-10-06.json`](evidence/NAIRA_DEVNET_2026-10-06.json)).
+With package 0.1.5 the same invoice carries the lender's fee (₦405,000) agreed in the
+offer; after the buyer paid ₦20,250,000 to the winning lender, the lender paid the
+supplier's ₦3,645,000 balance, all on the DevNet
+([`evidence/NAIRA_BALANCE_DEVNET_2026-10-06.json`](evidence/NAIRA_BALANCE_DEVNET_2026-10-06.json)).
 
 Records: [`evidence/METRICS_localnet_2026-10-06.json`](evidence/METRICS_localnet_2026-10-06.json),
 [`evidence/METRICS_devnet_2026-10-06.json`](evidence/METRICS_devnet_2026-10-06.json).

@@ -32,12 +32,15 @@ try {
   assert(approved.status === 200, `Approval failed: ${JSON.stringify(approved.body)}`);
   const approvedCid = contractId(approved, "ApprovedInvoice");
   const advance = (Number(terms.faceValue) * 0.8).toFixed(2);
+  // The lender's fee, agreed in the offer (package 0.1.5 and later): 2% of the invoice.
+  const fee = (Number(terms.faceValue) * 0.02).toFixed(2);
   const offer = async (financierRole: string) =>
     contractId(
       await post(`/api/v1/invoices/approved/${encodeURIComponent(approvedCid)}/offers`, {
         financierRole,
         advance,
         advanceRate: "0.80",
+        fee,
       }),
       "FinancingOffer",
     );
@@ -72,6 +75,20 @@ try {
   });
   assert(repaid.status === 200, `Repayment failed: ${JSON.stringify(repaid.body)}`);
   const repaymentReceipt = created(repaid, "RepaymentReceipt");
+  const balanceDue = created(repaid, "BalanceDue");
+  assert(balanceDue, "No balance was created for the supplier");
+  const expectedBalance = Number(terms.faceValue) - Number(advance) - Number(fee);
+  assert(
+    Math.abs(Number(balanceDue.createArgument.balance) - expectedBalance) < 1e-6,
+    `Balance ${balanceDue.createArgument.balance} is not ${expectedBalance}`,
+  );
+  const winnerRole = first.status === 200 ? "financierA" : "financierB";
+  const balancePaid = await post(`/api/v1/balances/${encodeURIComponent(balanceDue.contractId)}/pay`, {
+    financierRole: winnerRole,
+    paymentReference: `NIP-SYNTHETIC-BALANCE-${suffix}`,
+  });
+  assert(balancePaid.status === 200, `Balance payment failed: ${JSON.stringify(balancePaid.body)}`);
+  const balanceReceipt = created(balancePaid, "BalanceReceipt");
 
   const evidence = {
     date: new Date().toISOString().slice(0, 10),
@@ -87,6 +104,11 @@ try {
     },
     rival: { status: loser.status, code: loser.body.code, message: loser.body.error },
     repayment: { updateId: repaid.body.updateId, receipt: repaymentReceipt?.createArgument },
+    balance: {
+      fee,
+      due: balanceDue.createArgument,
+      paid: { updateId: balancePaid.body.updateId, receipt: balanceReceipt?.createArgument },
+    },
     notClaimed: [
       "No naira moved: the payment references are synthetic. In a pilot they would be the banks' NIP transfer references.",
     ],
