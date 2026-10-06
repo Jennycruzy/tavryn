@@ -35,7 +35,26 @@ const observer = new IntersectionObserver((entries) => {
     if (!entry.isIntersecting) continue;
     entry.target.classList.add("shown");
     if (entry.target.id === "log") printLog(entry.target);
+    entry.target.querySelectorAll("[data-count]").forEach(countUp);
     observer.unobserve(entry.target);
   }
 }, { threshold: 0.2 });
 document.querySelectorAll(".reveal").forEach((element) => observer.observe(element));
+
+// Counts a figure up from zero when it comes into view.
+function countUp(cell) {
+  const target = Number(cell.dataset.count);
+  const format = (value) => `${value < 0 ? "−" : ""}${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (reduceMotion) { cell.textContent = format(target); return; }
+  const duration = 1200;
+  let start;
+  const step = (now) => {
+    start ??= now;
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    cell.textContent = format(Math.round(target * eased));
+    if (progress < 1) requestAnimationFrame(step);
+  };
+  cell.textContent = format(0);
+  setTimeout(() => requestAnimationFrame(step), 700);
+}

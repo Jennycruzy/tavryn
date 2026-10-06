@@ -30,7 +30,7 @@
       <section class="hero wrap">
         <div class="hero-copy">
           <p class="dateline mono">Invoice finance · Canton Network</p>
-          <h1>An invoice should only be financed <em>once.</em></h1>
+          <h1 class="rise"><span>An invoice should</span> <span>only be financed</span> <em>once.</em></h1>
           <p class="lede">
             Tavryn lets a supplier offer an approved invoice to several lenders in private. The first
             lender to pay gets it. The others are told it's taken — not who won, not the price.
@@ -69,7 +69,7 @@
             <div class="stamp" aria-hidden="true">Financed<span>once</span></div>
           </div>
           <ol class="ledger">
-            <li class="row row-a"><span class="who">Lender A</span><span class="state s-offer">Offer received</span><span class="state s-win">Paid $43,200 · <span class="mono">08:42:13</span></span></li>
+            <li class="row row-a"><span class="pay-bar" aria-hidden="true"></span><span class="who">Lender A</span><span class="state s-offer">Offer received</span><span class="state s-win">Paid $43,200 · <span class="mono">08:42:13</span></span></li>
             <li class="row row-b"><span class="who">Lender B</span><span class="state s-offer">Offer received</span><span class="state s-lose">No longer available</span></li>
             <li class="row row-c"><span class="who">Lender C</span><span class="state s-offer">Offer received</span><span class="state s-lose">No longer available</span></li>
           </ol>
@@ -97,7 +97,7 @@
               <tr><td>Advanced by Lender B</td><td class="num mono">42,500.00</td></tr>
               <tr><td>Advanced by Lender C</td><td class="num mono">44,000.00</td></tr>
               <tr class="sum"><td>Repaid by the buyer</td><td class="num mono">48,000.00</td></tr>
-              <tr class="loss"><td>Lost by the lenders</td><td class="num mono">−81,700.00</td></tr>
+              <tr class="loss"><td>Lost by the lenders</td><td class="num mono" data-count="-81700">−81,700.00</td></tr>
             </tbody>
           </table>
         </div>
@@ -177,13 +177,24 @@
         </div>
       </section>
 
+      <section class="section inside">
+        <div class="wrap">
+          <h2 class="reveal">Inside the app</h2>
+          <p class="section-lede reveal">One workspace, a page for each company. The supplier issues and offers, the buyer approves and repays, each lender sees only its own offers.</p>
+          <figure class="browser reveal">
+            <div class="browser-bar" aria-hidden="true"><span></span><span></span><span></span><p class="mono">tavryn.site/app</p></div>
+            <img src="/assets/app-preview.png" alt="The supplier's page in the Tavryn app: a form to create an invoice and a form to offer it to a lender." loading="lazy" width="1440" height="820" />
+          </figure>
+        </div>
+      </section>
+
       <section class="section who">
         <div class="wrap">
           <h2 class="reveal">Built for supplier-finance programmes</h2>
           <div class="who-row">
-            <div class="reveal"><h3>Buyers</h3><p>Approve each invoice once and give suppliers access to cheaper money.</p></div>
-            <div class="reveal"><h3>Suppliers</h3><p>Get paid now instead of in sixty days, with lenders competing for the invoice.</p></div>
-            <div class="reveal"><h3>Lenders</h3><p>Finance an invoice knowing nobody else is financing it, without showing your book.</p></div>
+            <div class="reveal"><svg class="who-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6"/></svg><h3>Buyers</h3><p>Approve each invoice once and give suppliers access to cheaper money.</p></div>
+            <div class="reveal"><svg class="who-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><h3>Suppliers</h3><p>Get paid now instead of in sixty days, with lenders competing for the invoice.</p></div>
+            <div class="reveal"><svg class="who-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h18L12 4z"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/></svg><h3>Lenders</h3><p>Finance an invoice knowing nobody else is financing it, without showing your book.</p></div>
           </div>
         </div>
       </section>
