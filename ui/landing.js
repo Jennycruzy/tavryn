@@ -44,7 +44,7 @@ document.querySelectorAll(".reveal").forEach((element) => observer.observe(eleme
 // Counts a figure up from zero when it comes into view.
 function countUp(cell) {
   const target = Number(cell.dataset.count);
-  const format = (value) => `${value < 0 ? "−" : ""}${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const format = (value) => `${value < 0 ? "−" : ""}${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   if (reduceMotion) { cell.textContent = format(target); return; }
   const duration = 1200;
   let start;

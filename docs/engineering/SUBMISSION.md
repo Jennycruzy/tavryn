@@ -33,7 +33,9 @@ Tavryn's core flow, and no Grofty integration is claimed.
 
 ### Elevator pitch
 
-Every invoice can be pledged once. Prove it without exposing competing bids. Tavryn stops
+Tavryn is invoice finance for Nigerian suppliers. Fewer than one in twenty Nigerian small
+businesses can get bank credit, even when a large company owes them money, because no bank
+can see whether an invoice is already financed at another. Every invoice can be pledged once. Prove it without exposing competing bids. Tavryn stops
 the same invoice from being financed twice, enforced by the Canton ledger. A lender
 offered an invoice sees that invoice's terms, but never another lender's offer, price, or
 win. The current model exposes which lenders were eligible for that invoice; removing
@@ -48,8 +50,9 @@ invoice; every later attempt fails, and no rival sees who won or on what terms.
 
 ### Problem, one sentence
 
-The same invoice can be financed by several lenders because each sees only its own deal;
-a shared registry would stop it, but expose everyone's confidential business.
+Nigerian suppliers hold invoices big companies have agreed to pay, but banks lend against
+them reluctantly because each bank sees only its own deals; a shared registry would fix it
+but expose everyone's confidential business.
 
 ### Solution, one sentence
 
@@ -83,6 +86,9 @@ lenders.
 - On the HackCanton DevNet, a lender paid the supplier 80 CC from its own DevNet wallet
   through Tavryn; the rival lender was refused
   (`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`).
+- The Nigerian pilot path runs on the DevNet: a naira invoice raced by two lenders, funded
+  once and repaid, with bank payment references on the receipts
+  (`docs/evidence/NAIRA_DEVNET_2026-10-06.json`).
 - Shared governance: the network rules are signed by every operator and change only when
   two of three vote. One vote is refused ("Not enough operator approvals (1 of 2).
   Nothing changed."); two votes admit a financier or change the maximum advance rate.
@@ -214,6 +220,7 @@ records, now moves on the hackathon network. Next: customer conversations.
 - [x] DevNet lifecycle and governance evidence (`docs/evidence/P7_DEVNET_2026-10-05.json`)
 - [x] DevNet Canton Coin funding (`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`)
 - [x] Sample invoices, synthetic and labelled (`fixtures/invoices/`)
+- [x] Naira invoice on DevNet through the bank-reference path (`docs/evidence/NAIRA_DEVNET_2026-10-06.json`)
 - [ ] Customer interview evidence
 - [ ] Under-five-minute demo video
 - [x] Public demo link checked in fresh browser contexts (`docs/evidence/P11_PUBLIC_LINK_2026-10-06/`)

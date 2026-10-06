@@ -1,6 +1,7 @@
 # Tavryn
 
-**Every invoice can be financed once, and lenders never see each other's deals.**
+**Invoice finance for Nigerian suppliers: every invoice financed once, and lenders never
+see each other's deals.**
 
 **Live at [tavryn.site](https://tavryn.site)** · [open the app](https://tavryn.site/app)
 
@@ -8,14 +9,24 @@
 
 ## The problem
 
-A supplier waiting 60 days to be paid can sell its invoice to a lender for cash today.
-But each lender only sees its own deals, so the same invoice can be sold to two or three
-lenders at once. The buyer pays once, and someone loses the money.
+A Nigerian company that supplies a manufacturer or a telecoms operator can wait months to
+be paid. Its invoice is good collateral: a large company has agreed to pay it. Yet fewer
+than one in twenty Nigerian small businesses can get bank credit
+([World Bank, Dec 2025](https://www.worldbank.org/en/news/press-release/2025/12/22/world-bank-approves-500-million-to-expand-finance-for-small-businesses-in-nigeria)), and their unmet demand for credit is about **₦13
+trillion** (US$32.2bn) ([IFC](https://www.ifc.org/en/insights-reports/2022/market-bite-nigeria-innovation-offers-key-to-the-broader-msme-finance-market)).
 
-A shared register of invoices would stop this, but no lender will put its clients and
-prices where competitors can see them.
+Banks do lend against invoices. Today they protect themselves with a confirmed invoice, a
+delivery receipt, a personal guarantee and the buyer's payment redirected to the bank
+([Stanbic IBTC's terms](https://www.stanbicibtcbank.com/nigeriabank/business/products-and-services/finance-your-business/business-loans/see-all-loans/invoice-discounting), for example), because no bank can see whether the same
+invoice is already financed at another. A shared register of invoices would fix that, but
+no bank will put its clients and prices where competitors can see them.
 
-This is not hypothetical. In September 2025 **First Brands** collapsed owing US$2.3bn to
+Tavryn gives every lender the one fact it needs, *has this invoice already been
+financed?*, without anyone showing their book. Banks, microfinance banks and fintech
+lenders can then compete for a supplier's invoice, and the supplier takes the first to
+pay.
+
+When the check is missing, the losses are real. In September 2025 **First Brands** collapsed owing US$2.3bn to
 invoice financiers, and its restructuring chief is investigating "whether the same
 receivables may have been factored more than once"
 ([Global Trade Review](https://www.gtreview.com/news/americas/first-brands-faces-investigation-into-double-financing-of-receivables-inventory/)).
@@ -62,6 +73,10 @@ succeeded 5 of 5. Details and sources: [docs/VALIDATION.md](docs/VALIDATION.md).
   own DevNet wallet through Tavryn, the receipt on the ledger carries the same payment
   reference, and the rival lender was refused ([record](docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json)).
   Canton Coin repayment is proven on LocalNet.
+- **A naira invoice on the DevNet:** a ₦20.25m Lagos invoice (synthetic) went through the
+  pilot path, where cash moves through the banks and Tavryn records each payment
+  reference. Two lenders paid at the same moment, one won, and the buyer's repayment was
+  recorded ([record](docs/evidence/NAIRA_DEVNET_2026-10-06.json)).
 - **A recorded walkthrough of the app:** every step from invoice to repayment, plus a
   rule change refused with one approval and applied with two
   ([video and screenshots](docs/evidence/P5_CLICKTHROUGH_2026-10-06/)).

@@ -13,7 +13,7 @@ note line, and a services invoice with milestone billing.
 |---|---|---|
 | `SYN-001-harlow-fasteners.html` | US, net 60, line items, freight | `SYN-001.terms.json` |
 | `SYN-002-voss-packaging.html` | EU, VAT 21%, credit note applied | `SYN-002.terms.json` |
-| `SYN-003-meridian-logistics.html` | Services, milestone billing, retention held back | `SYN-003.terms.json` |
+| `SYN-003-meridian-logistics.html` | Nigeria, naira, milestone billing, retention held back | `SYN-003.terms.json` |
 
 ## From invoice to draft
 

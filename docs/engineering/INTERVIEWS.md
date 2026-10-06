@@ -1,7 +1,8 @@
 # Interview request log
 
-Five conversations are required by the build specification: two buyer-side
-supplier-payments operators, two SME suppliers, and one invoice financier. Record only
+Five conversations are required by the build specification, all in Nigeria: two people
+who run supplier payments at a large buyer, two SME suppliers to large companies, and one
+invoice lender (a bank invoice-discounting desk, a microfinance bank or a fintech lender). Record only
 real conversations here, with consent and date. Do not identify a person or company
 without permission.
 

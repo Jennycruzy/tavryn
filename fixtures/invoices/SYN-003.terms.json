@@ -3,16 +3,16 @@
   "source": "SYN-003-meridian-logistics.html",
   "terms": {
     "externalInvoiceNumber": "MRL/INV/2026/318",
-    "faceValue": "20250.00",
-    "currency": "USD",
+    "faceValue": "20250000.00",
+    "currency": "NGN",
     "issuedDate": "2026-10-05",
     "dueDate": "2026-11-04"
   },
   "corrections": [
     {
       "field": "faceValue",
-      "printed": "subtotal 22,500.00",
-      "entered": "20250.00",
+      "printed": "subtotal 22,500,000.00",
+      "entered": "20250000.00",
       "why": "the 10% retention is not payable until Milestone 3 acceptance"
     },
     {

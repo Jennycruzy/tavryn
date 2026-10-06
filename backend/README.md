@@ -65,7 +65,8 @@ node ../scripts/ui-clickthrough.mjs <folder>   # browser walkthrough with video
 Helpers for the shared DevNet node are in `scripts/`: `devnet-check.ts` (login and
 permissions), `devnet-configure.ts` (fills in parties and package) and
 `devnet-upload.ts`. `devnet-settlement.ts` funds one invoice with real Canton Coin from
-a DevNet wallet (prerequisites at the top of the file).
+a DevNet wallet (prerequisites at the top of the file). `naira-offledger.ts` runs the
+synthetic Lagos invoice through the bank-reference path.
 
 ## How payments work
 

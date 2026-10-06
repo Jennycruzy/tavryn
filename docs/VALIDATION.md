@@ -4,7 +4,32 @@ Three kinds of evidence: the problem is real and current, the market is large, a
 does what it claims on real Canton networks. Every figure below has a public source or a
 recorded run in this repository.
 
-## 1. The problem is happening now
+## 1. The problem in Nigeria
+
+- **Small businesses cannot get credit.** "Fewer than one in twenty MSMEs have access to
+  bank credit; loans are often short-term and costly", and "collateral requirements
+  exclude many viable firms." ([World Bank, 22 Dec 2025](https://www.worldbank.org/en/news/press-release/2025/12/22/world-bank-approves-500-million-to-expand-finance-for-small-businesses-in-nigeria))
+- **The gap is large.** Unmet demand for credit by Nigerian MSMEs is "approximately 13
+  trillion naira, equivalent to $32.2 billion." ([IFC Market Bite Nigeria, 2022](https://www.ifc.org/en/insights-reports/2022/market-bite-nigeria-innovation-offers-key-to-the-broader-msme-finance-market))
+- **Invoices are already used, with heavy safeguards.** Nigerian banks offer invoice
+  discounting; Stanbic IBTC, for example, advances up to 80% of an invoice and asks for the
+  confirmed invoice, the delivery receipt, a personal guarantee and domiciliation of the
+  buyer's payment with the bank. ([Stanbic IBTC](https://www.stanbicibtcbank.com/nigeriabank/business/products-and-services/finance-your-business/business-loans/see-all-loans/invoice-discounting)) Those safeguards exist because a
+  lender cannot see the rest of the market.
+- **The registry exists but is underused.** The National Collateral Registry (2016) and the
+  Secured Transactions in Movable Assets Act (2017) let lenders register security over
+  receivables, yet "credit providers still have a marked preference for immovable
+  security", and the IFC and World Bank recommend promoting the registry's use.
+  ([Nigerian Credit Infrastructure Reform, Sept 2023](https://www.ifc.org/content/dam/ifc/doc/2024/nigerian-credit-infrastructure-reform-snapshot-of-progress-and-next-steps.pdf))
+- **Demand for supplier finance is real.** CycleFlow, powered by C2FO and the IFC, launched
+  in Nigeria in 2026 to pay approved MSME suppliers early on verified invoices from anchor
+  buyers. ([report](https://news.yrules.com/en/archives/12708))
+
+What we have not found: a public, documented Nigerian case of one invoice financed twice.
+We do not claim one. The cases below are from the United States, and show what the
+failure costs when it happens at scale.
+
+## 2. The failure, when it happens
 
 **First Brands Group (United States, September 2025).** The auto-parts maker entered
 Chapter 11 with **US$2.3bn in factoring liabilities**. Its chief restructuring officer is
@@ -28,15 +53,16 @@ In both cases each lender could only see its own deals. That is exactly the gap 
 closes: lenders share one fact (has this receivable already been financed?) without
 sharing their books.
 
-## 2. The market
+## 3. The market
 
-Global factoring reached **€4,039 billion in 2025**, up 3.7% on 2024, and passed
+In Nigeria, the MSME credit gap above (₦13 trillion) is the addressable need. Globally,
+factoring reached **€4,039 billion in 2025**, up 3.7% on 2024, and passed
 €4 trillion for the first time.
 ([FCI, 5 May 2026](https://fci.nl/en/news/fci-releases-2025-world-industry-statistics-global-factoring-market-surpasses-eu4-trillion?language_content_entity=en))
 Every one of those invoices is financed on the assumption that no one else has financed
 it.
 
-## 3. Measured on real Canton networks
+## 4. Measured on real Canton networks
 
 Each round creates and approves an invoice, offers it to two lenders, and has **both pay at
 the same instant**. It then tries to approve the same invoice number a second time.
@@ -61,6 +87,13 @@ by exactly 80, the supplier received one 80 CC holding, and the rival lender was
 with "This invoice is no longer available"
 ([`evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`](evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json)).
 Repayment on DevNet is not claimed: the buyer party there has no wallet.
+
+Naira, the Nigerian pilot path (HackCanton DevNet, 6 October 2026): the synthetic Lagos
+invoice `fixtures/invoices/SYN-003` (₦20,250,000) was approved, offered to two lenders who
+paid at the same moment, funded by exactly one at ₦16,200,000, and repaid, with each bank
+payment reference recorded on the receipts; the second lender was told "This invoice is no
+longer available". The references are synthetic and no naira moved
+([`evidence/NAIRA_DEVNET_2026-10-06.json`](evidence/NAIRA_DEVNET_2026-10-06.json)).
 
 Records: [`evidence/METRICS_localnet_2026-10-06.json`](evidence/METRICS_localnet_2026-10-06.json),
 [`evidence/METRICS_devnet_2026-10-06.json`](evidence/METRICS_devnet_2026-10-06.json).

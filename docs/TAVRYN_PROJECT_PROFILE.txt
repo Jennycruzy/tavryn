@@ -11,13 +11,13 @@ TAGLINE
 Every invoice, financed once.
 
 ELEVATOR PITCH
-Tavryn stops the same invoice from being financed twice. Suppliers offer an approved invoice to several lenders in private; the first lender to pay wins, and everyone else is simply told it's taken, never who won, never at what price. The network itself refuses a second payment, so lenders get the guarantee without showing each other their books.
+Tavryn is invoice finance for Nigerian suppliers. It stops the same invoice from being financed twice. Suppliers offer an approved invoice to several lenders in private; the first lender to pay wins, and everyone else is simply told it's taken, never who won, never at what price. The network itself refuses a second payment, so lenders get the guarantee without showing each other their books.
 
 THE PROBLEM
-The same invoice can be financed by several lenders, because each lender sees only its own deals. A shared list of invoices would stop it, but would expose every lender's clients and prices.
+Fewer than one in twenty Nigerian small businesses can get bank credit (World Bank, Dec 2025); their unmet demand is about N13 trillion (IFC). Many hold an invoice a large company has agreed to pay, and banks offer invoice discounting, but each bank sees only its own deals and cannot tell whether the invoice is already financed elsewhere. So banks demand guarantees and redirected buyer payments, and lend to few. A shared list of invoices would fix it, but would expose every lender's clients and prices.
 
 WHY NOW
-In September 2025 First Brands collapsed owing US$2.3bn to invoice financiers; its restructuring chief is investigating whether the same receivables were factored more than once (Global Trade Review, 30 Sep 2025). The same month, US prosecutors charged Tricolor's executives over double-pledging collateral to multiple lenders. Global factoring passed EUR 4 trillion a year in 2025 (FCI).
+Supplier finance is arriving in Nigeria (CycleFlow, backed by C2FO and the IFC, launched in 2026), and the National Collateral Registry is still underused (IFC/World Bank, 2023). When the same receivable is financed twice, the losses are large: in September 2025 First Brands collapsed owing US$2.3bn to invoice financiers; its restructuring chief is investigating whether the same receivables were factored more than once (Global Trade Review, 30 Sep 2025). The same month, US prosecutors charged Tricolor's executives over double-pledging collateral to multiple lenders. Global factoring passed EUR 4 trillion a year in 2025 (FCI).
 
 THE SOLUTION
 Lenders compete privately for a buyer-approved invoice, and the Canton network accepts exactly one payment for it.
@@ -47,11 +47,12 @@ MEASURED
 WORKING TODAY
 - Live on the HackCanton DevNet: two lenders paid for the same invoice at the same moment; the network accepted one and refused the other. Rule changes were refused with one approval and applied with two.
 - Real Canton Coin payments and repayments, with interrupted payments finished automatically and repayments never sent twice.
+- A naira invoice on the HackCanton DevNet: two lenders raced for a ₦20.25m Lagos invoice, one funded it, the buyer repaid, and each bank payment reference is on the ledger.
 - Canton Coin on the HackCanton DevNet: a lender paid a supplier 80 CC from its own DevNet wallet through Tavryn, and the rival lender was refused.
 - A web app with a page for each company, and a recorded walkthrough of the full flow.
 
 WHO USES IT
-Large buyers running supplier-finance programmes, their suppliers, and the lenders funding them.
+Large Nigerian buyers (manufacturers, FMCG, telecoms), their SME suppliers, and the banks, microfinance banks and fintech lenders that finance their invoices.
 
 WHO PAYS
 Lenders pay per invoice financed, because double financing is their loss.

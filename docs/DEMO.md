@@ -6,8 +6,8 @@ page in the left sidebar. Every step below is also run automatically by
 
 | Time | Screen | Say |
 |---|---|---|
-| 0:00–0:25 | Landing page, hero animation | "One invoice can be financed by several lenders, because each sees only its own deals. A shared list would stop it, but it would expose everyone's business." |
-| 0:25–0:50 | **Supplier** → New invoice → Create invoice | "A supplier creates an invoice. Only the supplier and the buyer can see it." |
+| 0:00–0:25 | Landing page, hero animation | "Fewer than one in twenty Nigerian small businesses can get bank credit, even when a big company owes them money. Banks can't see whether an invoice is already financed at another bank, so they lend to few. A shared list would fix it, but no bank will show its book." |
+| 0:25–0:50 | **Supplier** → New invoice → Create invoice | "A packaging supplier in Lagos creates an invoice to a food manufacturer. Only the two of them can see it." |
 | 0:50–1:15 | **Buyer** → Approve invoice (Lender A and B ticked) | "The buyer approves it, once. The same invoice number can never be approved again." |
 | 1:15–1:40 | **Supplier** → send a private offer to Lender A, then to Lender B | "The supplier offers it to two lenders, separately." |
 | 1:40–2:00 | **Lender B** | "Lender B sees its own offer. Nothing about Lender A's." |
