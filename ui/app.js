@@ -611,7 +611,7 @@ function activityItem(contract) {
         `Buyer paid ${money(arg.collected, arg.currency)} · advance ${money(arg.advance, arg.currency)} · fee ${money(arg.fee, arg.currency)}`, "Balance due", "wait"];
     case "BalanceReceipt":
       return [`Balance paid to the supplier · ${money(arg.amount, unit(arg.instrument))}`,
-        arg.instrument === "OFF_LEDGER" ? `By bank transfer · ref ${arg.paymentReference}` : "In Canton Coin", "Settled", "good"];
+        arg.instrument === "OFF_LEDGER" ? `ref ${arg.paymentReference}` : "Paid on the network in Canton Coin", "Settled", "good"];
     case "RepaymentReceipt":
       return [`Repaid · ${money(arg.amount, unit(arg.instrument))}`, `On ${niceDate(arg.repaymentDate)}${arg.early ? ", before the due date" : ""}${arg.instrument === "OFF_LEDGER" ? ` · ref ${arg.paymentReference}` : ""}`, "Repaid", "good"];
     default:

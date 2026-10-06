@@ -107,9 +107,10 @@ try {
     await choose("approvedCid", invoiceNumber);
     await choose("offerFinancier", lender);
     await page.fill("#offerAdvance", "16200000");
+    await page.fill("#offerFee", "405000");
     await submit("create-offer");
   }
-  await capture("supplier-offered", "Private offers to two lenders");
+  await capture("supplier-offered", "Private offers to two lenders, each with the fee agreed up front");
   await signOut();
 
   await signIn("lenderB");
@@ -131,7 +132,19 @@ try {
   await choose("financedCid", invoiceNumber);
   await page.fill("#repayReference", `NIP-REPAY-${run}`);
   await submit("repay");
-  await capture("buyer-repaid", "The buyer repays the lender who financed it");
+  await capture("buyer-repaid", "The buyer pays the full invoice to the lender who financed it");
+  await signOut();
+
+  await signIn("lenderA");
+  await choose("balanceCid", "3,645,000");
+  await page.fill("#balanceReference", `NIP-BALANCE-${run}`);
+  await submit("pay-balance");
+  await capture("lender-a-pays-balance", "Lender A returns the balance: invoice less advance less fee");
+  await signOut();
+
+  await signIn("supplier");
+  await page.waitForFunction(() => /Balance paid to the supplier/.test(document.querySelector("#contractsList")?.textContent || ""));
+  await capture("supplier-balance-received", "The supplier sees the balance paid, with the reference");
   await signOut();
 
   await signIn("auditor");

@@ -40,11 +40,14 @@ Global factoring passed **€4 trillion** a year in 2025
 
 1. **The supplier** creates an invoice. Only the supplier and the buyer can see it.
 2. **The buyer** approves it, once. An invoice number can never be approved twice.
-3. **The supplier** offers it privately to several lenders. Each lender sees only its own
-   offer.
+3. **The supplier** offers it privately to several lenders, with the advance and the
+   lender's fee agreed up front. Each lender sees only its own offer.
 4. **The first lender to pay wins.** Every other lender is told *"This invoice is no
    longer available"*, and nothing about who won or at what price.
-5. **The buyer** repays the winning lender on the due date.
+5. **The buyer** pays the full invoice to the winning lender on the due date.
+6. **The lender** returns the rest to the supplier: the invoice less the advance and the
+   fee. For a ₦20.25m invoice with a ₦16.2m advance and a ₦405,000 fee, the supplier gets
+   ₦16.2m now and ₦3,645,000 when the buyer pays. Every step is a signed record.
 
 ## Why it can be trusted
 
@@ -77,6 +80,9 @@ succeeded 5 of 5. Details and sources: [docs/VALIDATION.md](docs/VALIDATION.md).
   pilot path, where cash moves through the banks and Tavryn records each payment
   reference. Two lenders paid at the same moment, one won, and the buyer's repayment was
   recorded ([record](docs/evidence/NAIRA_DEVNET_2026-10-06.json)).
+- **The lender race:** a demo page (`/race`, sign in as the demo presenter) sends two
+  lenders' real financing requests to Canton at the same instant and shows which one
+  Canton accepted. The winner varies from run to run.
 - **A recorded walkthrough of the app:** every step from invoice to repayment, plus a
   rule change refused with one approval and applied with two
   ([video and screenshots](docs/evidence/P5_CLICKTHROUGH_2026-10-06/)).

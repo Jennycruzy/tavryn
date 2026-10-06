@@ -44,6 +44,12 @@ All settings are listed in [`.env.example`](../.env.example). The main ones:
 Use another settings file with `TAVRYN_ENV_FILE`, for example
 `TAVRYN_ENV_FILE=.env.devnet npm start`. Never commit either file.
 
+## Upgrading the contract package
+
+After uploading a new version of `tavryn-network`, set `CANTON_PACKAGE_ID` to the new
+package ID and list the earlier IDs in `CANTON_PREVIOUS_PACKAGE_IDS` (comma-separated).
+Commands use the new version; reads keep showing contracts created under the earlier ones.
+
 ## Company accounts and invoice files
 
 Set `TAVRYN_ACCOUNTS_FILE` to an accounts file made by

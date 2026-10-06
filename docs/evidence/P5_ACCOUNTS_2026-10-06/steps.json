@@ -1,6 +1,6 @@
 {
   "base": "http://127.0.0.1:18840",
-  "invoiceNumber": "MRL/INV/2026/MUWQMM1X",
+  "invoiceNumber": "MRL/INV/2026/MUWZ8F9L",
   "steps": [
     {
       "step": 1,
@@ -21,7 +21,7 @@
       "name": "supplier-created",
       "note": "Invoice created with the file attached",
       "screenshot": "03-supplier-created.png",
-      "result": "Invoice created\n\nMRL/INV/2026/MUWQMM1X is waiting for the buyer's approval.\n\nReferences"
+      "result": "Invoice created\n\nMRL/INV/2026/MUWZ8F9L is waiting for the buyer's approval.\n\nReferences"
     },
     {
       "step": 4,
@@ -40,7 +40,7 @@
     {
       "step": 6,
       "name": "supplier-offered",
-      "note": "Private offers to two lenders",
+      "note": "Private offers to two lenders, each with the fee agreed up front",
       "screenshot": "06-supplier-offered.png",
       "result": "Offer sent\n\nLender B can now see this offer. No other lender can.\n\nReferences"
     },
@@ -56,7 +56,7 @@
       "name": "lender-a-financed",
       "note": "Lender A finances by bank transfer reference",
       "screenshot": "08-lender-a-financed.png",
-      "result": "Invoice financed\n\nYour transfer NIP-DEMO-MUWQMM1X is recorded. No one else can finance this invoice now.\n\nReferences"
+      "result": "Invoice financed\n\nYour transfer NIP-DEMO-MUWZ8F9L is recorded. No one else can finance this invoice now.\n\nReferences"
     },
     {
       "step": 9,
@@ -68,29 +68,43 @@
     {
       "step": 10,
       "name": "buyer-repaid",
-      "note": "The buyer repays the lender who financed it",
+      "note": "The buyer pays the full invoice to the lender who financed it",
       "screenshot": "10-buyer-repaid.png",
-      "result": "Lender repaid\n\nYour transfer NIP-REPAY-MUWQMM1X is recorded. The invoice is closed.\n\nReferences"
+      "result": "Lender repaid\n\nYour transfer NIP-REPAY-MUWZ8F9L is recorded. The invoice is closed.\n\nReferences"
     },
     {
       "step": 11,
-      "name": "auditor",
-      "note": "The auditor sees the payment references",
-      "screenshot": "11-auditor.png",
-      "result": "Results of your actions appear here."
+      "name": "lender-a-pays-balance",
+      "note": "Lender A returns the balance: invoice less advance less fee",
+      "screenshot": "11-lender-a-pays-balance.png",
+      "result": "Balance paid\n\nYour transfer NIP-BALANCE-MUWZ8F9L of 3,645,000 NGN is recorded. The invoice is fully settled.\n\nReferences"
     },
     {
       "step": 12,
-      "name": "admin-1-refused",
-      "note": "One admin alone cannot change the rules",
-      "screenshot": "12-admin-1-refused.png",
-      "result": "Not enough approvals\n\nNot enough approvals yet (1 of 2). Nothing changed.\n\nReferences"
+      "name": "supplier-balance-received",
+      "note": "The supplier sees the balance paid, with the reference",
+      "screenshot": "12-supplier-balance-received.png",
+      "result": "Results of your actions appear here."
     },
     {
       "step": 13,
+      "name": "auditor",
+      "note": "The auditor sees the payment references",
+      "screenshot": "13-auditor.png",
+      "result": "Results of your actions appear here."
+    },
+    {
+      "step": 14,
+      "name": "admin-1-refused",
+      "note": "One admin alone cannot change the rules",
+      "screenshot": "14-admin-1-refused.png",
+      "result": "Not enough approvals\n\nNot enough approvals yet (1 of 2). Nothing changed.\n\nReferences"
+    },
+    {
+      "step": 15,
       "name": "admin-2-applied",
       "note": "A second organisation approves and the change applies",
-      "screenshot": "13-admin-2-applied.png",
+      "screenshot": "15-admin-2-applied.png",
       "result": "Rules changed\n\nEnough admins approved, so the new rule now applies to everyone.\n\nReferences"
     }
   ]

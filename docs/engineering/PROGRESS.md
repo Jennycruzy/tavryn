@@ -18,6 +18,21 @@ exists and can be reproduced. `Pending` is not a pass.
 | P10 | Reproducible sub-five-minute demo | Pending | Video path and checksum | DevNet lifecycle |
 | P11 | Private-window link check and submission | Link check passed | `docs/evidence/P11_PUBLIC_LINK_2026-10-06/`: tavryn.site, www, the app and a lender page in fresh Chromium contexts, all HTTP 200 with no console errors, failed requests or phone horizontal scroll; repo public | Project page and diary posts on the HackCanton platform (owner) |
 
+## 0.1.5 milestone (2026-10-06)
+
+- Adds the lender's fee to the offer and the supplier's balance after repayment: when the
+  buyer pays the full invoice to the lender, a `BalanceDue` (invoice less advance less fee)
+  is created, signed by lender and supplier, and the lender's `PayBalance` records a
+  `BalanceReceipt` by bank reference or Canton Coin. Offers without a fee behave as before.
+- Additive upgrade of `tavryn-network` (0.1.4 to 0.1.5): optional fields at the end of
+  records, new choices and templates only. `dpm build` with `upgrades` against the deployed
+  0.1.4 DAR reported 0 errors, and LocalNet accepted the upload (HTTP 200).
+- Reads accept contracts from both package versions (`CANTON_PREVIOUS_PACKAGE_IDS`), so the
+  network rules, registry and in-flight invoices created under 0.1.4 stay visible.
+- Evidence: `docs/evidence/BALANCE_LOCALNET_2026-10-06.json`, the full flow with the fee and
+  balance in `docs/evidence/P5_ACCOUNTS_2026-10-06/`, and the race page in
+  `docs/evidence/RACE_PAGE_2026-10-06.png`.
+
 ## 0.1.4 milestone
 
 - Date: 2026-10-05 (Africa/Lagos), on the selected VPS LocalNet.
