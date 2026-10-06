@@ -102,8 +102,8 @@ in `backend/`.
 
 ## 5. Conversations with users
 
-Two of five conversations are recorded so far, both on the buyer side; supplier and
-lender conversations are in progress. Findings are added only with the person's consent. Nothing is invented. Full
+Three of five conversations are recorded so far: two on the buyer side and one lender.
+Supplier conversations are in progress. Findings are added only with the person's consent. Nothing is invented. Full
 answers: [`engineering/INTERVIEWS.md`](engineering/INTERVIEWS.md).
 
 **Finance manager, large supermarket and distribution company (buyer side, 6 Oct 2026).**
@@ -136,6 +136,26 @@ answers: [`engineering/INTERVIEWS.md`](engineering/INTERVIEWS.md).
 Both buyers, separately: they cannot see whether an invoice is financed elsewhere, they
 refuse a registry that shows their prices, they would accept an "already used" check, and
 the lender should pay for it.
+
+**SME lending officer, Nigerian commercial bank (lender, 6 Oct 2026; a member of the
+owner's family, disclosed).**
+
+- On the gap: "there is no central place where we can check that in Nigeria. ... We can
+  confirm that the invoice is genuine, but knowing whether the customer has already taken
+  that same invoice to another lender is more difficult."
+- On whether it happens: "Yes, it happens. ... The problem normally comes out when the
+  buyer finally pays and more than one lender is expecting that same money."
+- On the cost to good businesses: "A small business may have a genuine ₦20 million
+  invoice from a strong company but no property to give as collateral. You can still end
+  up saying no because you don't have enough visibility."
+- On paying: "Compared with losing millions because an invoice was financed twice, the
+  checking fee is nothing. ... the lender giving the money should pay for the check."
+- On privacy: "I don't need to see which bank financed it, how much they charged or their
+  customer's private information. I just need to know whether somebody already has a claim
+  on that invoice."
+- A limit it exposes: borrowers sometimes reuse "the same contract or the same payment they
+  are expecting" under different invoice numbers. Tavryn checks each buyer-approved invoice
+  once; covering purchase orders and contracts is roadmap.
 
 Questions asked:
 

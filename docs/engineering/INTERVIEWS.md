@@ -12,7 +12,7 @@ without permission.
 | I2 | Buyer-side supplier payments: accounts manager, large construction company | Owner's network | 2026-10-06 | Answered all five questions; consented to be quoted by role, company not named | Recorded 2026-10-06 |
 | I3 | SME supplier | Pending user input | Pending | Pending | Pending |
 | I4 | SME supplier | Pending user input | Pending | Pending | Pending |
-| I5 | Invoice financier | Pending user input | Pending | Pending | Pending |
+| I5 | Invoice financier: SME lending officer, Nigerian commercial bank | Owner's family (personal connection, disclosed) | 2026-10-06 | Answered all five questions in writing; consented to be quoted by role, no name or bank | Recorded 2026-10-06 |
 
 
 ## I1. Finance manager, large retail company
@@ -90,3 +90,67 @@ already been used, without showing the whole contract, that is different."
 - Same privacy condition as I1: no full details, but an "already used" check is
   acceptable.
 - Same answer on pricing as I1: the lender pays, because it carries the risk.
+
+## I5. SME lending officer, Nigerian commercial bank
+
+Quoted by role only, with consent ("You can quote me by my role ... I just wouldn't want
+my name or the bank's name mentioned."). Disclosure: the interviewee is a member of the
+owner's family. Answers given in writing.
+
+**How do you make sure another bank or lender hasn't already financed the same invoice?**
+"To be very honest, there is no central place where we can check that in Nigeria. We do
+our own due diligence. We verify the invoice with the company that is supposed to pay it,
+check the purchase order and delivery documents, look at the customer's bank statements
+and sometimes speak directly with the buyer. We can confirm that the invoice is genuine,
+but knowing whether the customer has already taken that same invoice to another lender is
+more difficult. Unless the other facility shows somewhere in their banking history or the
+customer tells us, we may not know."
+
+**Has it happened that two lenders were owed from the same invoice or buyer payment?**
+"Yes, it happens. I have seen situations where a business collected funding from one
+lender and still approached another lender using the same expected payment. Sometimes it
+is not exactly the same invoice number. They may use the same contract or the same payment
+they are expecting from a big customer to support two different facilities. The problem
+normally comes out when the buyer finally pays and more than one lender is expecting that
+same money. By then, everybody starts chasing the borrower."
+
+**What do you ask for to protect yourself? Does that make you turn down good businesses?**
+"That is why lenders ask for plenty of protection. We may ask the buyer to pay directly
+into an account with us. We may ask the business to domicile the payment with the bank.
+Depending on the amount and the customer, we can also ask for a personal guarantee,
+company guarantee or some form of collateral. We also check their account history to
+understand how payments normally come in. And yes, it can make us reject businesses that
+are actually good businesses. Sometimes the invoice and the buyer are solid, but because
+we cannot be completely sure what the borrower has done somewhere else, the risk becomes
+too high. A small business may have a genuine ₦20 million invoice from a strong company
+but no property to give as collateral. You can still end up saying no because you don't
+have enough visibility."
+
+**Would you use an instant "already financed / free" check, and pay per invoice?**
+"Yes, definitely. If I can enter or check an invoice and get a reliable answer that this
+particular invoice has already been pledged somewhere, that is useful. The important thing
+is that I don't need to see which bank financed it, how much they charged or their
+customer's private information. I just need to know whether somebody already has a claim
+on that invoice. If the system is reliable, I don't see a problem paying a small fee for
+each check. Compared with losing millions because an invoice was financed twice, the
+checking fee is nothing. For me, the lender giving the money should pay for the check
+because we are the ones using it to make the credit decision."
+
+**What we take from it**
+
+- No central check exists in Nigeria; lenders rely on documents, statements and phone
+  calls, which confirm an invoice is genuine but not that it is unpledged.
+- Double financing happens, and surfaces only when the buyer pays and several lenders
+  expect the same money.
+- The missing visibility turns away good businesses: a genuine ₦20 million invoice from a
+  strong buyer can be refused for lack of property collateral. This is the credit gap
+  Tavryn targets.
+- Pricing confirmed from the lender side: a small fee per check, paid by the lender.
+- The lender wants only "somebody already has a claim", not who or at what price; this is
+  what Tavryn's losing lenders see.
+- **A gap this exposes in Tavryn.** Borrowers sometimes reuse the same contract or expected
+  payment under different invoice numbers. Tavryn's single-approval check is per
+  buyer-approved invoice; the buyer's approval step limits this, since the buyer approves
+  what it actually owes, but financing against a contract or purchase order before any
+  invoice exists is not covered yet. Recorded as roadmap: extend the one-claim rule to
+  purchase orders and contracts.

@@ -35,8 +35,9 @@ Every other lender is told the invoice is no longer available, nothing more.
 ## Who pays
 
 Lenders pay a fee per invoice financed, because double financing is their loss. Both buyer-side
-managers we interviewed said the same: buyers process too many invoices to pay per check,
-and "they are the ones taking the risk" (`VALIDATION.md`). The buyer
+managers we interviewed said the same, and a bank SME lending officer agreed: "Compared
+with losing millions because an invoice was financed twice, the checking fee is nothing"
+(`VALIDATION.md`). The buyer
 gains healthier suppliers and more financing capacity across its supply chain.
 
 ## Why Canton Network

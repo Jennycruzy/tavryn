@@ -46,4 +46,7 @@ owner decision, or a real human interaction; none of it is claimed without its a
 - Invoice ingestion with extraction and supplier corrections (the corrections a supplier
   makes today are recorded in `fixtures/invoices/`).
 - Canton Coin repayment on DevNet, once the buyer has a wallet there.
+- Extend the one-claim rule to purchase orders and contracts: a bank lender reported
+  borrowers reusing the same contract or expected payment under different invoice
+  numbers (`INTERVIEWS.md`, I5).
 - Decentralization Manager integration for the governance committee.
