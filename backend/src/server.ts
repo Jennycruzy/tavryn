@@ -486,10 +486,12 @@ function isWriteApiRequest(request: IncomingMessage): boolean {
     && (request.url ?? "/").startsWith("/api/");
 }
 
+// Behind the host nginx, X-Real-IP is set by nginx itself; the first X-Forwarded-For
+// entry can be supplied by the client, so it is not used to identify a visitor.
 function clientKey(request: IncomingMessage): string {
-  const forwarded = request.headers["x-forwarded-for"];
-  const firstForwarded = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",", 1)[0];
-  return firstForwarded?.trim() || request.socket.remoteAddress || "unknown";
+  const realIp = request.headers["x-real-ip"];
+  const value = Array.isArray(realIp) ? realIp[0] : realIp;
+  return value?.trim() || request.socket.remoteAddress || "unknown";
 }
 
 class WriteRateLimiter {
