@@ -1,0 +1,44 @@
+# Value
+
+## 1. The problem in one sentence
+
+**Nigerian small businesses that supply large companies** struggle to **get cash against invoices those companies have agreed to pay** because **no lender can see whether the same invoice is already financed at another lender**, which costs them **30 to 60 days of waiting, or property and guarantees they often don't have, while lenders turn good businesses away.**
+
+## 2. The value you create
+
+| | Today | With Tavryn |
+| --- | --- | --- |
+| **What the user does** | The supplier brings documents, bank statements and often collateral to one bank. The lender phones the buyer, who can confirm the invoice is real but not whether another lender financed it. | The buyer approves the invoice once. Lenders make private offers, the supplier takes the first to pay, and the network refuses every later attempt to fund it. |
+| **Time / cost / risk** | Suppliers wait 30 to 60 days or give up on bank finance. Lenders risk two claims on one payment, so they demand collateral and say no. | One payment per invoice, guaranteed by the ledger. On LocalNet the losing lender is told in 0.75 s (median). No lender sees another's clients' deals, prices or who won. |
+
+- **Value proposition in one line:** Every invoice, financed once, so lenders can say yes to the invoice instead of asking for property.
+- **Why users would switch:** Lenders get the one fact they're missing ("does somebody already have a claim on this invoice?") without exposing their book. Suppliers get competing offers instead of a paperwork wall. Buyers keep their prices private and pay nothing per check.
+
+## 3. Why it matters
+
+- **Cost of the problem:** Unmet demand for credit by Nigerian MSMEs is about ₦13 trillion (US$32.2bn) (IFC). When double financing does happen, the losses are large: First Brands (US, 2025) collapsed owing US$2.3bn to invoice financiers, and is being investigated for receivables factored more than once.
+- **How many have it:** Fewer than 1 in 20 Nigerian MSMEs have access to bank credit (World Bank, Dec 2025).
+- **Evidence:**
+  - SME lending officer, Nigerian commercial bank: "There is no central place where we can check that in Nigeria." And: "A small business may have a genuine ₦20 million invoice from a strong company but no property to give as collateral. You can still end up saying no."
+  - Building-material supplier: "If I already have to bring property before you give me money, then what is the point of the invoice?"
+  - Accounts manager, large construction company: "We cannot tell them whether that supplier has already shown the same invoice to another lender."
+  - Five consented interviews (two buyers, a bank lender, two suppliers), all agreeing that nobody will share prices in a registry, that an "already used" check is welcome, and that the lender should pay for it.
+
+## 4. Why now
+
+- **What changed:** Supplier finance is arriving in Nigeria: CycleFlow (C2FO with the IFC) launched there in 2026, and the World Bank approved US$500m for Nigerian small-business finance in December 2025. More lenders entering means more chances to finance the same invoice twice. Canton now has a live DevNet with Canton Coin, so the check and the payment can run on shared infrastructure.
+- **Why this couldn't be solved well before:** Nigeria's National Collateral Registry lets lenders register claims on receivables, but lenders still prefer property, and the IFC and World Bank recommend wider use of it. It records that a claim exists. It cannot let two lenders race for one invoice and guarantee that exactly one wins, in real time, while keeping each lender's deal private.
+
+## 5. Why Canton
+
+- **What Canton makes possible here:** Privacy between parties: each lender, the buyer and the supplier see only their own contracts. A multi-party workflow: buyer approval, private offers and funding across separate companies. One-use shared state: when one lender funds, Canton consumes the invoice's funding right and refuses the rest (`LOCAL_VERDICT_LOCKED_CONTRACTS`, 45 of 45 races). Shared rules: the operators change them only with two of three votes.
+- **Why a public chain or a plain database wouldn't do:** A public chain would expose every lender's clients and prices, which both buyers and the lender refused outright. A database needs one operator who sees everything, and no bank will hand its book to a competitor or a start-up.
+
+## Checklist
+
+- [x] The problem fits in one sentence
+- [x] It names a specific user: Nigerian SME suppliers to large companies, and their lenders
+- [x] The value is shown as a before and after
+- [x] There is evidence the problem is real: World Bank, IFC, five interviews
+- [x] "Why now" is answered
+- [x] It's clear why this belongs on Canton
