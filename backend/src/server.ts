@@ -7,6 +7,7 @@ import { resolve, sep } from "node:path";
 import { Accounts, cookieValue, type PublicAccount } from "./accounts.js";
 import { isFinancierRole, isRole, loadConfig, type Role } from "./config.js";
 import { DocumentError, DocumentStore, MAX_DOCUMENT_BYTES } from "./documents.js";
+import { prepareRaceInvoice, raceCandidates, runRace } from "./race.js";
 import { CantonCoinSettlementError } from "./canton-coin.js";
 import {
   LedgerApiError,
@@ -198,6 +199,30 @@ async function route(
     return;
   }
 
+  if (path === "api/v1/race" || path === "api/v1/race/prepare") {
+    allow(account, (signedIn) => signedIn.role === "presenter");
+    if (method === "GET" && path === "api/v1/race") {
+      writeJson(response, 200, { candidates: await raceCandidates(service) });
+      return;
+    }
+    if (method === "POST" && path === "api/v1/race/prepare") {
+      writeJson(response, 201, { candidate: await prepareRaceInvoice(service) });
+      return;
+    }
+    if (method === "POST" && path === "api/v1/race") {
+      const body = await readJson(request);
+      try {
+        writeJson(response, 200, await runRace(service, stringField(body, "invoiceNumber")));
+      } catch (error) {
+        if ((error as { publicCode?: string }).publicCode === "RACE_NOT_AVAILABLE") {
+          throw new AccessError((error as Error).message, "RACE_NOT_AVAILABLE", 409);
+        }
+        throw error;
+      }
+      return;
+    }
+  }
+
   if (path === "api/v1/documents" && method === "POST") {
     allow(account, (signedIn) => signedIn.role === "supplier");
     const documents = requireDocuments(context);
@@ -329,6 +354,9 @@ async function serveStatic(pathname: string, response: ServerResponse): Promise<
     // The public landing page.
     root = resolve(projectRoot, "ui");
     relativePath = "index.html";
+  } else if (pathname === "/race" || pathname === "/race/") {
+    root = resolve(projectRoot, "ui");
+    relativePath = "race.html";
   } else if (pathname === "/login" || pathname === "/login/") {
     root = resolve(projectRoot, "ui");
     relativePath = "login.html";

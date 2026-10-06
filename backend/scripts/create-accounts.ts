@@ -25,6 +25,7 @@ const companies = [
   { email: "admin@network-1.demo", name: "Network admin 1", role: "operator", operatorIndex: "1", demoPassword: "admin-1-demo" },
   { email: "admin@network-2.demo", name: "Network admin 2", role: "operator", operatorIndex: "2", demoPassword: "admin-2-demo" },
   { email: "admin@network-3.demo", name: "Network admin 3", role: "operator", operatorIndex: "3", demoPassword: "admin-3-demo" },
+  { email: "presenter@tavryn.demo", name: "Demo presenter", role: "presenter", demoPassword: "presenter-demo" },
 ];
 
 const accounts = companies.map(({ demoPassword, ...company }) => {

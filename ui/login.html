@@ -51,7 +51,8 @@
     </main>
     <script type="module">
       const $ = (id) => document.getElementById(id);
-      const label = (account) => account.role === "operator" ? "Runs the network"
+      const label = (account) => account.role === "presenter" ? "Runs the lender race"
+        : account.role === "operator" ? "Runs the network"
         : account.role.startsWith("financier") ? "Lender"
         : { supplier: "Supplier", buyer: "Buyer", auditor: "Auditor" }[account.role] || account.role;
       const escape = (value) => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);

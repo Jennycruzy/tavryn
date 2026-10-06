@@ -17,6 +17,7 @@ const accounts = new Accounts({
     { email: "credit@lender-a.test", name: "Lender A", role: "financierA", passwordHash: hashPassword("a-pass") },
     { email: "credit@lender-b.test", name: "Lender B", role: "financierB", passwordHash: hashPassword("l-pass") },
     { email: "admin2@network.test", name: "Admin 2", role: "operator", operatorIndex: "2", passwordHash: hashPassword("o-pass") },
+    { email: "presenter@demo.test", name: "Presenter", role: "presenter", passwordHash: hashPassword("p-pass") },
   ],
 });
 
@@ -122,6 +123,12 @@ test("each company can act only as itself", async () => {
     assert.equal(file.status, 200);
     assert.equal(await file.text(), "%PDF-1.4 file");
     assert.equal((await fetch(`${base}/api/v1/documents/INV-10`, { headers: { Cookie: lenderB } })).status, 403);
+
+    const presenter = await login("presenter@demo.test", "p-pass");
+    assert.equal((await fetch(`${base}/api/v1/race`, { headers: { Cookie: supplier } })).status, 403);
+    assert.equal((await fetch(`${base}/api/v1/race`, { headers: { Cookie: presenter } })).status, 200);
+    assert.equal((await post("/api/v1/race/prepare", lenderB, {})).status, 403);
+    assert.equal((await post("/api/v1/invoices/drafts", presenter, { terms })).status, 403);
 
     assert.deepEqual(calls, ["draft", "accept:financierB", "vote:2", "draft"]);
   } finally {

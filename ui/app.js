@@ -845,6 +845,10 @@ async function start() {
   }
   if (me?.ok) {
     state.account = (await me.json()).account;
+    if (state.account.role === "presenter") {
+      window.location.replace("/race");
+      return;
+    }
     state.role = state.account.role;
   }
   bindEvents();

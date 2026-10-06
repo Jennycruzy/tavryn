@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f6f3ec" />
+    <title>Lender race · Tavryn</title>
+    <link rel="icon" href="/assets/tavryn-logo-480.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/ui/theme.css" />
+    <link rel="stylesheet" href="/ui/styles.css" />
+    <style>
+      .race { max-width: 980px; margin: 0 auto; padding: 32px 16px 56px; display: grid; gap: 20px; }
+      .race-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+      .race-top .logo { display: inline-flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 1.5rem; color: var(--ink); text-decoration: none; }
+      .race-top .logo img { width: 26px; height: 26px; }
+      .live-label { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue); }
+      .invoice { text-align: center; display: grid; gap: 6px; justify-items: center; }
+      .invoice .number { font-family: var(--mono); color: var(--muted); font-size: 0.9rem; }
+      .invoice .amount { font-family: var(--serif); font-size: 3rem; line-height: 1; }
+      .invoice .approved { color: var(--green); font-size: 0.92rem; }
+      .state { margin-top: 6px; padding: 6px 14px; border: 2px solid var(--ink); font-family: var(--mono); font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; }
+      .state.done { border-color: var(--blue); color: var(--blue); transform: rotate(-2deg); }
+      .lenders { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+      .lender { display: grid; gap: 10px; min-height: 190px; align-content: start; }
+      .lender h2 { margin: 0; }
+      .lender .offer { font-family: var(--mono); color: var(--ink-soft); font-size: 0.92rem; }
+      .verdict { margin-top: 6px; padding: 14px 16px; border-radius: 4px; font-weight: 600; font-size: 1.05rem; background: var(--paper); color: var(--muted); }
+      .verdict.funded { background: var(--green-wash); color: var(--green); }
+      .verdict.refused { background: var(--red-wash); color: var(--red); }
+      .verdict.failed { background: var(--red-wash); color: var(--red); }
+      .verdict small { display: block; font-weight: 400; font-size: 0.82rem; margin-top: 4px; color: var(--ink-soft); font-family: var(--mono); overflow-wrap: anywhere; }
+      .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; }
+      .controls .button-primary { height: 52px; padding: 0 28px; font-size: 1.05rem; }
+      .footnote { text-align: center; color: var(--muted); font-size: 0.86rem; }
+      .pulse { animation: pulse 0.9s ease-in-out infinite; }
+      @keyframes pulse { 50% { opacity: 0.45; } }
+      @media (max-width: 700px) { .lenders { grid-template-columns: 1fr; } .invoice .amount { font-size: 2.2rem; } }
+      @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <main class="race">
+      <div class="race-top">
+        <a class="logo" href="/"><img src="/assets/tavryn-logo-480.png" alt="" />Tavryn</a>
+        <div class="controls">
+          <select id="invoiceSelect" aria-label="Invoice to race"></select>
+          <button class="button button-secondary" type="button" id="prepare">Prepare a new invoice</button>
+          <button class="link-button" type="button" id="signOut">Sign out</button>
+        </div>
+      </div>
+
+      <p class="live-label">Live demo · both lenders submit to Canton</p>
+
+      <section class="card invoice" aria-live="polite">
+        <span class="number" id="number">No invoice ready</span>
+        <span class="amount" id="amount">-</span>
+        <span class="approved" id="approved"></span>
+        <span class="state" id="state">Available</span>
+      </section>
+
+      <section class="lenders">
+        <div class="card lender" id="lenderA"></div>
+        <div class="card lender" id="lenderB"></div>
+      </section>
+
+      <div class="controls">
+        <button class="button button-primary" type="button" id="race" disabled>Both lenders pay now</button>
+      </div>
+      <p class="footnote" id="note">The result is returned by Canton, not decided by this page.</p>
+    </main>
+
+    <script type="module">
+      const $ = (id) => document.getElementById(id);
+      const state = { candidates: [], current: null, busy: false };
+      const label = (role) => `Lender ${String(role).slice("financier".length)}`;
+      const money = (value, currency) => `${currency === "NGN" ? "₦" : ""}${Number(value).toLocaleString("en-NG", { maximumFractionDigits: 2 })}${currency === "NGN" ? "" : ` ${currency}`}`;
+      const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
+
+      async function api(path, options = {}) {
+        const response = await fetch(path, { ...options, headers: { "Content-Type": "application/json" } });
+        if (response.status === 401) { location.replace("/login"); throw new Error("Sign in again."); }
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "Something went wrong. Please try again.");
+        return payload;
+      }
+
+      function lenderCard(slot, offer, outcome, running) {
+        if (!offer) { $(slot).innerHTML = `<h2>-</h2>`; return; }
+        let verdict = `<div class="verdict">Waiting</div>`;
+        if (running) verdict = `<div class="verdict pulse">Submitting to Canton…</div>`;
+        if (outcome?.status === "funded") verdict = `<div class="verdict funded">✓ Financed<small>${outcome.paymentReference ? `transfer ${escape(outcome.paymentReference)} · ` : ""}${outcome.elapsedMs} ms · record ${escape((outcome.updateId || "").slice(0, 18))}…</small></div>`;
+        if (outcome?.status === "refused") verdict = `<div class="verdict refused">✗ No longer available<small>Refused by Canton · ${outcome.elapsedMs} ms · not told who won or the price</small></div>`;
+        if (outcome?.status === "failed") verdict = `<div class="verdict failed">Couldn't complete<small>${escape(outcome.message || outcome.code || "")}</small></div>`;
+        $(slot).innerHTML = `<h2>${label(offer.financierRole)}</h2><span class="offer">Offer: ${money(offer.advance, state.current.currency)} now</span>${verdict}`;
+      }
+
+      function render(outcomes, running = false) {
+        const invoice = state.current;
+        $("race").disabled = !invoice || state.busy || Boolean(outcomes);
+        if (!invoice) {
+          $("number").textContent = "No invoice ready";
+          $("amount").textContent = "-";
+          $("approved").textContent = "Prepare a new invoice to start.";
+          $("state").textContent = "-";
+          $("state").classList.remove("done");
+          lenderCard("lenderA"); lenderCard("lenderB");
+          return;
+        }
+        $("number").textContent = `Invoice ${invoice.invoiceNumber} · due ${invoice.dueDate}`;
+        $("amount").textContent = money(invoice.faceValue, invoice.currency);
+        $("approved").textContent = "✓ Approved once by the buyer";
+        const done = outcomes?.some((outcome) => outcome.status === "funded");
+        $("state").textContent = done ? "Financed once" : "Available";
+        $("state").classList.toggle("done", Boolean(done));
+        const [a, b] = invoice.offers;
+        lenderCard("lenderA", a, outcomes?.find((o) => o.financierRole === a?.financierRole), running);
+        lenderCard("lenderB", b, outcomes?.find((o) => o.financierRole === b?.financierRole), running);
+      }
+
+      async function load(select) {
+        const { candidates } = await api("/api/v1/race");
+        state.candidates = candidates;
+        $("invoiceSelect").innerHTML = candidates.length
+          ? candidates.map((c) => `<option value="${escape(c.invoiceNumber)}">${escape(c.invoiceNumber)} · ${money(c.faceValue, c.currency)}</option>`).join("")
+          : `<option value="">No invoice with two open offers</option>`;
+        state.current = candidates.find((c) => c.invoiceNumber === select) || candidates[0] || null;
+        if (state.current) $("invoiceSelect").value = state.current.invoiceNumber;
+        render();
+      }
+
+      $("invoiceSelect").addEventListener("change", (event) => {
+        state.current = state.candidates.find((c) => c.invoiceNumber === event.target.value) || null;
+        render();
+      });
+
+      $("prepare").addEventListener("click", async () => {
+        if (state.busy) return;
+        state.busy = true;
+        $("prepare").disabled = true;
+        $("note").textContent = "Creating an invoice, approving it as the buyer, and sending offers to Lender A and Lender B…";
+        try {
+          const { candidate } = await api("/api/v1/race/prepare", { method: "POST", body: "{}" });
+          await load(candidate?.invoiceNumber);
+          $("note").textContent = "Ready. The result is returned by Canton, not decided by this page.";
+        } catch (error) {
+          $("note").textContent = error.message;
+        } finally {
+          state.busy = false;
+          $("prepare").disabled = false;
+          render();
+        }
+      });
+
+      $("race").addEventListener("click", async () => {
+        if (state.busy || !state.current) return;
+        state.busy = true;
+        render(null, true);
+        try {
+          const { outcomes } = await api("/api/v1/race", { method: "POST", body: JSON.stringify({ invoiceNumber: state.current.invoiceNumber }) });
+          state.busy = false;
+          render(outcomes);
+          $("note").textContent = "Both requests reached Canton at the same moment. Canton committed one and refused the other.";
+        } catch (error) {
+          state.busy = false;
+          render();
+          $("note").textContent = error.message;
+        }
+      });
+
+      $("signOut").addEventListener("click", async () => {
+        await fetch("/api/v1/auth/logout", { method: "POST" }).catch(() => {});
+        location.replace("/login");
+      });
+
+      load().catch((error) => { $("note").textContent = error.message; });
+    </script>
+  </body>
+</html>
