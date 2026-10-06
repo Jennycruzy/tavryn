@@ -32,6 +32,9 @@ export interface TavrynConfig {
   synchronizerId?: string;
   participantId?: string;
   packageId?: string;
+  // Role views show invoice activity created at or after this ledger offset, so a demo
+  // can start from a clean page without archiving anything. Unset shows everything.
+  viewFromOffset?: number;
   networkId: string;
   httpPort: number;
   demoAccessToken?: string;
@@ -183,6 +186,9 @@ export function loadConfig(): TavrynConfig {
     synchronizerId: optional("CANTON_SYNCHRONIZER_ID"),
     participantId: optional("CANTON_PARTICIPANT_ID"),
     packageId: optional("CANTON_PACKAGE_ID"),
+    viewFromOffset: optional("TAVRYN_VIEW_FROM_OFFSET")
+      ? optionalPositiveInteger("TAVRYN_VIEW_FROM_OFFSET", 1)
+      : undefined,
     networkId: optional("TAVRYN_NETWORK_ID") ?? "tavryn",
     httpPort: requiredPort("TAVRYN_HTTP_PORT"),
     demoAccessToken,

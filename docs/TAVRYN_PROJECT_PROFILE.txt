@@ -5,13 +5,13 @@ TRACK
 RWA & Business Workflows
 
 CHALLENGE
-BitSafe Challenge — Contribution Pool: Decentralizing Apps on Canton
+BitSafe Challenge (Contribution Pool: Decentralizing Apps on Canton)
 
 TAGLINE
 Every invoice, financed once.
 
 ELEVATOR PITCH
-Tavryn stops the same invoice from being financed twice. Suppliers offer an approved invoice to several lenders in private; the first lender to pay wins, and everyone else is simply told it's taken — never who won, never at what price. The network itself refuses a second payment, so lenders get the guarantee without showing each other their books.
+Tavryn stops the same invoice from being financed twice. Suppliers offer an approved invoice to several lenders in private; the first lender to pay wins, and everyone else is simply told it's taken, never who won, never at what price. The network itself refuses a second payment, so lenders get the guarantee without showing each other their books.
 
 THE PROBLEM
 The same invoice can be financed by several lenders, because each lender sees only its own deals. A shared list of invoices would stop it, but would expose every lender's clients and prices.
@@ -20,11 +20,11 @@ THE SOLUTION
 Lenders compete privately for a buyer-approved invoice, and the Canton network accepts exactly one payment for it.
 
 WHY CANTON
-Canton lets lenders share one fact — whether an invoice is still available — without sharing their clients, prices or deals.
+Canton lets lenders share one fact (whether an invoice is still available) without sharing their clients, prices or deals.
 
 HOW IT WORKS
 1. The supplier creates an invoice; only the supplier and buyer see it.
-2. The buyer approves it — an invoice number can only be approved once.
+2. The buyer approves it. An invoice number can only be approved once.
 3. The supplier offers it privately to several lenders.
 4. The first lender to pay wins; the others are told it's no longer available.
 5. The buyer repays the winner on the due date.
@@ -36,7 +36,7 @@ WHAT THE LOSING LENDER NEVER SEES
 Who won, the amount, the price, or any other lender's business.
 
 DECENTRALIZED BY DESIGN (BITSAFE)
-The network's rules — which lenders may join, and how much of an invoice they may advance — are signed by all of the network's admins. A change needs two of three to agree; one admin alone is refused.
+The network's rules (which lenders may join, and how much of an invoice they may advance) are signed by all of the network's admins. A change needs two of three to agree; one admin alone is refused.
 
 WORKING TODAY
 - Live on the HackCanton DevNet: two lenders paid for the same invoice at the same moment; the network accepted one and refused the other. Rule changes were refused with one approval and applied with two.

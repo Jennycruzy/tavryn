@@ -69,11 +69,11 @@ function friendlyError(status, payload) {
     GOVERNANCE_ACTION_INVALID: "That change doesn't apply to the current rules.",
     NETWORK_NOT_BOOTSTRAPPED: "The network hasn't been set up yet.",
     BUYER_NOT_ONBOARDED: "The buyer hasn't joined the network yet.",
-    REPAYMENT_NOT_AVAILABLE: "This invoice isn't waiting for repayment. If a repayment is already in progress it will finish on its own — don't pay again.",
+    REPAYMENT_NOT_AVAILABLE: "This invoice isn't waiting for repayment. If a repayment is already in progress it will finish on its own, so don't pay again.",
     SETTLEMENT_NOT_CONFIGURED: "Payments aren't set up for this account.",
     SETTLEMENT_PENDING: "The payment is still on its way. The invoice stays reserved until it arrives.",
     SETTLEMENT_LEDGER_FINALIZATION_FAILED: "The payment went through. The record will be completed automatically in a moment.",
-    SETTLEMENT_LEDGER_REPAYMENT_FAILED: "The repayment went through. The record will be completed automatically in a moment — don't pay again.",
+    SETTLEMENT_LEDGER_REPAYMENT_FAILED: "The repayment went through. The record will be completed automatically in a moment. Don't pay again.",
     SETTLEMENT_INSTRUMENT_MISMATCH: "This invoice isn't in the network's payment currency.",
     SETTLEMENT_REJECTED: "The wallet declined the payment, so nothing was paid and the invoice is open again.",
     SERVICE_UNREACHABLE: "Can't reach Tavryn right now. Check your connection and try again.",
@@ -178,7 +178,7 @@ function escapeHtml(value) {
 
 function amount(value) {
   const number = Number(value);
-  if (!Number.isFinite(number)) return "—";
+  if (!Number.isFinite(number)) return "-";
   return number.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
@@ -188,7 +188,7 @@ function money(value, unit = currency()) {
 
 function percent(rate) {
   const number = Number(rate);
-  return Number.isFinite(number) ? `${Math.round(number * 1000) / 10}%` : "—";
+  return Number.isFinite(number) ? `${Math.round(number * 1000) / 10}%` : "-";
 }
 
 function niceDate(value) {
@@ -331,7 +331,7 @@ function renderSteps() {
 function renderNetwork() {
   const network = state.network;
   if (!network?.rules) {
-    ["operatorsState", "rulesState", "financiersState", "registryState"].forEach((id) => { $(id).textContent = "—"; });
+    ["operatorsState", "rulesState", "financiersState", "registryState"].forEach((id) => { $(id).textContent = "-"; });
     return;
   }
   $("operatorsState").textContent = `${network.threshold} of ${network.operators.length} admins`;
@@ -457,7 +457,7 @@ function adminActions() {
         <div class="item-title">${escapeHtml(describeAction(proposal.action))}</div>
         ${proposal.stale ? "" : `<div class="votes">${Array.from({ length: proposal.threshold }, (_, index) => `<span class="${index < proposal.votes.length ? "on" : ""}"></span>`).join("")}</div>`}
         <div class="item-detail">${proposal.stale
-          ? "Out of date — the rules changed after this was proposed. Propose it again if it's still wanted."
+          ? "Out of date: the rules changed after this was proposed. Propose it again if it's still wanted."
           : `${proposal.votes.length} of ${proposal.threshold} approvals`}</div>
         ${proposal.stale ? "" : `<div class="proposal-actions">${buttons}<button class="button button-primary" type="button" data-governance="execute" data-proposal="${escapeHtml(proposal.contractId)}">Apply change</button></div>`}
       </div>`;

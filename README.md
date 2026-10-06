@@ -1,6 +1,6 @@
 # Tavryn
 
-**Every invoice can be financed once — and lenders never see each other's deals.**
+**Every invoice can be financed once, and lenders never see each other's deals.**
 
 ![Tavryn](docs/images/tavryn-landing.png)
 
@@ -16,11 +16,11 @@ prices where competitors can see them.
 ## What Tavryn does
 
 1. **The supplier** creates an invoice. Only the supplier and the buyer can see it.
-2. **The buyer** approves it — once. An invoice number can never be approved twice.
+2. **The buyer** approves it, once. An invoice number can never be approved twice.
 3. **The supplier** offers it privately to several lenders. Each lender sees only its own
    offer.
 4. **The first lender to pay wins.** Every other lender is told *"This invoice is no
-   longer available"* — and nothing about who won or at what price.
+   longer available"*, and nothing about who won or at what price.
 5. **The buyer** repays the winning lender on the due date.
 
 ## Why it can be trusted
@@ -32,22 +32,22 @@ prices where competitors can see them.
   invoice learns that it is gone, and nothing more.
 - **Real money moves.** Lenders pay suppliers and buyers repay lenders in Canton Coin. If a
   payment is interrupted halfway, Tavryn finishes it automatically, and never pays twice.
-- **No single owner.** The network's rules — which lenders can join, and how much of an
-  invoice they may advance — are signed by all the organisations that run it. A change
+- **No single owner.** The network's rules (which lenders can join, and how much of an
+  invoice they may advance) are signed by all the organisations that run it. A change
   needs two of three of them to agree.
 
 ## See it working
 
-- **Live on the HackCanton DevNet** — the full flow and the shared rules ran on the
+- **Live on the HackCanton DevNet:** the full flow and the shared rules ran on the
   hackathon's network on 5 October 2026 ([record](docs/evidence/P7_DEVNET_2026-10-05.json)).
-- **A recorded walkthrough of the app** — every step from invoice to repayment, plus a
+- **A recorded walkthrough of the app:** every step from invoice to repayment, plus a
   rule change refused with one approval and applied with two
   ([video and screenshots](docs/evidence/P5_CLICKTHROUGH_2026-10-06/)).
-- **Demo script** — [docs/DEMO.md](docs/DEMO.md).
+- **Demo script:** [docs/DEMO.md](docs/DEMO.md).
 
 ## The app
 
-Each company — supplier, buyer, each lender, the auditor and the network admins — has its
+Each company (supplier, buyer, each lender, the auditor and the network admins) has its
 own page and sees only its own business.
 
 ![The supplier's page in the Tavryn app](docs/images/tavryn-app.png)
@@ -61,7 +61,7 @@ ones protected from double financing. More in [the business brief](docs/BRIEF.md
 
 ## Why Canton Network
 
-Canton lets several companies share one fact — *"has this invoice been financed yet?"* —
+Canton lets several companies share one fact (*"has this invoice been financed yet?"*)
 without sharing anything else. Each company's data is visible only to the companies in
 that deal. That is exactly what invoice finance needs, and an ordinary public blockchain
 or a shared database can't offer it.
@@ -79,7 +79,7 @@ npm run bootstrap                           # set up the network once
 npm start                                   # open http://127.0.0.1:<port>
 ```
 
-Developer details — every setting, the automated checks and how it is built — are in
+Developer details (every setting, the automated checks and how it is built) are in
 [backend/README.md](backend/README.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Current limits

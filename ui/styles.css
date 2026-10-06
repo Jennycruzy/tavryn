@@ -102,7 +102,7 @@ body { background: var(--paper); }
 .visibility li { display: flex; gap: 10px; }
 .visibility li::before { content: "✓"; color: var(--green); font-weight: 700; }
 .visibility li.hidden { color: var(--muted); }
-.visibility li.hidden::before { content: "—"; color: var(--red); }
+.visibility li.hidden::before { content: "×"; color: var(--red); }
 .network dl { margin: 0; display: grid; }
 .network dl div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--rule-soft); font-size: 0.88rem; }
 .network dl div:first-child { border-top: 1px solid var(--ink); }

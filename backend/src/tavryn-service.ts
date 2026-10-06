@@ -165,8 +165,17 @@ export class TavrynService {
     return this.ledger.getLedgerEnd();
   }
 
-  contractsForRole(role: Role): Promise<ActiveContract[]> {
-    return this.ledger.activeContracts(partyForRole(this.config, role), ALL_TEMPLATES);
+  async contractsForRole(role: Role): Promise<ActiveContract[]> {
+    const contracts = await this.ledger.activeContracts(partyForRole(this.config, role), ALL_TEMPLATES);
+    return contracts.filter((contract) => this.inDemoView(contract));
+  }
+
+  // Network rules and governance always show; invoice activity before the demo marker
+  // stays on the ledger but is left out of the role views.
+  private inDemoView(contract: ActiveContract): boolean {
+    const from = this.config.viewFromOffset;
+    if (!from || !contract.templateId.includes(":Tavryn.Contracts:")) return true;
+    return (contract.offset ?? 0) >= from;
   }
 
   private contractsOf(roleOrParty: { role: Role } | { party: string }, ...entities: string[]) {
@@ -283,10 +292,12 @@ export class TavrynService {
     const votes = operatorView.filter((contract) =>
       isTemplate(contract, "Tavryn.Governance", "GovernanceVote"),
     );
+    const from = this.config.viewFromOffset ?? 0;
     const proposals = operatorView
       .filter(
         (contract) =>
           isTemplate(contract, "Tavryn.Governance", "GovernanceProposal") &&
+          (contract.offset ?? 0) >= from &&
           record(contract.createArgument).networkId === this.config.networkId,
       )
       .map((proposal) => {

@@ -83,7 +83,7 @@ what must land before submission. Tier 2 is product work and must not block Tier
 
 ---
 
-## A. Governance — make the threshold real (Tier 1; this is the BitSafe entry)
+## A. Governance, make the threshold real (Tier 1; this is the BitSafe entry)
 
 ### Defects found
 
@@ -193,7 +193,7 @@ DevNet or MainNet.
 | B-d6 | Receipts carry no amount. Invoice currency is silently treated as 1:1 Canton Coin. | `FundingReceipt`, `RepaymentReceipt`, `canton-coin.ts` |
 | B-d7 | Every `LedgerApiError` becomes `INVOICE_UNAVAILABLE`, `DUPLICATE_OR_INVALID_APPROVAL` or `GOVERNANCE_THRESHOLD_NOT_MET`, so auth or network failures pass the rival-rejection test. | `tavryn-service.ts:202,313,348` |
 | B-d8 | `InvoiceDetails` is never archived (9 are live), contradicting `ARCHITECTURE.md`. | `FinalizeFunding` |
-| B-d9 | Losing offers stay active forever and still show as fundable in B's view. | — |
+| B-d9 | Losing offers stay active forever and still show as fundable in B's view. | - |
 | B-d10 | `Repay` requires `repaymentDate >= dueDate`, so early repayment is impossible. | `Contracts.daml:371` |
 | B-d11 | Wallet history lookup reads only the latest 100 items with 10 × 250 ms retries. | `canton-coin.ts findTransaction` |
 
@@ -318,7 +318,7 @@ leave the contract for the sweeper.
 
 ---
 
-## C. Privacy claims — fix the model or fix the words (Tier 1 = words; Tier 2 = model)
+## C. Privacy claims, fix the model or fix the words (Tier 1 = words; Tier 2 = model)
 
 ### Facts
 - A financier who receives an offer sees the full `InvoiceTerms` (amount, currency, dates,
@@ -435,7 +435,7 @@ platform; the node is shared by all teams, so put no sensitive data on it.
 | Token audience | `https://hackcanton-01.devnet.naas.noders.services` |
 
 - The OIDC client ID is not on the dashboard. Take it from the linked guide "Canton DevNet
-  Quickstart — HackCanton shared node", or from the console's own login request. Record
+  Quickstart, HackCanton shared node", or from the console's own login request. Record
   it in `FINDINGS.md`; it is not a secret.
 - **Credential handling.** The login is the owner's personal HackCanton account.
   - Prefer an offline refresh token over the password: Keycloak `scope=offline_access`,
@@ -538,7 +538,7 @@ platform; the node is shared by all teams, so put no sensitive data on it.
 
 **E1a. Owner's DevNet steps (about 10 minutes).**
 1. Sign in at the console URL in E1 with the HackCanton platform email and password.
-2. Open the dashboard link "Canton DevNet Quickstart — HackCanton shared node" and note
+2. Open the dashboard link "Canton DevNet Quickstart, HackCanton shared node" and note
    the OIDC client ID.
 3. If the console offers an offline or refresh token, use that. Otherwise put the
    password in `/root/tavryn/backend/.env.devnet` on the VPS (`chmod 600`). Never put it

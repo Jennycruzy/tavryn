@@ -7,11 +7,11 @@ quotes, numbers, or customer names.
 
 | ID | Profile | Date | Status | Notes |
 |---|---|---|---|---|
-| V1 | Supplier-payments operator at a larger company | Pending | Requested | — |
-| V2 | Supplier-payments operator at a larger company | Pending | Requested | — |
-| V3 | SME supplier | Pending | Requested | — |
-| V4 | SME supplier | Pending | Requested | — |
-| V5 | Invoice financier | Pending | Requested | — |
+| V1 | Supplier-payments operator at a larger company | Pending | Requested | - |
+| V2 | Supplier-payments operator at a larger company | Pending | Requested | - |
+| V3 | SME supplier | Pending | Requested | - |
+| V4 | SME supplier | Pending | Requested | - |
+| V5 | Invoice financier | Pending | Requested | - |
 
 ## Questions
 
@@ -26,8 +26,8 @@ quotes, numbers, or customer names.
 
 | Metric | Value | Evidence |
 |---|---:|---|
-| Approval-to-funding time | Pending | — |
-| Financier-B rejection latency | Pending | — |
-| Lifecycle steps completed | Pending | — |
-| Interview findings | Pending | — |
+| Approval-to-funding time | Pending | - |
+| Financier-B rejection latency | Pending | - |
+| Lifecycle steps completed | Pending | - |
+| Interview findings | Pending | - |
 

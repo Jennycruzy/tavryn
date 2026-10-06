@@ -1,6 +1,6 @@
-# Tavryn — business brief
+# Tavryn business brief
 
-**Every invoice can be financed once — and lenders never see each other's deals.**
+**Every invoice can be financed once, and lenders never see each other's deals.**
 
 ## The problem
 
@@ -19,7 +19,7 @@ cheaper financing, and lets the buyer agree longer payment terms.
 
 The buyer approves an invoice once. The supplier offers it privately to several lenders.
 The first lender to pay wins, and the buyer repays that lender when the invoice is due.
-Every other lender is told the invoice is no longer available — nothing more.
+Every other lender is told the invoice is no longer available, nothing more.
 
 ## Who pays
 
@@ -28,7 +28,7 @@ gains healthier suppliers and more financing capacity across its supply chain.
 
 ## Why Canton Network
 
-Canton lets several companies agree on one fact — *has this invoice been financed yet?* —
+Canton lets several companies agree on one fact (*has this invoice been financed yet?*)
 while each deal stays visible only to the companies in it. The network itself refuses a
 second payment for the same invoice.
 

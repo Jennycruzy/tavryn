@@ -1,4 +1,4 @@
-# Tavryn server — developer guide
+# Tavryn server: developer guide
 
 The server serves the web app and talks to a Canton participant through its JSON Ledger
 API. It also moves Canton Coin through a validator's wallet API.
@@ -6,7 +6,7 @@ API. It also moves Canton Coin through a validator's wallet API.
 ## Setup
 
 Requirements: Node.js 20+, the Daml package manager `dpm` (SDK 3.5.12) with Java 17, and a
-Canton participant — a local network or the HackCanton DevNet node.
+Canton participant: a local network or the HackCanton DevNet node.
 
 ```sh
 # from the repository root

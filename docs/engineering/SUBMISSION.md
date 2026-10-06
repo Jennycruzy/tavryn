@@ -1,4 +1,4 @@
-# Tavryn — HackCanton Season 3 submission working copy
+# Tavryn, HackCanton Season 3 submission working copy
 
 This is the source of truth for the public project page, development diary, demo, and
 final submission. Update proof as it lands; never promote a planned feature into a claim.
@@ -19,7 +19,7 @@ final submission. Update proof as it lands; never promote a planned feature into
 
 ### Challenges
 
-Select **BitSafe Challenge — Contribution Pool: Decentralizing Apps on Canton**. Tavryn's
+Select **BitSafe Challenge (Contribution Pool: Decentralizing Apps on Canton)**. Tavryn's
 network rules (financier admission, removal, buyer onboarding and the maximum advance
 rate) are signed by every operator and change only through a threshold of operator votes;
 on LocalNet an action fails below the threshold and succeeds at it
@@ -34,7 +34,7 @@ Tavryn's core flow, and no Grofty integration is claimed.
 ### Elevator pitch
 
 Every invoice can be pledged once. Prove it without exposing competing bids. Tavryn stops
-the same invoice from being financed twice — enforced by the Canton ledger. A lender
+the same invoice from being financed twice, enforced by the Canton ledger. A lender
 offered an invoice sees that invoice's terms, but never another lender's offer, price, or
 win. The current model exposes which lenders were eligible for that invoice; removing
 those names remains explicit-disclosure roadmap work.
@@ -46,26 +46,26 @@ invoice; every later attempt fails, and no rival sees who won or on what terms.
 
 ## Core narrative
 
-### Problem — one sentence
+### Problem, one sentence
 
 The same invoice can be financed by several lenders because each sees only its own deal;
 a shared registry would stop it, but expose everyone's confidential business.
 
-### Solution — one sentence
+### Solution, one sentence
 
 Tavryn lets lenders compete privately for a buyer-approved invoice, while the Canton
 ledger allows only one of them to fund it.
 
-### Why Canton — one sentence
+### Why Canton, one sentence
 
-Canton lets lenders share one fact — whether an invoice is still available — without
+Canton lets lenders share one fact (whether an invoice is still available) without
 sharing their clients, prices, volumes, or deal terms.
 
 ### What makes it technically distinctive
 
 When one lender funds an invoice, Canton consumes its one-use funding state. A second
 lender's attempt fails. The losing lender sees only its own offer and “This invoice is no
-longer available” — nothing about who won, the amount, or the terms. The implementation
+longer available”, nothing about who won, the amount, or the terms. The implementation
 keeps invoice details private and exposes only a terms-free `FundingSlot` to eligible
 lenders.
 
@@ -134,7 +134,7 @@ Avoid:
 Each entry should follow: **result -> proof -> why it matters -> next risk**. Keep it below
 120 words and attach a screenshot, update ID, or commit whenever possible.
 
-### Entry 1 — core invariant proven
+### Entry 1, core invariant proven
 
 Built Tavryn's core control: a buyer-approved invoice can be funded once without exposing
 competing lenders' books. The Daml lifecycle and role-scoped backend now pass on LocalNet.

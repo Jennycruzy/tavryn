@@ -1,7 +1,7 @@
 # Shared rules
 
-Tavryn's network rules — which lenders may join, which buyers are onboarded, and the
-maximum share of an invoice a lender may advance — are not owned by any one company.
+Tavryn's network rules (which lenders may join, which buyers are onboarded, and the
+maximum share of an invoice a lender may advance) are not owned by any one company.
 
 - The rules are signed by **every** network admin, and nothing can edit them directly.
 - Any admin can propose a change. It applies only after **two of the three** admins approve
