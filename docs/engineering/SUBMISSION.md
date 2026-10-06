@@ -101,8 +101,8 @@ lenders.
 
 Settlement is two-step and not atomic, with reconciliation. The lifecycle, governance and
 Canton Coin funding run on the HackCanton DevNet node; Canton Coin repayment is proven on
-LocalNet only, because the DevNet buyer party has no wallet. Customer interviews are still
-pending. The demo backend acts for every party through one ledger user; production needs
+LocalNet only, because the DevNet buyer party has no wallet. One buyer-side interview is
+recorded; supplier and lender interviews are in progress. The demo backend acts for every party through one ledger user; production needs
 one participant or wallet per organization.
 
 ## Judge-facing positioning
@@ -113,7 +113,7 @@ one participant or wallet per organization.
 | Why does this need Canton? | Selective visibility and one-use shared state are both load-bearing. | Lender B's failed funding plus private party view |
 | Is it technically non-trivial? | Competing private offers contend for one terms-free funding right without revealing invoice terms. | Daml contracts, role-scoped backend, real update IDs |
 | Does it work? | The core lifecycle runs on LocalNet through the real JSON Ledger API. | Reproducible integration output and short demo |
-| Can it become a business? | Buyers sponsor reverse-factoring programmes; financiers pay per verified invoice because they carry the duplicate-financing risk. | Pilot design, integrations, and interview evidence |
+| Can it become a business? | Lenders pay per verified invoice because they carry the duplicate-financing risk; a buyer finance manager we interviewed said exactly that, and that buyers will not pay per check. | Pilot design, integrations, and interview evidence |
 | Is it complete? | Core invariant and governance run on LocalNet and the HackCanton DevNet node, with a recorded browser click-through; two-step Canton Coin funding is proven on LocalNet and DevNet, repayment on LocalNet. Interviews remain an explicit gate. | Progress matrix with no inflated claims |
 
 ## Language discipline

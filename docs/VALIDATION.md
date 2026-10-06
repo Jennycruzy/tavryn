@@ -100,11 +100,26 @@ Records: [`evidence/METRICS_localnet_2026-10-06.json`](evidence/METRICS_localnet
 Reproduce with `npx tsx scripts/race-benchmark.ts <rounds> <label> [cantonCoinRounds]`
 in `backend/`.
 
-## 4. Conversations with users
+## 5. Conversations with users
 
-In progress: buyer-side payables, suppliers who have sold invoices, and invoice lenders.
-Findings are added here only with the person's consent and the date of the conversation.
-Nothing is invented.
+One of five conversations is recorded so far; the rest are in progress (suppliers and
+lenders). Findings are added only with the person's consent. Nothing is invented. Full
+answers: [`engineering/INTERVIEWS.md`](engineering/INTERVIEWS.md).
+
+**Finance manager, large supermarket and distribution company (buyer side, 6 Oct 2026).**
+
+- On the gap: "we don't really have a way to know that. ... If the supplier has taken that
+  same invoice to a bank or another finance company, we may not know unless somebody
+  contacts us."
+- On the risk: "The bigger problem would be if two different finance companies are
+  claiming the same payment. That can become a serious issue."
+- On privacy, the condition Tavryn is built around: "I will not agree to put our supplier
+  information and prices somewhere everybody can see. ... But if the system only tells me
+  that this particular invoice has already been used somewhere, without exposing all the
+  details, then I can consider it."
+- On who pays: "if a finance company wants to check before giving a supplier money, I think
+  they should pay for the check. They are the ones taking the risk." Buyers will not pay
+  per invoice; Tavryn's pricing is lender-paid.
 
 Questions asked:
 
