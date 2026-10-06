@@ -1,0 +1,142 @@
+{
+  "date": "2026-10-06T00:16:22.973Z",
+  "url": "http://127.0.0.1:18787",
+  "browser": "Chromium (Playwright) headless",
+  "invoiceNumber": "TVN-UI-MUVXBAQJ",
+  "video": "clickthrough.webm",
+  "steps": [
+    {
+      "step": "supplier-creates-draft",
+      "status": "Invoice created",
+      "message": "TVN-UI-MUVXBAQJ is waiting for the buyer's approval.",
+      "references": [
+        "1220a40800adb6b5cdd547963770cc048aa9bf915a2b65edb992cbfd2efd095c663d"
+      ],
+      "screenshot": "01-supplier-creates-draft.png"
+    },
+    {
+      "step": "buyer-approves-once",
+      "status": "Invoice approved",
+      "message": "It can now be financed once, by Lender A or Lender B.",
+      "references": [
+        "1220fb54bea2dac92b8e9893a74d26064e5513b551e1bd820a6bc64c1721e1868e3e"
+      ],
+      "screenshot": "02-buyer-approves-once.png"
+    },
+    {
+      "step": "supplier-offers-financierA",
+      "status": "Offer sent",
+      "message": "Lender A can now see this offer. No other lender can.",
+      "references": [
+        "122084eef7e664200e6f4f808138ba75c86470104853770efe9abe22bd6922693c3d"
+      ],
+      "screenshot": "03-supplier-offers-financierA.png"
+    },
+    {
+      "step": "supplier-offers-financierB",
+      "status": "Offer sent",
+      "message": "Lender B can now see this offer. No other lender can.",
+      "references": [
+        "1220db69efac9d9fcea998c003e3ec189b8ba561c1749ae805f3347ac01c2c3b7ef4"
+      ],
+      "screenshot": "04-supplier-offers-financierB.png"
+    },
+    {
+      "step": "financierB-sees-only-own-offer",
+      "screenshot": "05-financierB-sees-only-own-offer.png",
+      "verified": "Before funding, Financier B sees exactly one offer for this invoice: its own"
+    },
+    {
+      "step": "financierA-funds-with-canton-coin",
+      "status": "Invoice financed",
+      "message": "You paid 0.9 AMT to the supplier. No one else can finance this invoice now.",
+      "references": [
+        "12207f89db8ce0f0fea0705d09245501f428eb439cd27b37da69e08530f9ea7da807",
+        "1220895af879ac27ad598f18699c9fa5c10241dd9572ef34070f56ed9e8968ba607e"
+      ],
+      "screenshot": "06-financierA-funds-with-canton-coin.png"
+    },
+    {
+      "step": "financierB-no-longer-available",
+      "screenshot": "07-financierB-no-longer-available.png",
+      "verified": "Financier B's offer for this invoice is closed and cannot be funded; no winner or terms shown"
+    },
+    {
+      "step": "buyer-repays-with-canton-coin",
+      "status": "Lender repaid",
+      "message": "1 AMT paid. The invoice is closed.",
+      "references": [
+        "12202f35bc64b3ae8f292e6497f72ed9090cb41713f4fdb343e3e4adce0aa284e59c",
+        "1220d6e31d8ba964d99d629802b3f60bc3d88cafa479f653a53e4ce72d2c1d0f02b1"
+      ],
+      "screenshot": "08-buyer-repays-with-canton-coin.png"
+    },
+    {
+      "step": "auditor-trail",
+      "screenshot": "09-auditor-trail.png",
+      "verified": "Auditor sees funding and repayment receipts"
+    },
+    {
+      "step": "operator-proposes-rate-change",
+      "status": "Change proposed",
+      "message": "Nothing changes until 2 admins approve.",
+      "references": [
+        "122063103d2517852b240d4e33a8000e4ca3739f95fc6b02045be45d6a6723f14723"
+      ],
+      "screenshot": "10-operator-proposes-rate-change.png"
+    },
+    {
+      "step": "operator1-votes",
+      "status": "Approval recorded",
+      "message": "Admin 1 approved the change.",
+      "references": [
+        "1220e45555dbb34962b1d8a3bca80d24ed38390e8322110349224f7d89fe87332f51"
+      ],
+      "screenshot": "11-operator1-votes.png"
+    },
+    {
+      "step": "execute-refused-below-threshold",
+      "status": "Not enough approvals",
+      "message": "Not enough approvals yet (1 of 2). Nothing changed.",
+      "references": [
+        "beb999ca-43ad-4fe0-bc6f-69542f64d370"
+      ],
+      "screenshot": "12-execute-refused-below-threshold.png"
+    },
+    {
+      "step": "operator2-votes",
+      "status": "Approval recorded",
+      "message": "Admin 2 approved the change.",
+      "references": [
+        "1220407bb5462b184b330129ae3c3a525d5e4d828d8390665097239d3c554a0bd850"
+      ],
+      "screenshot": "13-operator2-votes.png"
+    },
+    {
+      "step": "execute-at-threshold",
+      "status": "Rules changed",
+      "message": "Enough admins approved, so the new rule now applies to everyone.",
+      "references": [
+        "12208da142dc59342da7a9b55977e52aca6fd042a21ce8f58cb315a7e8ef98a456f0"
+      ],
+      "screenshot": "14-execute-at-threshold.png"
+    }
+  ],
+  "files": [
+    "01-supplier-creates-draft.png",
+    "02-buyer-approves-once.png",
+    "03-supplier-offers-financierA.png",
+    "04-supplier-offers-financierB.png",
+    "05-financierB-sees-only-own-offer.png",
+    "06-financierA-funds-with-canton-coin.png",
+    "07-financierB-no-longer-available.png",
+    "08-buyer-repays-with-canton-coin.png",
+    "09-auditor-trail.png",
+    "10-operator-proposes-rate-change.png",
+    "11-operator1-votes.png",
+    "12-execute-refused-below-threshold.png",
+    "13-operator2-votes.png",
+    "14-execute-at-threshold.png",
+    "clickthrough.webm"
+  ]
+}

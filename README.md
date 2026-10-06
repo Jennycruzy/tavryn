@@ -42,7 +42,7 @@ prices where competitors can see them.
   hackathon's network on 5 October 2026 ([record](docs/evidence/P7_DEVNET_2026-10-05.json)).
 - **A recorded walkthrough of the app** — every step from invoice to repayment, plus a
   rule change refused with one approval and applied with two
-  ([video and screenshots](docs/evidence/P5_CLICKTHROUGH_2026-10-05/)).
+  ([video and screenshots](docs/evidence/P5_CLICKTHROUGH_2026-10-06/)).
 - **Demo script** — [docs/DEMO.md](docs/DEMO.md).
 
 ## The app
