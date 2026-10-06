@@ -164,3 +164,12 @@
 .who-row > div { position: relative; border-top: 0; }
 .who-row > div::before { content: ""; position: absolute; left: 0; top: 0; height: 2px; width: 100%; background: var(--ink); transform: scaleX(0); transform-origin: left; transition: transform 0.9s ease 0.15s; }
 .who-row > div.shown::before { transform: scaleX(1); }
+
+.case { margin-top: 22px; padding: 14px 18px; border-left: 3px solid var(--red); background: var(--sheet); font-size: 0.95rem; }
+.case q { font-style: italic; }
+.case a { display: block; margin-top: 6px; font-size: 0.8rem; color: var(--muted); }
+.measured { width: 100%; max-width: 480px; margin-top: 24px; border-collapse: collapse; font-size: 0.93rem; }
+.measured td { padding: 9px 0; border-bottom: 1px solid var(--rule); }
+.measured tr:first-child td { border-top: 2px solid var(--ink); }
+.measured .num { font-weight: 600; color: var(--blue-deep); }
+.proof .small.muted { margin-top: 8px; }

@@ -16,6 +16,9 @@ Tavryn stops the same invoice from being financed twice. Suppliers offer an appr
 THE PROBLEM
 The same invoice can be financed by several lenders, because each lender sees only its own deals. A shared list of invoices would stop it, but would expose every lender's clients and prices.
 
+WHY NOW
+In September 2025 First Brands collapsed owing US$2.3bn to invoice financiers; its restructuring chief is investigating whether the same receivables were factored more than once (Global Trade Review, 30 Sep 2025). The same month, US prosecutors charged Tricolor's executives over double-pledging collateral to multiple lenders. Global factoring passed EUR 4 trillion a year in 2025 (FCI).
+
 THE SOLUTION
 Lenders compete privately for a buyer-approved invoice, and the Canton network accepts exactly one payment for it.
 
@@ -37,6 +40,9 @@ Who won, the amount, the price, or any other lender's business.
 
 DECENTRALIZED BY DESIGN (BITSAFE)
 The network's rules (which lenders may join, and how much of an invoice they may advance) are signed by all of the network's admins. A change needs two of three to agree; one admin alone is refused.
+
+MEASURED
+45 of 45 simultaneous payment races on LocalNet and the HackCanton DevNet: exactly one winner, every second lender refused by the network itself. Losing lender told in 0.75 s (median, LocalNet). Every duplicate approval refused. Canton Coin funding and repayment 5 of 5.
 
 WORKING TODAY
 - Live on the HackCanton DevNet: two lenders paid for the same invoice at the same moment; the network accepted one and refused the other. Rule changes were refused with one approval and applied with two.

@@ -1,0 +1,386 @@
+{
+  "label": "localnet",
+  "date": "2026-10-06T02:02:17.388Z",
+  "packageId": "c2071d2c1ddf1685e3c9f345a684199d817ccaa3e33f4979a2ae892892bebab9",
+  "rounds": 30,
+  "exactlyOneWinner": 30,
+  "loserRefusedAsUnavailable": 30,
+  "loserRefusedByLedgerContention": 30,
+  "duplicateApprovalsRefused": 30,
+  "approvalMs": {
+    "median": 510,
+    "p95": 879,
+    "min": 460,
+    "max": 893
+  },
+  "winningPaymentMs": {
+    "median": 1258,
+    "p95": 1845,
+    "min": 945,
+    "max": 2056
+  },
+  "loserRefusalMs": {
+    "median": 746,
+    "p95": 1336,
+    "min": 523,
+    "max": 1493
+  },
+  "cantonCoin": {
+    "rounds": 5,
+    "fundedOk": 5,
+    "repaidOk": 5,
+    "fundMs": {
+      "median": 3446,
+      "p95": 4276,
+      "min": 2007,
+      "max": 4276
+    },
+    "repayMs": {
+      "median": 2780,
+      "p95": 3344,
+      "min": 1583,
+      "max": 3344
+    },
+    "sample": {
+      "round": 0,
+      "fundStatus": 200,
+      "fundMs": 2007,
+      "repayStatus": 200,
+      "repayMs": 1583,
+      "cashUpdateId": "1220c39af02fe38b0a9012774c4b7f562681e579dcce0e1933398405823645b9db4a",
+      "receiptAmount": "0.8000000000"
+    }
+  },
+  "races": [
+    {
+      "round": 0,
+      "winners": 1,
+      "approveMs": 483,
+      "winnerMs": 945,
+      "loserMs": 523,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 1,
+      "winners": 1,
+      "approveMs": 478,
+      "winnerMs": 1061,
+      "loserMs": 613,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 2,
+      "winners": 1,
+      "approveMs": 460,
+      "winnerMs": 1087,
+      "loserMs": 626,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 3,
+      "winners": 1,
+      "approveMs": 511,
+      "winnerMs": 1328,
+      "loserMs": 885,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 4,
+      "winners": 1,
+      "approveMs": 499,
+      "winnerMs": 1153,
+      "loserMs": 766,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 5,
+      "winners": 1,
+      "approveMs": 609,
+      "winnerMs": 1090,
+      "loserMs": 644,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 6,
+      "winners": 1,
+      "approveMs": 510,
+      "winnerMs": 1312,
+      "loserMs": 774,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 7,
+      "winners": 1,
+      "approveMs": 723,
+      "winnerMs": 1845,
+      "loserMs": 1336,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 8,
+      "winners": 1,
+      "approveMs": 879,
+      "winnerMs": 1264,
+      "loserMs": 797,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 9,
+      "winners": 1,
+      "approveMs": 744,
+      "winnerMs": 1589,
+      "loserMs": 1104,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 10,
+      "winners": 1,
+      "approveMs": 497,
+      "winnerMs": 1113,
+      "loserMs": 675,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 11,
+      "winners": 1,
+      "approveMs": 675,
+      "winnerMs": 1036,
+      "loserMs": 600,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 12,
+      "winners": 1,
+      "approveMs": 500,
+      "winnerMs": 1090,
+      "loserMs": 746,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 13,
+      "winners": 1,
+      "approveMs": 473,
+      "winnerMs": 1460,
+      "loserMs": 962,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 14,
+      "winners": 1,
+      "approveMs": 497,
+      "winnerMs": 1258,
+      "loserMs": 659,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 15,
+      "winners": 1,
+      "approveMs": 589,
+      "winnerMs": 1655,
+      "loserMs": 1078,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 16,
+      "winners": 1,
+      "approveMs": 760,
+      "winnerMs": 1517,
+      "loserMs": 865,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 17,
+      "winners": 1,
+      "approveMs": 670,
+      "winnerMs": 2056,
+      "loserMs": 1493,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 18,
+      "winners": 1,
+      "approveMs": 565,
+      "winnerMs": 1342,
+      "loserMs": 779,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 19,
+      "winners": 1,
+      "approveMs": 475,
+      "winnerMs": 1440,
+      "loserMs": 1079,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 20,
+      "winners": 1,
+      "approveMs": 492,
+      "winnerMs": 1506,
+      "loserMs": 941,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 21,
+      "winners": 1,
+      "approveMs": 501,
+      "winnerMs": 1046,
+      "loserMs": 705,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 22,
+      "winners": 1,
+      "approveMs": 596,
+      "winnerMs": 1034,
+      "loserMs": 595,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 23,
+      "winners": 1,
+      "approveMs": 527,
+      "winnerMs": 1584,
+      "loserMs": 1272,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 24,
+      "winners": 1,
+      "approveMs": 514,
+      "winnerMs": 1078,
+      "loserMs": 640,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 25,
+      "winners": 1,
+      "approveMs": 487,
+      "winnerMs": 1089,
+      "loserMs": 655,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 26,
+      "winners": 1,
+      "approveMs": 893,
+      "winnerMs": 1266,
+      "loserMs": 693,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 27,
+      "winners": 1,
+      "approveMs": 504,
+      "winnerMs": 977,
+      "loserMs": 537,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 28,
+      "winners": 1,
+      "approveMs": 491,
+      "winnerMs": 1058,
+      "loserMs": 637,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    },
+    {
+      "round": 29,
+      "winners": 1,
+      "approveMs": 499,
+      "winnerMs": 1108,
+      "loserMs": 603,
+      "loserStatus": 409,
+      "loserCode": "INVOICE_UNAVAILABLE",
+      "loserLedgerCode": "LOCAL_VERDICT_LOCKED_CONTRACTS",
+      "duplicateRefused": true
+    }
+  ]
+}

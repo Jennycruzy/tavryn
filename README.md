@@ -15,6 +15,16 @@ lenders at once. The buyer pays once, and someone loses the money.
 A shared register of invoices would stop this, but no lender will put its clients and
 prices where competitors can see them.
 
+This is not hypothetical. In September 2025 **First Brands** collapsed owing US$2.3bn to
+invoice financiers, and its restructuring chief is investigating "whether the same
+receivables may have been factored more than once"
+([Global Trade Review](https://www.gtreview.com/news/americas/first-brands-faces-investigation-into-double-financing-of-receivables-inventory/)).
+The same month, US prosecutors charged **Tricolor**'s executives over schemes to
+"double-pledge collateral to multiple lenders"
+([SDNY](https://www.justice.gov/usao-sdny/pr/ceo-cfo-coo-charged-connection-billion-dollar-collapse-tricolor-auto)).
+Global factoring passed **€4 trillion** a year in 2025
+([FCI](https://fci.nl/en/news/fci-releases-2025-world-industry-statistics-global-factoring-market-surpasses-eu4-trillion?language_content_entity=en)).
+
 ## What Tavryn does
 
 1. **The supplier** creates an invoice. Only the supplier and the buyer can see it.
@@ -39,6 +49,12 @@ prices where competitors can see them.
   needs two of three of them to agree.
 
 ## See it working
+
+**Measured, not claimed.** In 45 simultaneous payment races on two Canton networks (30 on
+LocalNet, 15 on the HackCanton DevNet), exactly one lender won every time, and every
+second lender was refused by the network itself. On LocalNet the losing lender is told in
+0.75 s (median). Every duplicate approval was refused. Canton Coin funding and repayment
+succeeded 5 of 5. Details and sources: [docs/VALIDATION.md](docs/VALIDATION.md).
 
 - **Live on the HackCanton DevNet:** the full flow and the shared rules ran on the
   hackathon's network on 5 October 2026 ([record](docs/evidence/P7_DEVNET_2026-10-05.json)).

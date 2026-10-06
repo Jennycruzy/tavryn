@@ -14,7 +14,7 @@ exists and can be reproduced. `Pending` is not a pass.
 | P6 | Three real-looking invoice layouts extracted and corrected | Pending | Fixture paths and correction records | User-provided or legally usable invoice fixtures |
 | P7 | Full lifecycle on DevNet | Passed (ledger lifecycle and governance) | `docs/evidence/P7_DEVNET_2026-10-05.json`: on shared node hackcanton-01, bootstrap by all three operators, simultaneous funding with B winning and A rejected by `LOCAL_VERDICT_LOCKED_CONTRACTS`, repayment, duplicate approval refused, both governance changes refused at 1 vote and applied at 2, pre-existing offer still funded | Canton Coin settlement on DevNet not claimed (parties have no DevNet wallets); proven on LocalNet (P3) |
 | P8 | Grofty flow, only if DAR/MainNet question resolves | Excluded | The Grofty extension could not be installed for testing; the bounty is not selected and no Grofty integration is claimed (`SUBMISSION.md`) | - |
-| P9 | Brief, pilot, validation, pitch materials | Pending | Document paths and genuine interviews | Five interview conversations |
+| P9 | Brief, pilot, validation, pitch materials | Partly passed | `docs/VALIDATION.md`: cited 2025 double-financing cases (First Brands, Tricolor) and market size (FCI); measured 45 of 45 simultaneous races with one winner on LocalNet and DevNet (`docs/evidence/METRICS_*_2026-10-06.json`) | Owner-run user conversations in progress |
 | P10 | Reproducible sub-five-minute demo | Pending | Video path and checksum | DevNet lifecycle |
 | P11 | Private-window link check and submission | Pending | Checklist and screenshots | Public repo, project profile, Mana requirement |
 
