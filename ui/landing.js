@@ -1,44 +1,41 @@
-// The hero scene loops through four moments: offers go out (p0), Lender A pays (p1),
-// the invoice is stamped and the others are told it's taken (p2), then it holds (p3).
+// The hero invoice loops: offers out, Lender A pays, the invoice is stamped and the
+// other lenders are told it's gone, then it resets.
 const scene = document.getElementById("scene");
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const phases = [
-  ["p0", 2200],
-  ["p1", 1400],
-  ["p2", 2600],
-  ["p3", 1800],
-];
 
-function play(index = 0) {
-  const [name, duration] = phases[index];
-  scene.classList.remove("p0", "p1", "p2", "p3");
-  // Restart CSS animations by forcing a reflow between phases.
-  void scene.offsetWidth;
-  scene.classList.add(name);
-  setTimeout(() => play((index + 1) % phases.length), duration);
+function cycle() {
+  scene.classList.remove("scene-paying", "scene-done");
+  setTimeout(() => scene.classList.add("scene-paying"), 1800);
+  setTimeout(() => {
+    scene.classList.remove("scene-paying");
+    scene.classList.add("scene-done");
+  }, 3000);
+  setTimeout(cycle, 8000);
 }
-
 if (scene) {
-  if (reduceMotion) scene.classList.add("p3");
-  else play();
+  if (reduceMotion) scene.classList.add("scene-done");
+  else cycle();
 }
 
-// The navigation turns solid once the hero has scrolled away.
+// A rule under the masthead once the page scrolls.
 const nav = document.getElementById("nav");
-const updateNav = () => nav.classList.toggle("solid", window.scrollY > 40);
+const updateNav = () => nav.classList.toggle("solid", window.scrollY > 8);
 window.addEventListener("scroll", updateNav, { passive: true });
 updateNav();
 
-// Sections fade in as they enter the screen.
+// The DevNet record prints line by line when it comes into view.
+function printLog(log) {
+  log.querySelectorAll("li").forEach((line, index) => {
+    setTimeout(() => line.classList.add("on"), reduceMotion ? 0 : 280 * index);
+  });
+}
+
 const observer = new IntersectionObserver((entries) => {
   for (const entry of entries) {
-    if (entry.isIntersecting) {
-      entry.target.classList.add("shown");
-      observer.unobserve(entry.target);
-    }
+    if (!entry.isIntersecting) continue;
+    entry.target.classList.add("shown");
+    if (entry.target.id === "log") printLog(entry.target);
+    observer.unobserve(entry.target);
   }
-}, { threshold: 0.15 });
-document.querySelectorAll(".reveal").forEach((element, index) => {
-  element.style.transitionDelay = `${(index % 4) * 70}ms`;
-  observer.observe(element);
-});
+}, { threshold: 0.2 });
+document.querySelectorAll(".reveal").forEach((element) => observer.observe(element));
