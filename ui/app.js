@@ -9,6 +9,8 @@ const ROLE_CONTEXT = {
 const state = {
   // The signed-in company, when the server runs with company accounts.
   account: null,
+  demoAccounts: [],
+  guide: null,
   documents: new Set(),
   upload: null,
   role: roleFromHash(),
@@ -670,6 +672,10 @@ function approvedFaceValue(approvedCid) {
 
 // The advance rate is derived from the amount, rounded up so the advance never exceeds
 // the invoice amount times the rate.
+function hasBalanceDue(result) {
+  return (result?.createdContracts || []).some((event) => String(event.templateId).endsWith(":BalanceDue"));
+}
+
 function rateFor(advance, faceValue) {
   return (Math.ceil((advance / faceValue) * 10_000) / 10_000).toFixed(4);
 }
@@ -696,6 +702,7 @@ async function handleAction(form) {
       await loadDocuments();
       await loadRole("supplier");
       setResult({ ok: true, title: "Invoice created", message: `${number} is waiting for the buyer's approval.`, updateId: result.updateId });
+      guideEvent("create-draft", { invoice: number });
     } else if (action === "approve") {
       const eligibleFinancierRoles = data.getAll("eligible").map(String);
       if (!eligibleFinancierRoles.length) throw new Error("Choose at least one lender.");
@@ -704,6 +711,7 @@ async function handleAction(form) {
       await loadNetwork();
       await loadRole("buyer");
       setResult({ ok: true, title: "Invoice approved", message: `It can now be financed once, by ${eligibleFinancierRoles.map(roleLabel).join(" or ")}.`, updateId: result.updateId });
+      guideEvent("approve");
     } else if (action === "create-offer") {
       const face = approvedFaceValue(value("approvedCid"));
       const advance = Number(value("advance").replaceAll(",", ""));
@@ -717,6 +725,7 @@ async function handleAction(form) {
       state.currentStep = "offered";
       await loadRole("supplier");
       setResult({ ok: true, title: "Offer sent", message: `${roleLabel(value("financierRole"))} can now see this offer. No other lender can.`, updateId: result.updateId });
+      guideEvent("offer");
     } else if (action === "fund") {
       const offer = contractsFor(state.role, "FinancingOffer").find((contract) => contractId(contract) === value("offerCid"));
       const terms = offer ? argument(offer).terms : undefined;
@@ -726,11 +735,13 @@ async function handleAction(form) {
         state.currentStep = "funded";
         await loadRole(state.role);
         setResult({ ok: true, title: "Invoice financed", message: `Your transfer ${value("paymentReference")} is recorded. No one else can finance this invoice now.`, updateId: result.updateId });
+        guideEvent("fund");
       } else {
         result = await api(`/api/v1/offers/${encodeURIComponent(value("offerCid"))}/fund`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
         state.currentStep = "funded";
         await loadRole(state.role);
         setResult({ ok: true, title: "Invoice financed", message: `You paid ${money(result.cashTransfer?.amount)} to the supplier. No one else can finance this invoice now.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+        guideEvent("fund");
       }
     } else if (action === "repay") {
       const financed = contractsFor("buyer", "FinancedInvoice").find((contract) => contractId(contract) === value("financedCid"));
@@ -741,11 +752,13 @@ async function handleAction(form) {
         state.currentStep = "repaid";
         await loadRole("buyer");
         setResult({ ok: true, title: "Lender repaid", message: `Your transfer ${value("paymentReference")} is recorded. The invoice is closed.`, updateId: result.updateId });
+        guideEvent("repay", { balance: hasBalanceDue(result) });
       } else {
         result = await api(`/api/v1/financed/${encodeURIComponent(value("financedCid"))}/settle-repay`, { method: "POST", body: JSON.stringify({ repaymentDate: value("repaymentDate") }) });
         state.currentStep = "repaid";
         await loadRole("buyer");
         setResult({ ok: true, title: "Lender repaid", message: `${money(result.cashTransfer?.amount)} paid. The invoice is closed.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+        guideEvent("repay", { balance: hasBalanceDue(result) });
       }
     } else if (action === "pay-balance") {
       const due = contractsFor(state.role, "BalanceDue").find((contract) => contractId(contract) === value("balanceCid"));
@@ -755,10 +768,12 @@ async function handleAction(form) {
         result = await api(`/api/v1/balances/${encodeURIComponent(value("balanceCid"))}/pay`, { method: "POST", body: JSON.stringify({ financierRole: state.role, paymentReference: value("paymentReference") }) });
         await loadRole(state.role);
         setResult({ ok: true, title: "Balance paid", message: `Your transfer ${value("paymentReference")} of ${money(arg.balance, arg.currency)} is recorded. The invoice is fully settled.`, updateId: result.updateId });
+        guideEvent("pay-balance");
       } else {
         result = await api(`/api/v1/balances/${encodeURIComponent(value("balanceCid"))}/settle`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
         await loadRole(state.role);
         setResult({ ok: true, title: "Balance paid", message: `${money(result.cashTransfer?.amount)} paid to the supplier. The invoice is fully settled.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+        guideEvent("pay-balance");
       }
     } else if (action === "propose") {
       const type = value("type");
@@ -866,6 +881,10 @@ function bindEvents() {
     await loadSelectedRole();
   });
   $("refreshButton").addEventListener("click", loadSelectedRole);
+  $("guide").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-guide]");
+    if (button) handleGuide(button);
+  });
   $("actionPanel").addEventListener("submit", (event) => {
     event.preventDefault();
     if (!state.loading) handleAction(event.target);
@@ -891,6 +910,116 @@ function bindEvents() {
   });
 }
 
+
+// ------------------------------------------------------------------ guided tour
+// Walks a visitor through one invoice, company by company. Progress is kept in this
+// browser only, so it survives signing out and in as the next company.
+
+const GUIDE_KEY = "tavryn.guide";
+const GUIDE = [
+  { role: "supplier", on: "create-draft", title: "Create your invoice",
+    text: "You are Adeyemi Packaging, a supplier. Type an amount, for example 20250000, or attach an invoice PDF. Then click Create invoice." },
+  { role: "buyer", on: "approve", title: "Approve the invoice",
+    text: "You are Sunrise Foods, the company that owes the money. Pick invoice {invoice} and click Approve invoice. This invoice number can never be approved again." },
+  { role: "supplier", on: "offer-2", title: "Offer it to two lenders",
+    text: "Back as Adeyemi. Under \"Offer an approved invoice\", pick {invoice}, choose Lender A, enter an advance (up to 90%) and a fee such as 2%, and send. Then do the same for Lender B." },
+  { role: "financierB", manual: true, title: "Look as Lender B",
+    text: "You see only your own offer for {invoice}. Nothing about Lender A's offer. Click Next when you have looked." },
+  { role: "financierA", on: "fund", title: "Finance the invoice",
+    text: "You are Lender A. Pick the offer for {invoice}, type any bank transfer reference, and click Finance this invoice. You pay Adeyemi now." },
+  { role: "financierB", manual: true, title: "Lender B is too late",
+    text: "The invoice is gone: \"1 offer is no longer available\". Lender B can't see who won or at what price. Click Next." },
+  { role: "buyer", on: "repay", title: "Pay the lender",
+    text: "On the due date Sunrise Foods pays the full invoice to the lender, not to Adeyemi. Pick {invoice}, type a transfer reference, and click Repay." },
+  { role: "financierA", on: "pay-balance", title: "Return Adeyemi's balance",
+    text: "Sunrise paid you the full invoice. Return the rest to Adeyemi: the invoice less your advance and fee. Pick the balance, type a reference, and click Pay balance." },
+  { role: "auditor", manual: true, last: true, title: "See the whole trail",
+    text: "The auditor sees every payment with its reference and can change nothing. That's the story: one invoice, financed once, and everyone paid." },
+];
+
+function loadGuide() {
+  try { return JSON.parse(localStorage.getItem(GUIDE_KEY) || "null"); } catch { return null; }
+}
+
+function saveGuide(guide) {
+  try { localStorage.setItem(GUIDE_KEY, JSON.stringify(guide)); } catch { /* the guide still works for this page */ }
+  state.guide = guide;
+}
+
+function companyFor(role) {
+  const account = state.demoAccounts.find((entry) => entry.role === role);
+  return { name: account?.name || roleLabel(role), email: account?.email };
+}
+
+function guideEvent(name, data = {}) {
+  const guide = state.guide;
+  if (!guide || guide.done || guide.hidden) return;
+  const step = GUIDE[guide.step];
+  if (!step || state.account?.role !== step.role) return;
+  if (name === "create-draft" && step.on === "create-draft") {
+    saveGuide({ ...guide, invoice: data.invoice, offers: 0, step: guide.step + 1 });
+  } else if (name === "offer" && step.on === "offer-2") {
+    const offers = (guide.offers || 0) + 1;
+    saveGuide({ ...guide, offers, step: offers >= 2 ? guide.step + 1 : guide.step });
+  } else if (name === step.on) {
+    // Without an agreed fee there is no balance to return, so that step is skipped.
+    const skip = name === "repay" && !data.balance ? 2 : 1;
+    saveGuide({ ...guide, step: guide.step + skip });
+  }
+  renderGuide();
+}
+
+function renderGuide() {
+  const panel = $("guide");
+  if (!panel) return;
+  if (!state.account || state.account.role === "presenter" || !state.demoAccounts.length) {
+    panel.hidden = true;
+    return;
+  }
+  const guide = state.guide;
+  panel.hidden = false;
+  if (!guide || guide.hidden) {
+    panel.innerHTML = `<div class="guide-top"><p>New here? A short guided tour shows one invoice from start to finish.</p><button class="button button-secondary" type="button" data-guide="start">Start the guided tour</button></div>`;
+    return;
+  }
+  if (guide.done) {
+    panel.innerHTML = `<div class="guide-top"><h2>Tour complete</h2><span class="guide-actions"><button class="button button-secondary" type="button" data-guide="start">Start again</button><button class="link-button" type="button" data-guide="hide">Hide</button></span></div><p>One invoice, approved once, financed once, repaid, and the supplier's balance returned. Every step is a signed record on Canton.</p>`;
+    return;
+  }
+  const step = GUIDE[guide.step];
+  const invoice = guide.invoice ? escapeHtml(guide.invoice) : "your invoice";
+  const company = companyFor(step.role);
+  const here = state.account.role === step.role;
+  const body = here
+    ? `<p>${escapeHtml(step.text).replaceAll("{invoice}", `<strong>${invoice}</strong>`)}</p>
+       ${step.manual ? `<div class="guide-actions"><button class="button button-primary" type="button" data-guide="next">${step.last ? "Finish" : "Next"}</button></div>` : ""}`
+    : `<p>This step is done as <strong>${escapeHtml(company.name)}</strong>. You are signed in as ${escapeHtml(state.account.name)}.</p>
+       <div class="guide-actions"><button class="button button-primary" type="button" data-guide="switch" data-email="${escapeHtml(company.email || "")}">Switch to ${escapeHtml(company.name)}</button></div>`;
+  panel.innerHTML = `
+    <div class="guide-top"><span class="guide-step">Guided tour · step ${guide.step + 1} of ${GUIDE.length}</span>
+      <span class="guide-actions"><button class="link-button" type="button" data-guide="start">Restart</button><button class="link-button" type="button" data-guide="hide">Hide</button></span></div>
+    <div class="guide-bar"><span style="width:${Math.round(((guide.step) / GUIDE.length) * 100)}%"></span></div>
+    <h2>${escapeHtml(step.title)}</h2>
+    ${body}`;
+}
+
+async function handleGuide(button) {
+  const action = button.dataset.guide;
+  const guide = state.guide || { step: 0 };
+  if (action === "start") saveGuide({ step: 0 });
+  if (action === "hide") saveGuide({ ...guide, hidden: true });
+  if (action === "next") {
+    const step = GUIDE[guide.step];
+    saveGuide(step?.last ? { ...guide, done: true } : { ...guide, step: guide.step + 1 });
+  }
+  if (action === "switch" && button.dataset.email) {
+    await fetch("/api/v1/auth/logout", { method: "POST" }).catch(() => {});
+    window.location.replace(`/login?use=${encodeURIComponent(button.dataset.email)}&go=1`);
+    return;
+  }
+  renderGuide();
+}
+
 async function start() {
   const me = await fetch("/api/v1/auth/me").catch(() => undefined);
   if (me?.status === 401) {
@@ -905,8 +1034,18 @@ async function start() {
     }
     state.role = state.account.role;
   }
+  if (state.account) {
+    try {
+      const response = await fetch("/api/v1/auth/demo-accounts");
+      state.demoAccounts = response.ok ? (await response.json()).accounts || [] : [];
+    } catch {
+      state.demoAccounts = [];
+    }
+    state.guide = loadGuide() || { step: 0 };
+  }
   bindEvents();
   render();
+  renderGuide();
   await loadSelectedRole();
 }
 

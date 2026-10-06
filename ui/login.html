@@ -73,7 +73,12 @@
           </div>`).join("");
         const wanted = new URLSearchParams(location.search).get("use");
         const preset = accounts.find((account) => account.email === wanted);
-        if (preset) { $("email").value = preset.email; $("password").value = preset.password; }
+        if (preset) {
+          $("email").value = preset.email;
+          $("password").value = preset.password;
+          // The guided tour's "Switch to" button signs straight in as the next company.
+          if (new URLSearchParams(location.search).get("go") === "1") $("signin").requestSubmit();
+        }
         $("demoList").addEventListener("click", (event) => {
           const button = event.target.closest("button[data-index]");
           if (!button) return;

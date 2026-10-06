@@ -54,7 +54,7 @@ body { background: var(--paper); }
 .hint { font-size: 0.8rem; color: var(--muted); }
 .checks { display: flex; flex-wrap: wrap; gap: 8px; }
 .checks label { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 4px; background: #fff; font-size: 0.9rem; text-transform: none; letter-spacing: 0; color: var(--ink); }
-.checks input { accent-color: var(--blue); }
+.checks input { accent-color: var(--blue); width: auto; height: auto; }
 .form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 18px; }
 .button { height: 40px; padding: 0 16px; border-radius: 4px; border: 1px solid var(--ink); font-weight: 600; font-size: 0.9rem; transition: background 0.15s ease, color 0.15s ease; }
 .button-primary { background: var(--ink); color: var(--paper); }
@@ -125,3 +125,15 @@ body { background: var(--paper); }
   .steps { overflow-x: auto; }
   .side-nav.account { flex-wrap: wrap; overflow: visible; align-items: center; }
 }
+
+/* Guided tour */
+.guide { margin: 20px 0 0; padding: 18px 20px; background: var(--blue-wash); border: 1px solid #c9d2f6; border-radius: 4px; display: grid; gap: 8px; }
+.guide .guide-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.guide .guide-step { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue); }
+.guide h2 { font-family: var(--serif); font-weight: 400; font-size: 1.45rem; line-height: 1.15; }
+.guide p { color: var(--ink-soft); max-width: 70ch; }
+.guide .guide-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 4px; }
+.guide .guide-bar { height: 3px; background: #c9d2f6; border-radius: 2px; overflow: hidden; }
+.guide .guide-bar span { display: block; height: 100%; background: var(--blue); transition: width 0.3s ease; }
+.guide-launch { margin-top: 14px; }
+
