@@ -273,13 +273,23 @@ export class LedgerApi {
         verbose: true,
       },
     };
-    const responses = await this.request<ActiveContractResponse[]>(
-      "/v2/state/active-contracts",
-      {
-        method: "POST",
-        body: JSON.stringify(body),
-      },
-    );
+    let responses: ActiveContractResponse[];
+    try {
+      responses = await this.request<ActiveContractResponse[]>(
+        "/v2/state/active-contracts",
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      );
+    } catch (error) {
+      // The JSON API refuses a list longer than its node limit (200 on LocalNet). The
+      // WebSocket form of the same query has no such limit.
+      if (!(error instanceof LedgerApiError && error.code === "JSON_API_MAXIMUM_LIST_ELEMENTS_NUMBER_REACHED")) {
+        throw error;
+      }
+      responses = await this.streamActiveContracts(body);
+    }
 
     const contracts = responses.flatMap((response) => {
       const active = response.contractEntry?.JsActiveContract;
@@ -301,6 +311,51 @@ export class LedgerApi {
     return contracts.filter(
       (contract) => contract.templateId.split(":", 1)[0] === this.config.packageId,
     );
+  }
+
+  private async streamActiveContracts(body: unknown): Promise<ActiveContractResponse[]> {
+    const token = await this.tokens.token();
+    const url = `${this.config.ledgerApiUrl.replace(/^http/, "ws")}/v2/state/active-contracts`;
+    // The token protocol must come before daml.ws.auth, or the participant rejects it.
+    const protocols = token ? [`jwt.token.${token}`, "daml.ws.auth"] : ["daml.ws.auth"];
+    return new Promise((resolve, reject) => {
+      const socket = new WebSocket(url, protocols);
+      const entries: ActiveContractResponse[] = [];
+      let failed = false;
+      const timer = setTimeout(() => {
+        failed = true;
+        socket.close();
+        reject(new LedgerApiError(0, { code: "ACTIVE_CONTRACT_STREAM_TIMEOUT" }));
+      }, 60_000);
+      socket.onopen = () => socket.send(JSON.stringify(body));
+      socket.onmessage = (message) => {
+        let entry: Record<string, unknown>;
+        try {
+          entry = JSON.parse(String(message.data)) as Record<string, unknown>;
+        } catch {
+          return;
+        }
+        if (typeof entry.code === "string" && !("contractEntry" in entry)) {
+          failed = true;
+          clearTimeout(timer);
+          socket.close();
+          reject(new LedgerApiError(500, entry));
+          return;
+        }
+        entries.push(entry as ActiveContractResponse);
+      };
+      socket.onerror = () => {
+        if (failed) return;
+        failed = true;
+        clearTimeout(timer);
+        reject(new LedgerApiError(0, { code: "ACTIVE_CONTRACT_STREAM_FAILED" }));
+      };
+      socket.onclose = () => {
+        if (failed) return;
+        clearTimeout(timer);
+        resolve(entries);
+      };
+    });
   }
 
   async create(
