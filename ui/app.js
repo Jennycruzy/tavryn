@@ -7,6 +7,10 @@ const ROLE_CONTEXT = {
 };
 
 const state = {
+  // The signed-in company, when the server runs with company accounts.
+  account: null,
+  documents: new Set(),
+  upload: null,
   role: roleFromHash(),
   contracts: {},
   network: null,
@@ -41,6 +45,9 @@ async function api(path, options = {}, authRetry = false) {
   let payload = {};
   if (text) {
     try { payload = JSON.parse(text); } catch { payload = {}; }
+  }
+  if (response.status === 401 && payload?.code === "ACCOUNT_REQUIRED") {
+    window.location.replace("/login");
   }
   if (response.status === 401 && payload?.code === "DEMO_AUTH_REQUIRED" && !authRetry) {
     const passphrase = window.prompt("Enter the demo passphrase");
@@ -81,6 +88,13 @@ function friendlyError(status, payload) {
     DEMO_AUTH_REQUIRED: "Please sign in to use the demo.",
     DEMO_AUTH_FAILED: "That passphrase isn't right.",
     WRITE_RATE_LIMITED: "Too many changes at once. Please wait a minute and try again.",
+    FORBIDDEN: "Your company can't do that.",
+    ACCOUNT_REQUIRED: "Please sign in again.",
+    DUPLICATE_DOCUMENT: payload?.error || "This exact file was already submitted for another invoice.",
+    INVOICE_HAS_DOCUMENT: "This invoice number already has a different file attached.",
+    DOCUMENT_TOO_LARGE: "The file must be under 1 MB.",
+    DOCUMENT_TYPE_UNSUPPORTED: "Upload a PDF, PNG or JPEG file.",
+    DOCUMENT_NOT_FOUND: "That file isn't available. Upload it again.",
   };
   if (payload?.code === "GOVERNANCE_THRESHOLD_NOT_MET") {
     const have = payload.approvals ?? "not enough";
@@ -113,6 +127,7 @@ function isFinancier(role) {
 }
 
 function roleLabel(role) {
+  if (state.account && role === state.account.role && role !== "operator") return state.account.name;
   if (isFinancier(role)) return `Lender ${role.slice("financier".length)}`;
   return { supplier: "Supplier", buyer: "Buyer", auditor: "Auditor", operator: "Network admins" }[role] || role;
 }
@@ -239,11 +254,27 @@ async function loadRole(role) {
   render();
 }
 
+async function loadDocuments() {
+  try {
+    const result = await api("/api/v1/documents");
+    state.documents = new Set(result.invoices || []);
+  } catch {
+    state.documents = new Set();
+  }
+}
+
+function documentLink(invoiceNumber) {
+  return state.documents.has(invoiceNumber)
+    ? `<a class="link-button" href="/api/v1/documents/${encodeURIComponent(invoiceNumber)}" target="_blank" rel="noopener">View invoice file ${escapeHtml(invoiceNumber)}</a>`
+    : "";
+}
+
 async function loadSelectedRole() {
   setLoading(true);
   try {
     await loadNetwork();
     renderRoleButtons();
+    await loadDocuments();
     await loadRole(state.role);
   } catch (error) {
     setResult({ ok: false, title: "Couldn't load this view", message: error.message });
@@ -281,6 +312,17 @@ function roleIcon(role) {
 }
 
 function renderRoleButtons() {
+  if (state.account) {
+    const role = state.account.role;
+    const kind = role === "operator" ? `Network admin ${state.account.operatorIndex}`
+      : isFinancier(role) ? "Lender" : { supplier: "Supplier", buyer: "Buyer", auditor: "Auditor" }[role] || role;
+    $("roleButtons").classList.add("account");
+    $("roleButtons").innerHTML = `<p class="side-group">Your company</p>
+      <button class="role-button active" type="button" aria-selected="true">${roleIcon(role)}${escapeHtml(state.account.name)}</button>
+      <p class="hint" style="padding: 4px 10px">${escapeHtml(kind)} · ${escapeHtml(state.account.email)}</p>
+      <button class="link-button" type="button" id="signOut" style="padding: 4px 10px">Sign out</button>`;
+    return;
+  }
   const button = (role) =>
     `<button class="role-button" data-role="${escapeHtml(role)}" type="button">${roleIcon(role)}${escapeHtml(roleLabel(role))}</button>`;
   $("roleButtons").innerHTML = [
@@ -301,13 +343,14 @@ function roleFromHash() {
 }
 
 function render() {
-  document.querySelectorAll(".role-button").forEach((button) => {
+  document.querySelectorAll(".role-button[data-role]").forEach((button) => {
     const active = button.dataset.role === state.role;
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
   });
   $("roleContext").textContent = ROLE_CONTEXT[isFinancier(state.role) ? "lender" : state.role];
-  $("pageTitle").textContent = roleLabel(state.role);
+  $("pageTitle").textContent = state.account?.role === "operator" ? `Network admin ${state.account.operatorIndex}` : roleLabel(state.role);
+  $("pageKicker").textContent = state.account ? "Signed in as" : "Demo workspace · viewing as";
   document.title = `${roleLabel(state.role)} · Tavryn`;
   renderNetwork();
   renderActionPanel();
@@ -320,12 +363,27 @@ function render() {
 function renderSteps() {
   $("steps").hidden = state.role === "operator";
   const order = ["draft", "approved", "offered", "funded", "repaid"];
-  const target = order.indexOf(state.currentStep);
+  const target = order.indexOf(state.account ? stepFromContracts() : state.currentStep);
   document.querySelectorAll("#steps li").forEach((element) => {
     const index = order.indexOf(element.dataset.step);
     element.classList.toggle("complete", index < target);
     element.classList.toggle("current", index === target);
   });
+}
+
+// With company accounts each sign-in starts fresh, so progress follows the company's
+// most recent record instead of the last click.
+function stepFromContracts() {
+  const steps = {
+    InvoiceDraft: "draft", ApprovedInvoice: "approved", FinancingOffer: "offered",
+    PendingFunding: "funded", FinancedInvoice: "funded", FundingReceipt: "funded",
+    PendingRepayment: "repaid", RepaymentReceipt: "repaid",
+  };
+  for (const contract of state.contracts[state.role] || []) {
+    const step = steps[templateName(contract)];
+    if (step) return step;
+  }
+  return "draft";
 }
 
 function renderNetwork() {
@@ -346,6 +404,7 @@ function renderActionPanel() {
     ? "Offers for you"
     : { supplier: "Invoices", buyer: "Approvals and repayments", auditor: "Records", operator: "Network rules" }[state.role];
   $("actionBody").innerHTML = actionMarkup();
+  updatePaymentFields();
 }
 
 function actionMarkup() {
@@ -368,8 +427,13 @@ function supplierActions() {
     <form class="action-form" data-action="create-draft">
       <p class="form-title">New invoice</p>
       <div class="form-grid">
+        <div class="field wide"><label for="invoiceFile">Invoice file (PDF or photo, optional)</label><input id="invoiceFile" type="file" accept="application/pdf,image/png,image/jpeg" /><span class="hint" id="uploadStatus">We read the number, amount and dates from a PDF where we can. Check them before you create the invoice.</span></div>
         <div class="field"><label for="externalInvoiceNumber">Invoice number</label><input id="externalInvoiceNumber" name="externalInvoiceNumber" value="INV-${Date.now().toString().slice(-6)}" required /></div>
-        <div class="field"><label for="faceValue">Amount (${escapeHtml(currency())})</label><input id="faceValue" name="faceValue" inputmode="decimal" placeholder="1.00" required /></div>
+        <div class="field"><label for="invoiceCurrency">Currency</label><select id="invoiceCurrency" name="currency">
+          <option value="NGN">NGN · bank transfer</option>
+          <option value="${escapeHtml(currency())}">${escapeHtml(currency())} · Canton Coin</option>
+        </select></div>
+        <div class="field"><label for="faceValue">Amount</label><input id="faceValue" name="faceValue" inputmode="decimal" placeholder="e.g. 4800000" required /></div>
         <div class="field"><label for="issuedDate">Issue date</label><input id="issuedDate" name="issuedDate" type="date" value="${isoDate(0)}" required /></div>
         <div class="field"><label for="dueDate">Due date</label><input id="dueDate" name="dueDate" type="date" value="${isoDate(60)}" required /></div>
       </div>
@@ -407,7 +471,7 @@ function buyerActions() {
     <form class="action-form" data-action="approve">
       <p class="form-title">Approve an invoice</p>
       <div class="form-grid">
-        <div class="field wide"><label for="draftCid">Invoice</label><select id="draftCid" name="draftCid" required>${optionList(drafts, "Choose an invoice to approve", draftLabel)}</select></div>
+        <div class="field wide"><label for="draftCid">Invoice</label><select id="draftCid" name="draftCid" required>${optionList(drafts, "Choose an invoice to approve", draftLabel)}</select><span id="draftFile"></span></div>
         <div class="field wide"><span class="label">Lenders who may finance it</span><div class="checks">${lenders.map((role) =>
           `<label><input type="checkbox" name="eligible" value="${escapeHtml(role)}" ${role === "financierC" ? "" : "checked"} /> ${escapeHtml(roleLabel(role))}</label>`).join("")}</div></div>
       </div>
@@ -419,6 +483,7 @@ function buyerActions() {
       <div class="form-grid">
         <div class="field wide"><label for="financedCid">Invoice</label><select id="financedCid" name="financedCid" required>${optionList(financed, "Choose an invoice", financedLabel)}</select></div>
         <div class="field"><label for="repaymentDate">Payment date</label><input id="repaymentDate" name="repaymentDate" type="date" value="${isoDate(0)}" required /></div>
+        <div class="field" id="repayReferenceField" hidden><label for="repayReference">Bank transfer reference</label><input id="repayReference" name="paymentReference" placeholder="e.g. NIP reference" /></div>
       </div>
       <div class="form-actions"><button class="button button-primary" type="submit">Repay</button><span class="hint">Paying early is fine. A retry never pays twice.</span></div>
     </form>` : ""}
@@ -435,7 +500,8 @@ function lenderActions() {
   return `
     ${offers.length ? `
     <form class="action-form" data-action="fund">
-      <div class="form-grid"><div class="field wide"><label for="offerCid">Offer</label><select id="offerCid" name="offerCid" required>${optionList(offers, "Choose an offer", offerLabel)}</select></div></div>
+      <div class="form-grid"><div class="field wide"><label for="offerCid">Offer</label><select id="offerCid" name="offerCid" required>${optionList(offers, "Choose an offer", offerLabel)}</select><span id="offerFile"></span></div>
+        <div class="field wide" id="fundReferenceField" hidden><label for="fundReference">Bank transfer reference</label><input id="fundReference" name="paymentReference" placeholder="The reference of your transfer to the supplier" /><span class="hint">Naira moves by bank transfer. Tavryn records your reference and locks the invoice to you.</span></div></div>
       <div class="form-actions"><button class="button button-primary" type="submit">Finance this invoice</button><span class="hint">You pay the supplier now and the buyer repays you by the due date.</span></div>
     </form>` : `<div class="notice"><strong>No open offers</strong>Offers made to you will appear here.</div>`}
     ${closed.length ? `<div class="notice"><strong>${closed.length === 1 ? "1 offer is" : `${closed.length} offers are`} no longer available</strong>Another lender financed ${closed.length === 1 ? "that invoice" : "those invoices"} first. You aren't told who, or at what price.</div>` : ""}
@@ -449,7 +515,7 @@ function adminActions() {
   }
   const proposals = network.proposals.length
     ? network.proposals.map((proposal) => {
-      const buttons = network.operators.map((operator) => {
+      const buttons = network.operators.filter((operator) => !state.account || String(operator.index) === String(state.account.operatorIndex)).map((operator) => {
         const voted = proposal.votes.includes(operator.index);
         return `<button class="button button-secondary" type="button" data-governance="vote" data-proposal="${escapeHtml(proposal.contractId)}" data-operator="${operator.index}" ${voted ? 'data-locked="true" disabled' : ""}>${voted ? `Admin ${operator.index} approved` : `Approve as Admin ${operator.index}`}</button>`;
       }).join("");
@@ -474,7 +540,7 @@ function adminActions() {
         </select></div>
         <div class="field" data-for="lender"><label for="proposalFinancier">Lender</label><select id="proposalFinancier" name="financierRole">${lenderOptions(financierRoles())}</select></div>
         <div class="field" data-for="rate" hidden><label for="proposalRate">Maximum advance (%)</label><input id="proposalRate" name="rate" inputmode="decimal" placeholder="90" /></div>
-        <div class="field"><label for="proposalOperator">Proposed by</label><select id="proposalOperator" name="operatorIndex">${network.operators.map((operator) => `<option value="${operator.index}">Admin ${operator.index}</option>`).join("")}</select></div>
+        <div class="field" ${state.account ? "hidden" : ""}><label for="proposalOperator">Proposed by</label><select id="proposalOperator" name="operatorIndex">${network.operators.filter((operator) => !state.account || String(operator.index) === String(state.account.operatorIndex)).map((operator) => `<option value="${operator.index}">Admin ${operator.index}</option>`).join("")}</select></div>
       </div>
       <div class="form-actions"><button class="button button-secondary" type="submit">Propose</button><span class="hint">${network.threshold} of ${network.operators.length} admins must approve before it applies.</span></div>
     </form>
@@ -499,7 +565,7 @@ function activityItem(contract) {
   const terms = arg.terms || termsFor(arg.invoiceCommitment);
   const lender = isFinancier(state.role) ? "You" : lenderName(arg.financier);
   // Off-network payments are in the invoice's own currency, when this view knows it.
-  const unit = (instrument) => (instrument === "OFF_LEDGER" ? (terms?.currency ?? "") : instrument);
+  const unit = (instrument) => (instrument === "OFF_LEDGER" ? (terms?.currency ?? "by bank transfer") : instrument);
   switch (templateName(contract)) {
     case "InvoiceDraft":
       return [`${invoiceLabel(arg.terms)} · ${money(arg.terms.faceValue, arg.terms.currency)}`, `Due ${niceDate(arg.terms.dueDate)}`, "Waiting for approval", "wait"];
@@ -519,11 +585,11 @@ function activityItem(contract) {
       return [`${invoiceLabel(arg.terms)} · financed`, `${lender} advanced ${money(arg.advance, arg.terms.currency)} · repayment due ${niceDate(arg.terms.dueDate)}`, "Financed", "good"];
     case "FundingReceipt":
       return [`Payment made · ${money(arg.settlementAmount, unit(arg.instrument))}`,
-        `${lender} paid the supplier${arg.instrument === "OFF_LEDGER" ? " outside the network" : ""}`, "Paid", "good"];
+        `${lender} paid the supplier${arg.instrument === "OFF_LEDGER" ? ` by bank transfer · ref ${arg.paymentReference}` : ""}`, "Paid", "good"];
     case "PendingRepayment":
       return [`Repayment on its way · ${invoiceLabel(arg.terms)}`, money(arg.settlementAmount, arg.instrument), "In progress", "wait"];
     case "RepaymentReceipt":
-      return [`Repaid · ${money(arg.amount, unit(arg.instrument))}`, `On ${niceDate(arg.repaymentDate)}${arg.early ? ", before the due date" : ""}`, "Repaid", "good"];
+      return [`Repaid · ${money(arg.amount, unit(arg.instrument))}`, `On ${niceDate(arg.repaymentDate)}${arg.early ? ", before the due date" : ""}${arg.instrument === "OFF_LEDGER" ? ` · ref ${arg.paymentReference}` : ""}`, "Repaid", "good"];
     default:
       return null;
   }
@@ -593,8 +659,17 @@ async function handleAction(form) {
     let result;
     if (action === "create-draft") {
       const number = value("externalInvoiceNumber");
-      result = await api("/api/v1/invoices/drafts", { method: "POST", body: JSON.stringify({ terms: { externalInvoiceNumber: number, faceValue: value("faceValue"), currency: currency(), issuedDate: value("issuedDate"), dueDate: value("dueDate") } }) });
+      if (state.upload?.duplicateOf && state.upload.duplicateOf !== number) {
+        throw new Error(`This exact file was already submitted as invoice ${state.upload.duplicateOf}.`);
+      }
+      const amountValue = value("faceValue").replaceAll(",", "");
+      result = await api("/api/v1/invoices/drafts", { method: "POST", body: JSON.stringify({
+        terms: { externalInvoiceNumber: number, faceValue: amountValue, currency: value("currency") || currency(), issuedDate: value("issuedDate"), dueDate: value("dueDate") },
+        ...(state.upload ? { documentSha256: state.upload.sha256 } : {}),
+      }) });
       state.currentStep = "draft";
+      state.upload = null;
+      await loadDocuments();
       await loadRole("supplier");
       setResult({ ok: true, title: "Invoice created", message: `${number} is waiting for the buyer's approval.`, updateId: result.updateId });
     } else if (action === "approve") {
@@ -617,15 +692,35 @@ async function handleAction(form) {
       await loadRole("supplier");
       setResult({ ok: true, title: "Offer sent", message: `${roleLabel(value("financierRole"))} can now see this offer. No other lender can.`, updateId: result.updateId });
     } else if (action === "fund") {
-      result = await api(`/api/v1/offers/${encodeURIComponent(value("offerCid"))}/fund`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
-      state.currentStep = "funded";
-      await loadRole(state.role);
-      setResult({ ok: true, title: "Invoice financed", message: `You paid ${money(result.cashTransfer?.amount)} to the supplier. No one else can finance this invoice now.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+      const offer = contractsFor(state.role, "FinancingOffer").find((contract) => contractId(contract) === value("offerCid"));
+      const terms = offer ? argument(offer).terms : undefined;
+      if (terms && terms.currency !== currency()) {
+        if (!value("paymentReference")) throw new Error("Enter the reference of your bank transfer to the supplier.");
+        result = await api(`/api/v1/offers/${encodeURIComponent(value("offerCid"))}/accept`, { method: "POST", body: JSON.stringify({ financierRole: state.role, paymentReference: value("paymentReference") }) });
+        state.currentStep = "funded";
+        await loadRole(state.role);
+        setResult({ ok: true, title: "Invoice financed", message: `Your transfer ${value("paymentReference")} is recorded. No one else can finance this invoice now.`, updateId: result.updateId });
+      } else {
+        result = await api(`/api/v1/offers/${encodeURIComponent(value("offerCid"))}/fund`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
+        state.currentStep = "funded";
+        await loadRole(state.role);
+        setResult({ ok: true, title: "Invoice financed", message: `You paid ${money(result.cashTransfer?.amount)} to the supplier. No one else can finance this invoice now.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+      }
     } else if (action === "repay") {
-      result = await api(`/api/v1/financed/${encodeURIComponent(value("financedCid"))}/settle-repay`, { method: "POST", body: JSON.stringify({ repaymentDate: value("repaymentDate") }) });
-      state.currentStep = "repaid";
-      await loadRole("buyer");
-      setResult({ ok: true, title: "Lender repaid", message: `${money(result.cashTransfer?.amount)} paid. The invoice is closed.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+      const financed = contractsFor("buyer", "FinancedInvoice").find((contract) => contractId(contract) === value("financedCid"));
+      const terms = financed ? argument(financed).terms : undefined;
+      if (terms && terms.currency !== currency()) {
+        if (!value("paymentReference")) throw new Error("Enter the reference of your bank transfer to the lender.");
+        result = await api(`/api/v1/financed/${encodeURIComponent(value("financedCid"))}/repay`, { method: "POST", body: JSON.stringify({ repaymentDate: value("repaymentDate"), paymentReference: value("paymentReference") }) });
+        state.currentStep = "repaid";
+        await loadRole("buyer");
+        setResult({ ok: true, title: "Lender repaid", message: `Your transfer ${value("paymentReference")} is recorded. The invoice is closed.`, updateId: result.updateId });
+      } else {
+        result = await api(`/api/v1/financed/${encodeURIComponent(value("financedCid"))}/settle-repay`, { method: "POST", body: JSON.stringify({ repaymentDate: value("repaymentDate") }) });
+        state.currentStep = "repaid";
+        await loadRole("buyer");
+        setResult({ ok: true, title: "Lender repaid", message: `${money(result.cashTransfer?.amount)} paid. The invoice is closed.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+      }
     } else if (action === "propose") {
       const type = value("type");
       let proposal;
@@ -661,7 +756,7 @@ async function handleGovernance(button) {
       await loadNetwork();
       setResult({ ok: true, title: "Approval recorded", message: `Admin ${operatorIndex} approved the change.`, updateId: result.updateId });
     } else {
-      result = await api(`/api/v1/governance/proposals/${encodeURIComponent(proposal)}/execute`, { method: "POST", body: JSON.stringify({ operatorIndex: "1" }) });
+      result = await api(`/api/v1/governance/proposals/${encodeURIComponent(proposal)}/execute`, { method: "POST", body: JSON.stringify({ operatorIndex: state.account?.operatorIndex || "1" }) });
       await loadNetwork();
       setResult({ ok: true, title: "Rules changed", message: "Enough admins approved, so the new rule now applies to everyone.", updateId: result.updateId });
     }
@@ -696,12 +791,18 @@ function updateAdvanceHint() {
 }
 
 function bindEvents() {
-  $("roleButtons").addEventListener("click", (event) => {
+  $("roleButtons").addEventListener("click", async (event) => {
+    if (event.target.id === "signOut") {
+      await fetch("/api/v1/auth/logout", { method: "POST" }).catch(() => {});
+      window.location.replace("/login");
+      return;
+    }
     const button = event.target.closest("button[data-role]");
     if (!button || state.loading) return;
     window.location.hash = button.dataset.role;
   });
   window.addEventListener("hashchange", async () => {
+    if (state.account) return;
     const role = roleFromHash();
     if (role === state.role) return;
     state.role = role;
@@ -720,9 +821,14 @@ function bindEvents() {
     if (button && !state.loading) handleGovernance(button);
   });
   $("actionPanel").addEventListener("input", updateAdvanceHint);
-  $("actionPanel").addEventListener("change", () => {
+  $("actionPanel").addEventListener("change", (event) => {
+    if (event.target.id === "invoiceFile") {
+      handleInvoiceFile(event.target.files?.[0]);
+      return;
+    }
     updateAdvanceHint();
     updateProposalFields();
+    updatePaymentFields();
   });
   $("contractsList").addEventListener("click", (event) => {
     if (event.target.id !== "toggleActivity") return;
@@ -732,9 +838,168 @@ function bindEvents() {
 }
 
 async function start() {
+  const me = await fetch("/api/v1/auth/me").catch(() => undefined);
+  if (me?.status === 401) {
+    window.location.replace("/login");
+    return;
+  }
+  if (me?.ok) {
+    state.account = (await me.json()).account;
+    state.role = state.account.role;
+  }
   bindEvents();
   render();
   await loadSelectedRole();
+}
+
+// Shows the bank-reference field when the chosen invoice is in naira, and a link to
+// the invoice file when one was attached.
+function updatePaymentFields() {
+  const offerSelect = $("offerCid");
+  if (offerSelect) {
+    const offer = contractsFor(state.role, "FinancingOffer").find((contract) => contractId(contract) === offerSelect.value);
+    const terms = offer ? argument(offer).terms : undefined;
+    $("fundReferenceField").hidden = !terms || terms.currency === currency();
+    $("offerFile").innerHTML = terms ? documentLink(terms.externalInvoiceNumber) : "";
+  }
+  const financedSelect = $("financedCid");
+  if (financedSelect) {
+    const financed = contractsFor("buyer", "FinancedInvoice").find((contract) => contractId(contract) === financedSelect.value);
+    const terms = financed ? argument(financed).terms : undefined;
+    $("repayReferenceField").hidden = !terms || terms.currency === currency();
+  }
+  const draftSelect = $("draftCid");
+  if (draftSelect) {
+    const draft = contractsFor("buyer", "InvoiceDraft").find((contract) => contractId(contract) === draftSelect.value);
+    $("draftFile").innerHTML = draft ? documentLink(argument(draft).terms.externalInvoiceNumber) : "";
+  }
+}
+
+// ------------------------------------------------------------------ invoice files
+
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174";
+
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `${PDFJS}/pdf.min.js`;
+    script.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS}/pdf.worker.min.js`;
+      resolve(window.pdfjsLib);
+    };
+    script.onerror = () => reject(new Error("Couldn't load the PDF reader."));
+    document.head.appendChild(script);
+  });
+}
+
+async function pdfText(file) {
+  const pdfjs = await loadPdfJs();
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+  for (let index = 1; index <= Math.min(pdf.numPages, 3); index += 1) {
+    const content = await (await pdf.getPage(index)).getTextContent();
+    pages.push(content.items.map((item) => item.str).join(" "));
+  }
+  return pages.join(" ").replace(/\s+/g, " ");
+}
+
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+
+function parseDate(text) {
+  if (!text) return "";
+  let match = /(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  match = /(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/.exec(text);
+  if (match) return `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+  match = /(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3})[a-z]*\.?,?\s+(\d{4})/.exec(text);
+  if (match && MONTHS[match[2].toLowerCase()]) return `${match[3]}-${String(MONTHS[match[2].toLowerCase()]).padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+  match = /([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/.exec(text);
+  if (match && MONTHS[match[1].toLowerCase()]) return `${match[3]}-${String(MONTHS[match[1].toLowerCase()]).padStart(2, "0")}-${match[2].padStart(2, "0")}`;
+  return "";
+}
+
+const DATE = "(\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[\\/.]\\d{1,2}[\\/.]\\d{4}|\\d{1,2}(?:st|nd|rd|th)?\\s+[A-Za-z]{3,9}\\.?,?\\s+\\d{4}|[A-Za-z]{3,9}\\.?\\s+\\d{1,2},?\\s+\\d{4})";
+
+// Best-effort reading of a text PDF. The supplier always checks and corrects the result.
+function extractFields(text) {
+  const found = {};
+  const number = /invoice\s*(?:no\.?|number|num\.?|#)\s*[:.]?\s*([A-Z0-9][A-Z0-9\-\/_.]{2,})/i.exec(text);
+  if (number) found.number = number[1].replace(/[.,]$/, "");
+  const amounts = [...text.matchAll(/(amount due|total due|balance due|grand total|invoice total|total)[^0-9]{0,30}?([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/gi)];
+  const preferred = amounts.filter((match) => /due|grand/i.test(match[1]));
+  const chosen = (preferred.length ? preferred : amounts).at(-1);
+  if (chosen) found.amount = chosen[2].replaceAll(",", "");
+  if (/₦|\bNGN\b/.test(text)) found.currency = "NGN";
+  const issued = new RegExp(`(?:invoice date|date of issue|issue date|issued(?: on)?|date)\\s*[:.]?\\s*${DATE}`, "i").exec(text);
+  if (issued) found.issued = parseDate(issued[1]);
+  const due = new RegExp(`(?:due date|payment due|due on|due)\\s*[:.]?\\s*${DATE}`, "i").exec(text);
+  if (due) found.due = parseDate(due[1]);
+  const net = /net\s*(\d{1,3})\b/i.exec(text);
+  if (!found.due && net && found.issued) {
+    found.due = new Date(Date.parse(`${found.issued}T00:00:00Z`) + Number(net[1]) * 86_400_000).toISOString().slice(0, 10);
+  }
+  return found;
+}
+
+// Photos over the upload limit are re-encoded smaller in the browser.
+async function shrinkImage(file, limit) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  for (const quality of [0.85, 0.7, 0.55, 0.4]) {
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    if (blob && blob.size <= limit) return new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" });
+  }
+  throw new Error("This photo is too large even after shrinking. Try a smaller photo.");
+}
+
+async function handleInvoiceFile(file) {
+  const status = $("uploadStatus");
+  state.upload = null;
+  if (!file) return;
+  const LIMIT = 950_000;
+  try {
+    status.textContent = "Reading the file…";
+    let upload = file;
+    const filled = [];
+    if (file.type === "application/pdf") {
+      if (file.size > LIMIT) throw new Error("PDFs must be under 1 MB.");
+      const fields = extractFields(await pdfText(file).catch(() => ""));
+      if (fields.number) { $("externalInvoiceNumber").value = fields.number; filled.push("number"); }
+      if (fields.amount) { $("faceValue").value = fields.amount; filled.push("amount"); }
+      if (fields.currency) $("invoiceCurrency").value = fields.currency;
+      if (fields.issued) { $("issuedDate").value = fields.issued; filled.push("issue date"); }
+      if (fields.due) { $("dueDate").value = fields.due; filled.push("due date"); }
+    } else if (file.type === "image/png" || file.type === "image/jpeg") {
+      if (file.size > LIMIT) upload = await shrinkImage(file, LIMIT);
+    } else {
+      throw new Error("Upload a PDF, PNG or JPEG file.");
+    }
+    status.textContent = "Uploading…";
+    const response = await fetch("/api/v1/documents", {
+      method: "POST",
+      headers: { "Content-Type": upload.type, "X-File-Name": encodeURIComponent(upload.name) },
+      body: upload,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new ApiError(response.status, payload);
+    state.upload = { sha256: payload.sha256, duplicateOf: payload.duplicateOf };
+    if (payload.duplicateOf) {
+      status.textContent = `Warning: this exact file was already submitted as invoice ${payload.duplicateOf}. It can't back a second invoice.`;
+      return;
+    }
+    const read = file.type === "application/pdf"
+      ? (filled.length ? `Filled in the ${filled.join(", ")} from the PDF. Check them before you continue.` : "Couldn't read the details from this PDF. Please type them in.")
+      : "Photo attached. Please type in the details.";
+    status.textContent = `${upload.name} attached (fingerprint ${payload.sha256.slice(0, 10)}…). ${read}`;
+  } catch (error) {
+    state.upload = null;
+    status.textContent = error.message || "Couldn't attach this file.";
+  }
 }
 
 start();

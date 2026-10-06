@@ -125,8 +125,13 @@ Developer details (every setting, the automated checks and how it is built) are 
   can't be checked.
 - A lender offered an invoice can see which other lenders were invited to bid on it, but
   never their offers or prices.
-- In this demo one server acts for every company. In real use, each company would run its
-  own connection to the network.
+- Each company signs in to its own account, and the server lets it act only as that
+  company. Behind the server, though, one ledger connection still submits every company's
+  steps. In real use each company would run its own connection to the network and sign
+  its own steps.
+- Invoice files: the app reads the number, amount and dates from a text PDF and the
+  supplier corrects them; photos are attached but not read. The same file cannot back
+  two invoice numbers, a check kept by the Tavryn server, not by the ledger.
 - Five interviews are recorded: two buyers, a bank lender and two suppliers ([VALIDATION](docs/VALIDATION.md#5-conversations-with-users)).
 
 ## Built with AI assistance

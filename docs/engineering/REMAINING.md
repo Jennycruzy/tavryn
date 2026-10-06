@@ -38,12 +38,13 @@ owner decision, or a real human interaction; none of it is claimed without its a
 ## Production roadmap (not shipped)
 
 - One participant or wallet per organization, with single-controller choices so each
-  party signs its own step; OIDC sessions that map a user to a party.
+  party signs its own step. Company sign-in now exists at the server
+  (`backend/src/accounts.ts`); the ledger submission is still one user.
 - Remove rival financier names from shared payloads with explicit disclosure, proven
   across participants.
 - Shard the approval registry; page large role views past the JSON API list limit.
-- Invoice ingestion with extraction and supplier corrections (the corrections a supplier
-  makes today are recorded in `fixtures/invoices/`).
+- Reading photographed invoices (OCR). Text PDFs are read in the browser today and the
+  supplier corrects the result; photos are attached but typed in by hand.
 - Canton Coin repayment on DevNet, once the buyer has a wallet there.
 - Extend the one-claim rule to purchase orders and contracts: a bank lender reported
   borrowers reusing the same contract or expected payment under different invoice

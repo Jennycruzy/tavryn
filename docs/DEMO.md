@@ -1,8 +1,9 @@
 # Demo script (about 4 minutes)
 
-Open the landing page (`/`), then **Try the live demo** (`/app`). Each company has its own
-page in the left sidebar. Every step below is also run automatically by
-`scripts/ui-clickthrough.mjs`, so each one is known to work.
+Open the landing page (`/`), then **Open the app** (`/app`). Each company signs in to its
+own account; the demo logins are listed on the sign-in page. To act as the next company,
+sign out and sign in again. Every step is also run automatically by
+`scripts/ui-accounts-clickthrough.mjs`, so each one is known to work.
 
 | Time | Screen | Say |
 |---|---|---|

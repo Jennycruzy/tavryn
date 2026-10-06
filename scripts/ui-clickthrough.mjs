@@ -92,6 +92,8 @@ try {
   await role("supplier");
   await page.fill("#externalInvoiceNumber", invoiceNumber);
   await page.fill("#faceValue", "1.00");
+  // The form defaults to naira by bank transfer; this run settles in Canton Coin.
+  await page.selectOption("#invoiceCurrency", currency);
   await page.fill("#issuedDate", "2026-09-01");
   await page.fill("#dueDate", "2026-12-01");
   await act(page.locator('form[data-action="create-draft"] button[type="submit"]'));

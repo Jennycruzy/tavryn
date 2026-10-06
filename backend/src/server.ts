@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 import { URL } from "node:url";
 import { resolve, sep } from "node:path";
 
-import { isRole, loadConfig, type Role } from "./config.js";
+import { Accounts, cookieValue, type PublicAccount } from "./accounts.js";
+import { isFinancierRole, isRole, loadConfig, type Role } from "./config.js";
+import { DocumentError, DocumentStore, MAX_DOCUMENT_BYTES } from "./documents.js";
 import { CantonCoinSettlementError } from "./canton-coin.js";
 import {
   LedgerApiError,
@@ -18,7 +20,28 @@ import {
   TavrynService,
 } from "./tavryn-service.js";
 
-export function createTavrynServer(service: TavrynService) {
+interface ServerContext {
+  accounts?: Accounts;
+  documents?: DocumentStore;
+}
+
+// Raised when the signed-in company may not do what it asked.
+class AccessError extends Error {
+  constructor(message: string, readonly publicCode: string, readonly status: number) {
+    super(message);
+    this.name = "AccessError";
+  }
+}
+
+const ACCOUNT_COOKIE = "tavryn_account";
+
+export function createTavrynServer(
+  service: TavrynService,
+  context: ServerContext = {
+    accounts: Accounts.fromEnvironment(),
+    documents: DocumentStore.fromEnvironment(),
+  },
+) {
   const writeLimiter = new WriteRateLimiter(service.writeRateLimit());
   return createServer(async (request, response) => {
     try {
@@ -34,7 +57,7 @@ export function createTavrynServer(service: TavrynService) {
         );
         return;
       }
-      await route(request, response, service);
+      await route(request, response, service, context);
     } catch (error) {
       writeError(response, error);
     }
@@ -45,6 +68,7 @@ async function route(
   request: IncomingMessage,
   response: ServerResponse,
   service: TavrynService,
+  context: ServerContext,
 ): Promise<void> {
   const method = request.method ?? "GET";
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -57,6 +81,19 @@ async function route(
   if (method === "GET" && url.pathname === "/health") {
     const offset = await service.ledgerEnd();
     writeJson(response, 200, { service: "tavryn-backend", ledgerEndOffset: offset });
+    return;
+  }
+
+  const accounts = context.accounts;
+  const account = accounts?.fromToken(cookieValue(request.headers.cookie, ACCOUNT_COOKIE));
+
+  if (parts.join("/").startsWith("api/v1/auth/")) {
+    await authRoute(method, parts.join("/"), request, response, accounts, account);
+    return;
+  }
+
+  if (accounts && parts[0] === "api" && !account) {
+    writeJson(response, 401, { error: "Sign in to continue.", code: "ACCOUNT_REQUIRED" });
     return;
   }
 
@@ -104,6 +141,7 @@ async function route(
 
   if (method === "GET" && parts.length === 5 && path.startsWith("api/v1/roles/") && parts[4] === "contracts") {
     const role = parseRole(service, parts[3]);
+    allow(account, (signedIn) => signedIn.role === role);
     writeJson(response, 200, { role, contracts: await service.contractsForRole(role) });
     return;
   }
@@ -116,7 +154,7 @@ async function route(
   if (method === "POST" && path === "api/v1/governance/proposals") {
     const body = await readJson(request);
     const result = await service.propose(
-      stringField(body, "operatorIndex"),
+      operatorIndexFor(account, body),
       parseGovernanceAction(body.action),
     );
     writeSubmission(response, 201, result);
@@ -125,32 +163,89 @@ async function route(
 
   if (method === "POST" && matches(parts, ["api", "v1", "governance", "proposals", "*", "votes"])) {
     const body = await readJson(request);
-    const result = await service.vote(parts[4], stringField(body, "operatorIndex"));
+    const result = await service.vote(parts[4], operatorIndexFor(account, body));
     writeSubmission(response, 201, result);
     return;
   }
 
   if (method === "POST" && matches(parts, ["api", "v1", "governance", "proposals", "*", "execute"])) {
     const body = await readJson(request);
-    const result = await service.execute(parts[4], stringField(body, "operatorIndex"));
+    const result = await service.execute(parts[4], operatorIndexFor(account, body));
     writeSubmission(response, 200, result);
     return;
   }
 
   if (method === "POST" && path === "api/v1/invoices/drafts") {
+    allow(account, (signedIn) => signedIn.role === "supplier");
     const body = await readJson(request);
-    const result = await service.createInvoiceDraft({
+    const terms = {
       externalInvoiceNumber: stringNestedField(body, "terms", "externalInvoiceNumber"),
       faceValue: stringNestedField(body, "terms", "faceValue"),
       currency: stringNestedField(body, "terms", "currency"),
       issuedDate: stringNestedField(body, "terms", "issuedDate"),
       dueDate: stringNestedField(body, "terms", "dueDate"),
-    });
+    };
+    const documentSha256 = typeof body.documentSha256 === "string" ? body.documentSha256 : undefined;
+    if (documentSha256) {
+      if (!context.documents) {
+        throw new TavrynInputError("Invoice files are not enabled on this server.", "DOCUMENTS_DISABLED");
+      }
+      context.documents.assertLinkable(documentSha256, terms.externalInvoiceNumber);
+    }
+    const result = await service.createInvoiceDraft(terms);
+    if (documentSha256) context.documents?.link(documentSha256, terms.externalInvoiceNumber);
     writeSubmission(response, 201, result);
     return;
   }
 
+  if (path === "api/v1/documents" && method === "POST") {
+    allow(account, (signedIn) => signedIn.role === "supplier");
+    const documents = requireDocuments(context);
+    const body = await readRaw(request, MAX_DOCUMENT_BYTES);
+    const name = decodeHeader(request.headers["x-file-name"]);
+    const type = String(request.headers["content-type"] ?? "").split(";")[0].trim();
+    const stored = documents.upload(body, name, type);
+    writeJson(response, 201, stored);
+    return;
+  }
+
+  if (path === "api/v1/documents" && method === "GET") {
+    const documents = requireDocuments(context);
+    const invoices = documents.invoicesWithDocuments();
+    const visible = account && isFinancierRole(service.config, account.role)
+      ? await invoicesVisibleTo(service, account.role, invoices)
+      : invoices;
+    writeJson(response, 200, { invoices: visible });
+    return;
+  }
+
+  if (method === "GET" && parts.length === 4 && path.startsWith("api/v1/documents/")) {
+    const documents = requireDocuments(context);
+    const invoiceNumber = parts[3];
+    if (account && isFinancierRole(service.config, account.role)) {
+      const visible = await invoicesVisibleTo(service, account.role, [invoiceNumber]);
+      if (!visible.length) throw new AccessError("This invoice was not offered to you.", "FORBIDDEN", 403);
+    } else {
+      allow(account, (signedIn) => ["supplier", "buyer", "auditor"].includes(signedIn.role));
+    }
+    const document = documents.forInvoice(invoiceNumber);
+    if (!document) {
+      writeJson(response, 404, { error: "No file is attached to this invoice.", code: "DOCUMENT_NOT_FOUND" });
+      return;
+    }
+    response.writeHead(200, {
+      "Content-Type": document.meta.type,
+      "Content-Length": document.body.byteLength,
+      "Content-Disposition": `inline; filename="${document.meta.name.replace(/[^\w.\- ]/g, "_")}"`,
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    });
+    response.end(document.body);
+    return;
+  }
+
   if (method === "POST" && matches(parts, ["api", "v1", "invoices", "drafts", "*", "approve"])) {
+    allow(account, (signedIn) => signedIn.role === "buyer");
     const body = await readJson(request);
     const roles = body.eligibleFinancierRoles;
     if (roles !== undefined && (!Array.isArray(roles) || roles.some((role) => typeof role !== "string"))) {
@@ -162,6 +257,7 @@ async function route(
   }
 
   if (method === "POST" && matches(parts, ["api", "v1", "invoices", "approved", "*", "offers"])) {
+    allow(account, (signedIn) => signedIn.role === "supplier");
     const body = await readJson(request);
     const result = await service.createOffer(
       parts[4],
@@ -177,7 +273,7 @@ async function route(
     const body = await readJson(request);
     const result = await service.acceptOffer(
       parts[3],
-      stringField(body, "financierRole"),
+      financierRoleFor(account, body),
       stringField(body, "paymentReference"),
     );
     writeSubmission(response, 200, result);
@@ -186,7 +282,7 @@ async function route(
 
   if (method === "POST" && matches(parts, ["api", "v1", "offers", "*", "fund"])) {
     const body = await readJson(request);
-    const result = await service.fundOffer(parts[3], stringField(body, "financierRole"));
+    const result = await service.fundOffer(parts[3], financierRoleFor(account, body));
     writeSettledSubmission(response, 200, result);
     return;
   }
@@ -202,6 +298,7 @@ async function route(
   }
 
   if (method === "POST" && matches(parts, ["api", "v1", "financed", "*", "repay"])) {
+    allow(account, (signedIn) => signedIn.role === "buyer");
     const body = await readJson(request);
     const result = await service.repay(
       parts[3],
@@ -213,6 +310,7 @@ async function route(
   }
 
   if (method === "POST" && matches(parts, ["api", "v1", "financed", "*", "settle-repay"])) {
+    allow(account, (signedIn) => signedIn.role === "buyer");
     const body = await readJson(request);
     const result = await service.repayWithSettlement(parts[3], stringField(body, "repaymentDate"));
     writeSettledSubmission(response, 200, result);
@@ -231,6 +329,9 @@ async function serveStatic(pathname: string, response: ServerResponse): Promise<
     // The public landing page.
     root = resolve(projectRoot, "ui");
     relativePath = "index.html";
+  } else if (pathname === "/login" || pathname === "/login/") {
+    root = resolve(projectRoot, "ui");
+    relativePath = "login.html";
   } else if (pathname === "/app" || pathname === "/app/") {
     // The product workspace.
     root = resolve(projectRoot, "ui");
@@ -313,6 +414,128 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
     throw new TavrynInputError("Request body must be a JSON object");
   }
   return parsed as Record<string, unknown>;
+}
+
+async function readRaw(request: IncomingMessage, limit: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let length = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    length += buffer.length;
+    if (length > limit) {
+      throw new DocumentError("The file must be under 1 MB.", "DOCUMENT_TOO_LARGE");
+    }
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
+function decodeHeader(value: string | string[] | undefined): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return "";
+  }
+}
+
+async function authRoute(
+  method: string,
+  path: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+  accounts: Accounts | undefined,
+  account: PublicAccount | undefined,
+): Promise<void> {
+  if (!accounts) {
+    writeJson(response, 404, { error: "Company accounts are not enabled on this server.", code: "ACCOUNTS_DISABLED" });
+    return;
+  }
+  if (method === "GET" && path === "api/v1/auth/me") {
+    if (!account) {
+      writeJson(response, 401, { error: "Sign in to continue.", code: "ACCOUNT_REQUIRED" });
+      return;
+    }
+    writeJson(response, 200, { account });
+    return;
+  }
+  if (method === "GET" && path === "api/v1/auth/demo-accounts") {
+    writeJson(response, 200, { accounts: accounts.demoAccounts() });
+    return;
+  }
+  const secure = request.headers["x-forwarded-proto"] === "https" ? "; Secure" : "";
+  if (method === "POST" && path === "api/v1/auth/login") {
+    const body = await readJson(request);
+    const signedIn = accounts.signIn(stringField(body, "email"), stringField(body, "password"));
+    if (!signedIn) {
+      writeJson(response, 401, { error: "That email or password is not right.", code: "SIGN_IN_FAILED" });
+      return;
+    }
+    writeJson(response, 200, { account: signedIn.account }, {
+      "Set-Cookie": `${ACCOUNT_COOKIE}=${encodeURIComponent(signedIn.token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${accounts.sessionSeconds()}${secure}`,
+    });
+    return;
+  }
+  if (method === "POST" && path === "api/v1/auth/logout") {
+    writeJson(response, 200, { signedOut: true }, {
+      "Set-Cookie": `${ACCOUNT_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure}`,
+    });
+    return;
+  }
+  writeJson(response, 404, { error: "Route not found", code: "NOT_FOUND" });
+}
+
+// With accounts enabled, the signed-in company must pass the check; without them the
+// server is open.
+function allow(account: PublicAccount | undefined, check: (account: PublicAccount) => boolean): void {
+  if (account && !check(account)) {
+    throw new AccessError("Your company can't do that.", "FORBIDDEN", 403);
+  }
+}
+
+function financierRoleFor(account: PublicAccount | undefined, body: Record<string, unknown>): string {
+  if (!account) return stringField(body, "financierRole");
+  if (!account.role.startsWith("financier")) {
+    throw new AccessError("Only a lender can finance an invoice.", "FORBIDDEN", 403);
+  }
+  if (typeof body.financierRole === "string" && body.financierRole !== account.role) {
+    throw new AccessError("You can only finance as your own company.", "FORBIDDEN", 403);
+  }
+  return account.role;
+}
+
+function operatorIndexFor(account: PublicAccount | undefined, body: Record<string, unknown>): string {
+  if (!account) return stringField(body, "operatorIndex");
+  if (account.role !== "operator" || !account.operatorIndex) {
+    throw new AccessError("Only a network admin can do that.", "FORBIDDEN", 403);
+  }
+  if (typeof body.operatorIndex === "string" && body.operatorIndex !== account.operatorIndex) {
+    throw new AccessError("You can only act as your own organisation.", "FORBIDDEN", 403);
+  }
+  return account.operatorIndex;
+}
+
+function requireDocuments(context: ServerContext): DocumentStore {
+  if (!context.documents) {
+    throw new TavrynInputError("Invoice files are not enabled on this server.", "DOCUMENTS_DISABLED");
+  }
+  return context.documents;
+}
+
+// A lender may open an invoice file only for invoices that appear in its own view.
+async function invoicesVisibleTo(
+  service: TavrynService,
+  role: string,
+  invoiceNumbers: string[],
+): Promise<string[]> {
+  const contracts = await service.contractsForRole(role as Role);
+  const seen = new Set<string>();
+  for (const contract of contracts) {
+    const terms = (contract.createArgument as Record<string, any> | undefined)?.terms;
+    if (terms && typeof terms.externalInvoiceNumber === "string") seen.add(terms.externalInvoiceNumber);
+  }
+  return invoiceNumbers.filter((number) => seen.has(number));
 }
 
 function stringField(body: Record<string, unknown>, field: string): string {
@@ -403,6 +626,14 @@ function writeSettledSubmission(
 function writeError(response: ServerResponse, error: unknown): void {
   if (response.headersSent) {
     response.destroy();
+    return;
+  }
+  if (error instanceof AccessError || error instanceof DocumentError) {
+    writeJson(response, error.status, {
+      error: error.message,
+      code: error.publicCode,
+      ...(error instanceof DocumentError ? error.details ?? {} : {}),
+    });
     return;
   }
   if (error instanceof TavrynInputError) {

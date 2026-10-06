@@ -44,6 +44,17 @@ All settings are listed in [`.env.example`](../.env.example). The main ones:
 Use another settings file with `TAVRYN_ENV_FILE`, for example
 `TAVRYN_ENV_FILE=.env.devnet npm start`. Never commit either file.
 
+## Company accounts and invoice files
+
+Set `TAVRYN_ACCOUNTS_FILE` to an accounts file made by
+`npx tsx scripts/create-accounts.ts <path> [--demo]` (keep it outside the repository).
+Each account belongs to one company; `--demo` publishes fictional demo passwords on the
+sign-in page. Without the setting the server runs open, as the tests expect.
+
+Set `TAVRYN_DOCUMENTS_DIR` to let suppliers attach the invoice PDF or photo (under 1 MB).
+The buyer, the auditor and the lenders offered that invoice can open it. A file already
+attached to one invoice number is refused for another.
+
 ## Starting a demo from a clean page
 
 Set `TAVRYN_VIEW_FROM_OFFSET` to the current ledger end (shown by `GET /health`, plus one)
@@ -94,5 +105,7 @@ it, or releases the invoice if no payment was made. A repayment can never be sen
 | `POST /api/v1/governance/proposals/:id/votes` | admin | Approve it |
 | `POST /api/v1/governance/proposals/:id/execute` | admin | Apply it, if enough admins approved |
 
-In this demo one server acts for every company. In real use each company would run its
-own connection to the network and sign its own steps.
+With company accounts on, each company signs in and the server lets it act only as itself:
+the role comes from the session, never from the request body. One ledger connection still
+submits every company's steps; in real use each company would run its own connection to
+the network and sign its own steps.

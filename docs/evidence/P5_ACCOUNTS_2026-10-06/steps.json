@@ -1,0 +1,97 @@
+{
+  "base": "http://127.0.0.1:18840",
+  "invoiceNumber": "MRL/INV/2026/MUWQMM1X",
+  "steps": [
+    {
+      "step": 1,
+      "name": "sign-in",
+      "note": "Opening the app without a session goes to the sign-in page",
+      "screenshot": "01-sign-in.png",
+      "result": ""
+    },
+    {
+      "step": 2,
+      "name": "supplier-upload",
+      "note": "The PDF fills in the invoice; the supplier checks it",
+      "screenshot": "02-supplier-upload.png",
+      "result": "Results of your actions appear here."
+    },
+    {
+      "step": 3,
+      "name": "supplier-created",
+      "note": "Invoice created with the file attached",
+      "screenshot": "03-supplier-created.png",
+      "result": "Invoice created\n\nMRL/INV/2026/MUWQMM1X is waiting for the buyer's approval.\n\nReferences"
+    },
+    {
+      "step": 4,
+      "name": "buyer-sees-file",
+      "note": "The buyer can open the uploaded invoice before approving",
+      "screenshot": "04-buyer-sees-file.png",
+      "result": "Results of your actions appear here."
+    },
+    {
+      "step": 5,
+      "name": "buyer-approved",
+      "note": "Approved for Lender A and Lender B",
+      "screenshot": "05-buyer-approved.png",
+      "result": "Invoice approved\n\nIt can now be financed once, by Lender A or Lender B.\n\nReferences"
+    },
+    {
+      "step": 6,
+      "name": "supplier-offered",
+      "note": "Private offers to two lenders",
+      "screenshot": "06-supplier-offered.png",
+      "result": "Offer sent\n\nLender B can now see this offer. No other lender can.\n\nReferences"
+    },
+    {
+      "step": 7,
+      "name": "lender-b-offer",
+      "note": "Lender B sees only its own offer",
+      "screenshot": "07-lender-b-offer.png",
+      "result": "Results of your actions appear here."
+    },
+    {
+      "step": 8,
+      "name": "lender-a-financed",
+      "note": "Lender A finances by bank transfer reference",
+      "screenshot": "08-lender-a-financed.png",
+      "result": "Invoice financed\n\nYour transfer NIP-DEMO-MUWQMM1X is recorded. No one else can finance this invoice now.\n\nReferences"
+    },
+    {
+      "step": 9,
+      "name": "lender-b-closed",
+      "note": "Lender B is told the invoice is no longer available",
+      "screenshot": "09-lender-b-closed.png",
+      "result": "Results of your actions appear here."
+    },
+    {
+      "step": 10,
+      "name": "buyer-repaid",
+      "note": "The buyer repays the lender who financed it",
+      "screenshot": "10-buyer-repaid.png",
+      "result": "Lender repaid\n\nYour transfer NIP-REPAY-MUWQMM1X is recorded. The invoice is closed.\n\nReferences"
+    },
+    {
+      "step": 11,
+      "name": "auditor",
+      "note": "The auditor sees the payment references",
+      "screenshot": "11-auditor.png",
+      "result": "Results of your actions appear here."
+    },
+    {
+      "step": 12,
+      "name": "admin-1-refused",
+      "note": "One admin alone cannot change the rules",
+      "screenshot": "12-admin-1-refused.png",
+      "result": "Not enough approvals\n\nNot enough approvals yet (1 of 2). Nothing changed.\n\nReferences"
+    },
+    {
+      "step": 13,
+      "name": "admin-2-applied",
+      "note": "A second organisation approves and the change applies",
+      "screenshot": "13-admin-2-applied.png",
+      "result": "Rules changed\n\nEnough admins approved, so the new rule now applies to everyone.\n\nReferences"
+    }
+  ]
+}
