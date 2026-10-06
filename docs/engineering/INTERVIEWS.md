@@ -10,8 +10,8 @@ without permission.
 |---|---|---|---|---|---|
 | I1 | Buyer-side supplier payments: finance manager, large supermarket and distribution company | Owner's network | 2026-10-06 | Answered all five questions; consented to be quoted by role only | Recorded 2026-10-06 |
 | I2 | Buyer-side supplier payments: accounts manager, large construction company | Owner's network | 2026-10-06 | Answered all five questions; consented to be quoted by role, company not named | Recorded 2026-10-06 |
-| I3 | SME supplier | Pending user input | Pending | Pending | Pending |
-| I4 | SME supplier | Pending user input | Pending | Pending | Pending |
+| I3 | SME supplier: food and household items to supermarkets | Owner's network | 2026-10-06 | Answered all four supplier questions; consented to be quoted as "supermarket supplier" | Recorded 2026-10-06 |
+| I4 | SME supplier: building materials to construction companies | Owner's network | 2026-10-06 | Answered all four supplier questions; consented to be quoted as "building-material supplier" | Recorded 2026-10-06 |
 | I5 | Invoice financier: SME lending officer, Nigerian commercial bank | Owner's family (personal connection, disclosed) | 2026-10-06 | Answered all five questions in writing; consented to be quoted by role, no name or bank | Recorded 2026-10-06 |
 
 
@@ -154,3 +154,61 @@ because we are the ones using it to make the credit decision."
   what it actually owes, but financing against a contract or purchase order before any
   invoice exists is not covered yet. Recorded as roadmap: extend the one-claim rule to
   purchase orders and contracts.
+
+## I3. Supermarket supplier (food and household items)
+
+Quoted by role only, with consent ("You can just say supermarket supplier.").
+
+**How long do your big customers usually take to pay you after you deliver?**
+"Usually around 30 days, but sometimes it can enter 45 days or even more. You have already
+supplied everything, but you still have to wait for their payment cycle."
+
+**Have you ever tried to get a loan or advance from a bank using an invoice?**
+"Yes, I tried once. The process was too much. They asked for plenty documents, bank
+statements and other things. At the end, I just left it because the money was taking too
+long to come."
+
+**If banks could compete to pay you early on an invoice your customer has approved, would
+you use it?**
+"Yes, definitely. If my customer has already confirmed that they will pay me, and I can get
+most of the money now instead of waiting one month or more, I will use it. It will help me
+restock and continue business."
+
+## I4. Building-material supplier
+
+Quoted by role only, with consent ("Just say building-material supplier.").
+
+**How long do your big customers usually take to pay you after you deliver?**
+"It depends on the company. Some will tell you 30 days, but in reality you can wait 60
+days. Sometimes you have to keep calling accounts before they release your money."
+
+**Have you ever tried to get a loan or advance from a bank using an invoice?**
+"I have asked my bank before. They said it was possible, but they wanted collateral and
+plenty paperwork. For me, if I already have to bring property before you give me money,
+then what is the point of the invoice?"
+
+**If banks could compete to pay you early on an invoice your customer has approved, would
+you use it?**
+"Yes, as long as the charges are reasonable. Cash flow is the main problem. You can have
+₦15 million that customers are owing you and still be struggling to buy materials for the
+next job. If different banks can give me their offers and I choose the best one, I will
+use it."
+
+**What we take from I3 and I4**
+
+- Payment terms stretch: 30 days stated, 45 to 60 days in practice, with follow-up calls.
+- Both tried invoice finance and gave up: too many documents and too slow (I3), collateral
+  demanded on top of the invoice (I4). This matches the lender's account (I5) of
+  protection that exists because lenders cannot see each other's deals.
+- Both would use lenders competing on a buyer-confirmed invoice; I4 adds the condition that
+  charges are reasonable and wants to choose the best offer, which is Tavryn's private
+  offer flow.
+
+## Summary of all five
+
+Buyers (I1, I2) cannot see whether an invoice is financed elsewhere and refuse to expose
+their prices, but accept an "already used" check paid for by lenders. The lender (I5)
+confirms there is no central check in Nigeria, that double financing happens, that good
+businesses are refused for lack of visibility, and that a per-check fee is worth paying.
+Suppliers (I3, I4) wait 30 to 60 days, have given up on bank invoice finance because of
+paperwork and collateral, and would use competing offers on an approved invoice.

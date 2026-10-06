@@ -102,8 +102,8 @@ in `backend/`.
 
 ## 5. Conversations with users
 
-Three of five conversations are recorded so far: two on the buyer side and one lender.
-Supplier conversations are in progress. Findings are added only with the person's consent. Nothing is invented. Full
+All five conversations are recorded: two buyers, one bank lender and two suppliers, all on
+6 October 2026. Findings are added only with the person's consent. Nothing is invented. Full
 answers: [`engineering/INTERVIEWS.md`](engineering/INTERVIEWS.md).
 
 **Finance manager, large supermarket and distribution company (buyer side, 6 Oct 2026).**
@@ -164,3 +164,30 @@ Questions asked:
 3. Have you seen, or had to prove against, the same invoice being financed twice?
 4. Would a system that guarantees an invoice can only be financed once, without showing
    your business to competitors, be useful to you?
+
+**Supermarket supplier (food and household items, 6 Oct 2026).**
+
+- On waiting: "Usually around 30 days, but sometimes it can enter 45 days or even more."
+- On bank invoice finance: "The process was too much. They asked for plenty documents ...
+  At the end, I just left it because the money was taking too long to come."
+- On Tavryn's offer: "Yes, definitely. If my customer has already confirmed that they will
+  pay me, and I can get most of the money now ... It will help me restock and continue
+  business."
+
+**Building-material supplier (6 Oct 2026).**
+
+- On waiting: "Some will tell you 30 days, but in reality you can wait 60 days."
+- On bank invoice finance: "they wanted collateral and plenty paperwork. For me, if I
+  already have to bring property before you give me money, then what is the point of the
+  invoice?"
+- On Tavryn's offer: "You can have ₦15 million that customers are owing you and still be
+  struggling to buy materials for the next job. If different banks can give me their
+  offers and I choose the best one, I will use it."
+
+**Across all five.** Buyers and the lender agree no one can see whether an invoice is
+already financed, nobody will share prices in a registry, an "already used" check is
+acceptable, and the lender should pay for it. Suppliers have given up on bank invoice
+finance because of paperwork and collateral, and would use competing offers on an
+approved invoice. What the conversations did not test: the size of the per-check fee, and
+whether a buyer will approve invoices through Tavryn in a live pilot.
+

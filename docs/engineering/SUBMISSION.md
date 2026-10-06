@@ -101,8 +101,8 @@ lenders.
 
 Settlement is two-step and not atomic, with reconciliation. The lifecycle, governance and
 Canton Coin funding run on the HackCanton DevNet node; Canton Coin repayment is proven on
-LocalNet only, because the DevNet buyer party has no wallet. Three interviews are recorded
-(two buyers, one bank lender); supplier interviews are in progress. The demo backend acts for every party through one ledger user; production needs
+LocalNet only, because the DevNet buyer party has no wallet. Five interviews are recorded
+(two buyers, a bank lender, two suppliers). The demo backend acts for every party through one ledger user; production needs
 one participant or wallet per organization.
 
 ## Judge-facing positioning
@@ -221,6 +221,6 @@ records, now moves on the hackathon network. Next: customer conversations.
 - [x] DevNet Canton Coin funding (`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`)
 - [x] Sample invoices, synthetic and labelled (`fixtures/invoices/`)
 - [x] Naira invoice on DevNet through the bank-reference path (`docs/evidence/NAIRA_DEVNET_2026-10-06.json`)
-- [ ] Customer interview evidence
+- [x] Customer interview evidence (five, `docs/engineering/INTERVIEWS.md`)
 - [ ] Under-five-minute demo video
 - [x] Public demo link checked in fresh browser contexts (`docs/evidence/P11_PUBLIC_LINK_2026-10-06/`)

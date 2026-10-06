@@ -127,7 +127,7 @@ Developer details (every setting, the automated checks and how it is built) are 
   never their offers or prices.
 - In this demo one server acts for every company. In real use, each company would run its
   own connection to the network.
-- Three interviews are recorded (two buyers and a bank lender) ([VALIDATION](docs/VALIDATION.md#5-conversations-with-users)); supplier interviews are still in progress.
+- Five interviews are recorded: two buyers, a bank lender and two suppliers ([VALIDATION](docs/VALIDATION.md#5-conversations-with-users)).
 
 ## Built with AI assistance
 

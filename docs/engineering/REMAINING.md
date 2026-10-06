@@ -32,7 +32,6 @@ owner decision, or a real human interaction; none of it is claimed without its a
 | Item | Needed from the owner | Finish action |
 |---|---|---|
 | Invoice fixtures (P6) | Optional: real permissioned invoices to replace the synthetic ones | `fixtures/invoices/` with provenance |
-| Interviews (P9) | Five real, consented conversations | Dates and anonymized notes in `INTERVIEWS.md` and `VALIDATION.md` |
 | Demo video (P10) | A recording of `DEMO.md` under five minutes | Link and checksum |
 | Submission (P11) | Create the HackCanton project page from `SUBMISSION.md` and post the diary entries | Page link |
 

@@ -14,7 +14,7 @@ exists and can be reproduced. `Pending` is not a pass.
 | P6 | Three real-looking invoice layouts extracted and corrected | Partly passed | `fixtures/invoices/`: three synthetic, labelled layouts (US net 60, EU VAT with credit note, services with retention) with the draft fields and the corrections a supplier makes by hand | Automatic extraction not built (roadmap); real permissioned invoices optional |
 | P7 | Full lifecycle on DevNet | Passed (ledger lifecycle and governance) | `docs/evidence/P7_DEVNET_2026-10-05.json`: on shared node hackcanton-01, bootstrap by all three operators, simultaneous funding with B winning and A rejected by `LOCAL_VERDICT_LOCKED_CONTRACTS`, repayment, duplicate approval refused, both governance changes refused at 1 vote and applied at 2, pre-existing offer still funded | Canton Coin funding on DevNet passed 2026-10-06 (`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`, lender = owner DevNet wallet, 80 CC to the supplier, rival refused); repayment on DevNet not claimed (buyer has no DevNet wallet). Naira invoice through the bank-reference path passed on DevNet (`docs/evidence/NAIRA_DEVNET_2026-10-06.json`) |
 | P8 | Grofty flow, only if DAR/MainNet question resolves | Excluded | The Grofty extension could not be installed for testing; the bounty is not selected and no Grofty integration is claimed (`SUBMISSION.md`) | - |
-| P9 | Brief, pilot, validation, pitch materials | Partly passed | `docs/VALIDATION.md`: cited 2025 double-financing cases (First Brands, Tricolor) and market size (FCI); measured 45 of 45 simultaneous races with one winner on LocalNet and DevNet (`docs/evidence/METRICS_*_2026-10-06.json`) | Owner-run user conversations in progress |
+| P9 | Brief, pilot, validation, pitch materials | Passed | `docs/VALIDATION.md`: cited 2025 double-financing cases (First Brands, Tricolor) and market size (FCI); measured 45 of 45 simultaneous races with one winner on LocalNet and DevNet (`docs/evidence/METRICS_*_2026-10-06.json`) ; five consented interviews in `docs/engineering/INTERVIEWS.md` (two buyers, one bank lender, two suppliers) | - |
 | P10 | Reproducible sub-five-minute demo | Pending | Video path and checksum | DevNet lifecycle |
 | P11 | Private-window link check and submission | Link check passed | `docs/evidence/P11_PUBLIC_LINK_2026-10-06/`: tavryn.site, www, the app and a lender page in fresh Chromium contexts, all HTTP 200 with no console errors, failed requests or phone horizontal scroll; repo public | Project page and diary posts on the HackCanton platform (owner) |
 
@@ -124,7 +124,7 @@ exists and can be reproduced. `Pending` is not a pass.
   configured as the local `origin`; remote access not yet verified).
 - Grofty DAR question: user must confirm whether access was requested and whether a Grofty
   user can sign a Tavryn DAR on MainNet after participant package vetting.
-- Interviews: 3 of 5 recorded (buyer-side finance manager, construction accounts manager, and an SME lending officer at a Nigerian commercial bank who is the owner's family member, disclosed; 2026-10-06, quoted by role with consent); no numbers or quotes invented.
+- Interviews: 5 of 5 recorded (plus two suppliers); (buyer-side finance manager, construction accounts manager, and an SME lending officer at a Nigerian commercial bank who is the owner's family member, disclosed; 2026-10-06, quoted by role with consent); no numbers or quotes invented.
 
 ## P3 settlement spike log
 
