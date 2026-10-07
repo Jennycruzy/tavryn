@@ -88,7 +88,18 @@ with "This invoice is no longer available"
 ([`evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`](evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json)).
 Repayment on DevNet is not claimed: the buyer party there has no wallet.
 
-Naira, the Nigerian pilot path (HackCanton DevNet, 6 October 2026): the synthetic Lagos
+Pay with Loop (HackCanton DevNet, 7 October 2026): an invoice was reserved for one outside
+wallet, and a second reservation of the same invoice was refused. The reservation stayed
+unpaid until 5 CC arrived at the supplier from that wallet; after a restart Tavryn found
+the payment in the supplier's own view and financed the invoice. The same payment was then
+refused for a second invoice, and that unpaid reservation was released after its payment
+window ([`evidence/LOOP_RULES_DEVNET_2026-10-07.json`](evidence/LOOP_RULES_DEVNET_2026-10-07.json)).
+The paying wallet in that run is the node's own DevNet wallet standing in for a Loop wallet.
+A Loop wallet's payment to the supplier is the same kind of transaction: on the same day the
+owner's Loop wallet paid the supplier 10 CC, and the unit tests check Tavryn's rules against
+that real transaction.
+
+Earlier, before payments became Canton Coin only (HackCanton DevNet, 6 October 2026): the synthetic Lagos
 invoice `fixtures/invoices/SYN-003` (₦20,250,000) was approved, offered to two lenders who
 paid at the same moment, funded by exactly one at ₦16,200,000, and repaid, with each bank
 payment reference recorded on the receipts; the second lender was told "This invoice is no
@@ -98,6 +109,8 @@ With package 0.1.5 the same invoice carries the lender's fee (₦405,000) agreed
 offer; after the buyer paid ₦20,250,000 to the winning lender, the lender paid the
 supplier's ₦3,645,000 balance, all on the DevNet
 ([`evidence/NAIRA_BALANCE_DEVNET_2026-10-06.json`](evidence/NAIRA_BALANCE_DEVNET_2026-10-06.json)).
+Those runs proved the single-financing rules, but a typed bank reference can be made up, so
+Tavryn no longer accepts one: every payment is now Canton Coin checked on the network.
 
 Records: [`evidence/METRICS_localnet_2026-10-06.json`](evidence/METRICS_localnet_2026-10-06.json),
 [`evidence/METRICS_devnet_2026-10-06.json`](evidence/METRICS_devnet_2026-10-06.json).

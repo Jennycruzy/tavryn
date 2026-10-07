@@ -4,19 +4,20 @@ import { test } from "node:test";
 import { raceCandidates, runRace } from "../src/race.js";
 import type { TavrynService } from "../src/tavryn-service.js";
 
-const offer = (cid: string, party: string, commitment: string, number: string, offset: number) => ({
+const offer = (cid: string, party: string, commitment: string, number: string, offset: number, currency = "AMT") => ({
   contractId: cid,
   templateId: "pkg:Tavryn.Contracts:FinancingOffer",
   offset,
   createArgument: {
     financier: party,
     invoiceCommitment: commitment,
-    advance: "16200000.0",
-    terms: { externalInvoiceNumber: number, faceValue: "20250000.0", currency: "NGN", dueDate: "2026-12-01" },
+    advance: "1620.0",
+    terms: { externalInvoiceNumber: number, faceValue: "2025.0", currency, dueDate: "2026-12-01" },
   },
 });
 
-function fakeService(acceptOffer: (cid: string, role: string, reference: string) => Promise<unknown>) {
+// Each fake funding returns what fundOffer returns: the ledger record and the coin transfer.
+function fakeService(fund: (cid: string, role: string) => Promise<unknown>) {
   return {
     config: {
       financiers: new Map([["financierA", "pa"], ["financierB", "pb"], ["financierC", "pc"]]),
@@ -26,13 +27,19 @@ function fakeService(acceptOffer: (cid: string, role: string, reference: string)
       offer("o1", "pa", "c1", "INV-1", 10),
       offer("o2", "pb", "c1", "INV-1", 11),
       offer("o3", "pa", "c2", "INV-2", 20),
+      offer("o4", "pa", "c3", "INV-NGN", 30, "NGN"),
+      offer("o5", "pb", "c3", "INV-NGN", 31, "NGN"),
       { contractId: "x", templateId: "pkg:Tavryn.Contracts:InvoiceDraft", createArgument: {} },
     ],
-    acceptOffer,
+    fundOffer: fund,
   } as unknown as TavrynService;
 }
 
-test("only invoices offered to two lenders can be raced", async () => {
+function funded(updateId: string) {
+  return { ledger: { transaction: { updateId }, createdContracts: [] }, cash: { updateId: `cash-${updateId}` } };
+}
+
+test("only Canton Coin invoices offered to two lenders can be raced", async () => {
   const candidates = await raceCandidates(fakeService(async () => ({})));
   assert.deepEqual(candidates.map((candidate) => candidate.invoiceNumber), ["INV-1"]);
   assert.deepEqual(candidates[0].offers.map((entry) => entry.financierRole).sort(), ["financierA", "financierB"]);
@@ -50,14 +57,14 @@ test("both requests are sent, and Canton's refusal is reported as refused", asyn
         details: { ledgerErrorCode: "LOCAL_VERDICT_LOCKED_CONTRACTS" },
       });
     }
-    return { transaction: { updateId: "u-a" }, createdContracts: [] };
+    return funded("u-a");
   });
   const { outcomes } = await runRace(service, "INV-1");
   // Both calls began before either finished: they really ran at the same time.
   assert.deepEqual(events.slice(0, 2).map((event) => event.split(":")[0]), ["start", "start"]);
   const byRole = Object.fromEntries(outcomes.map((outcome) => [outcome.financierRole, outcome]));
   assert.equal(byRole.financierA.status, "funded");
-  assert.match(String(byRole.financierA.paymentReference), /^RACE-A-/);
+  assert.equal(byRole.financierA.paymentReference, "cash-u-a");
   assert.equal(byRole.financierB.status, "refused");
   assert.equal(byRole.financierB.code, "INVOICE_UNAVAILABLE");
   assert.equal(byRole.financierB.rejectedBy, "canton");
@@ -69,7 +76,7 @@ test("a request stopped by Tavryn's own ledger read is not credited to Canton", 
     if (role === "financierB") {
       throw Object.assign(new Error("gone"), { publicCode: "INVOICE_UNAVAILABLE" });
     }
-    return { transaction: { updateId: "u-a" }, createdContracts: [] };
+    return funded("u-a");
   });
   const { outcomes } = await runRace(service, "INV-1");
   const loser = outcomes.find((outcome) => outcome.financierRole === "financierB");

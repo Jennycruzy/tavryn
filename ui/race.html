@@ -102,7 +102,7 @@
         let verdict = `<div class="verdict">Waiting</div>`;
         if (running) verdict = `<div class="verdict pulse">Sending payment to Canton…</div>`;
         if (outcome?.status === "funded") {
-          verdict = `<div class="verdict funded">✓ ${name} financed the invoice<small>Paid ${money(offer.advance, currency)} to the supplier${outcome.paymentReference ? ` · bank ref ${escape(outcome.paymentReference)}` : ""}</small></div>`;
+          verdict = `<div class="verdict funded">✓ ${name} financed the invoice<small>Paid ${money(offer.advance, currency)} to the supplier on the network${outcome.paymentReference ? ` · payment ${escape(String(outcome.paymentReference).slice(0, 16))}…` : ""}</small></div>`;
         }
         if (outcome?.status === "refused") {
           verdict = outcome.rejectedBy === "canton"

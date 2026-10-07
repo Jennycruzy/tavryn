@@ -62,8 +62,8 @@ them, nor Tavryn, sees the others' books.
 
 ## Limits
 
-The demo settles in Canton Coin. A Nigerian pilot would settle in naira through the
-lender's bank and record the payment reference on the ledger; that path already exists
-(`accept` with a payment reference). Tavryn can only check lenders on the network; financing from outside it is invisible. Each
+Every payment is in Canton Coin on the network, so Tavryn checks that the money moved
+instead of trusting a typed bank reference. Lenders can pay from their own Loop wallet.
+For Nigeria, the next step is a naira digital currency on Canton, paid the same way. Tavryn can only check lenders on the network; financing from outside it is invisible. Each
 buyer approves an invoice number once through its own approval record. Both are stated
 plainly to pilot customers.

@@ -12,6 +12,8 @@ export interface JsonResponse {
 // Runs a Tavryn server in-process on the integration port and talks to it over HTTP,
 // exactly as the UI does. Nothing here replaces the ledger or the wallet.
 export async function startIntegration() {
+  // The harnesses check the contract rules with typed references as well as real coins.
+  process.env.TAVRYN_ALLOW_PAYMENT_REFERENCES ??= "true";
   const config = loadConfig();
   let service = new TavrynService(config);
   const port = integrationPort(config.httpPort);

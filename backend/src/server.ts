@@ -44,9 +44,13 @@ export function createTavrynServer(
   },
 ) {
   const writeLimiter = new WriteRateLimiter(service.writeRateLimit());
+  // Signing in and out has its own allowance, so an office sharing one address is never
+  // locked out of its work by its colleagues' sign-ins, nor the other way round.
+  const signInLimiter = new WriteRateLimiter(service.writeRateLimit());
   return createServer(async (request, response) => {
     try {
-      if (isWriteApiRequest(request) && !writeLimiter.allow(clientKey(request))) {
+      const limiter = (request.url ?? "").startsWith("/api/v1/auth/") ? signInLimiter : writeLimiter;
+      if (isWriteApiRequest(request) && !limiter.allow(clientKey(request))) {
         writeJson(
           response,
           429,
@@ -310,6 +314,24 @@ async function route(
     const body = await readJson(request);
     const result = await service.fundOffer(parts[3], financierRoleFor(account, body));
     writeSettledSubmission(response, 200, result);
+    return;
+  }
+
+  if (method === "POST" && matches(parts, ["api", "v1", "offers", "*", "loop"])) {
+    const body = await readJson(request);
+    const result = await service.beginLoopFunding(
+      parts[3],
+      financierRoleFor(account, body),
+      stringField(body, "loopParty"),
+    );
+    writeJson(response, 201, result);
+    return;
+  }
+
+  if (method === "POST" && matches(parts, ["api", "v1", "pending-funding", "*", "loop-confirm"])) {
+    const body = await readJson(request);
+    const updateId = typeof body.updateId === "string" ? body.updateId : undefined;
+    writeJson(response, 200, await service.confirmLoopFunding(parts[3], financierRoleFor(account, body), updateId));
     return;
   }
 

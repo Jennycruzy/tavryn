@@ -80,6 +80,8 @@ function friendlyError(status, payload) {
     BUYER_NOT_ONBOARDED: "The buyer hasn't joined the network yet.",
     REPAYMENT_NOT_AVAILABLE: "This invoice isn't waiting for repayment. If a repayment is already in progress it will finish on its own, so don't pay again.",
     SETTLEMENT_NOT_CONFIGURED: "Payments aren't set up for this account.",
+    LOOP_NOT_AVAILABLE: "Pay with Loop isn't available on this network.",
+    LOOP_PARTY_INVALID: "Loop didn't share a valid wallet address. Reconnect Loop and try again.",
     SETTLEMENT_PENDING: "The payment is still on its way. The invoice stays reserved until it arrives.",
     SETTLEMENT_LEDGER_FINALIZATION_FAILED: "The payment went through. The record will be completed automatically in a moment.",
     SETTLEMENT_LEDGER_REPAYMENT_FAILED: "The repayment went through. The record will be completed automatically in a moment. Don't pay again.",
@@ -144,6 +146,15 @@ function roleForParty(party) {
 function lenderName(party) {
   const role = roleForParty(party);
   return role ? roleLabel(role) : "a lender";
+}
+
+// Older naira invoices stay in the history but can no longer be paid: Tavryn pays in
+// Canton Coin only, so every payment is checked on the network.
+function payable(contract) {
+  const arg = argument(contract);
+  const terms = arg.terms || termsFor(arg.invoiceCommitment);
+  const itemCurrency = terms?.currency ?? arg.currency;
+  return !itemCurrency || itemCurrency === currency();
 }
 
 function currency() {
@@ -278,6 +289,8 @@ async function loadSelectedRole() {
   try {
     await loadNetwork();
     renderRoleButtons();
+    // The tour names the network's coin, which is known only once the network has loaded.
+    renderGuide();
     await loadDocuments();
     await loadRole(state.role);
   } catch (error) {
@@ -412,15 +425,19 @@ function renderActionPanel() {
 }
 
 function actionMarkup() {
+  // Until the network has loaded, "not set up yet" would be a guess, so say it's loading.
+  if (!state.network && state.role !== "auditor") {
+    return `<div class="notice"><strong>Loading</strong>Reading this company's view of the network.</div>`;
+  }
   if (state.role === "supplier") return supplierActions();
   if (state.role === "buyer") return buyerActions();
   if (state.role === "operator") return adminActions();
   if (isFinancier(state.role)) return lenderActions();
-  return `<div class="notice"><strong>Read-only view</strong>The auditor sees every payment and repayment below, with amounts and references, and cannot change anything.</div>`;
+  return `<div class="notice"><strong>Read-only view</strong>The auditor sees every payment and repayment below, with amounts and network records, and cannot change anything.</div>`;
 }
 
 function supplierActions() {
-  const approved = contractsFor("supplier", "ApprovedInvoice");
+  const approved = contractsFor("supplier", "ApprovedInvoice").filter(payable);
   const eligible = (contract) => (argument(contract).eligibleFinanciers || []).map(roleForParty).filter(Boolean);
   const lenders = [...new Set(approved.flatMap(eligible))];
   const approvedLabel = (contract) => {
@@ -433,11 +450,7 @@ function supplierActions() {
       <div class="form-grid">
         <div class="field wide"><label for="invoiceFile">Invoice file (PDF or photo, optional)</label><input id="invoiceFile" type="file" accept="application/pdf,image/png,image/jpeg" /><span class="hint" id="uploadStatus">We read the number, amount and dates from a PDF where we can. Check them before you create the invoice.</span></div>
         <div class="field"><label for="externalInvoiceNumber">Invoice number</label><input id="externalInvoiceNumber" name="externalInvoiceNumber" value="INV-${Date.now().toString().slice(-6)}" required /></div>
-        <div class="field"><label for="invoiceCurrency">Currency</label><select id="invoiceCurrency" name="currency">
-          <option value="NGN">NGN · bank transfer</option>
-          <option value="${escapeHtml(currency())}">${escapeHtml(currency())} · Canton Coin</option>
-        </select></div>
-        <div class="field"><label for="faceValue">Amount</label><input id="faceValue" name="faceValue" inputmode="decimal" placeholder="e.g. 4800000" required /></div>
+        <div class="field"><label for="faceValue">Amount in ${escapeHtml(currency())}</label><input id="faceValue" name="faceValue" inputmode="decimal" placeholder="e.g. 4800" required /><span class="hint">Every payment on Tavryn is in Canton Coin.</span></div>
         <div class="field"><label for="issuedDate">Issue date</label><input id="issuedDate" name="issuedDate" type="date" value="${isoDate(0)}" required /></div>
         <div class="field"><label for="dueDate">Due date</label><input id="dueDate" name="dueDate" type="date" value="${isoDate(60)}" required /></div>
       </div>
@@ -449,8 +462,8 @@ function supplierActions() {
       <div class="form-grid">
         <div class="field wide"><label for="approvedCid">Invoice</label><select id="approvedCid" name="approvedCid" required>${optionList(approved, "Choose an invoice", approvedLabel)}</select></div>
         <div class="field"><label for="offerFinancier">Lender</label><select id="offerFinancier" name="financierRole" required>${lenderOptions(lenders)}</select></div>
-        <div class="field"><label for="offerAdvance">Amount to advance</label><input id="offerAdvance" name="advance" inputmode="decimal" placeholder="0.90" required /><span class="hint" id="advanceHint">Up to ${percent(state.network?.rules?.maxAdvanceRate)} of the invoice.</span></div>
-        <div class="field"><label for="offerFee">Lender's fee (optional)</label><input id="offerFee" name="fee" inputmode="decimal" placeholder="e.g. 405000" /><span class="hint" id="feeHint">Agreed now. The rest comes back to you when the buyer pays.</span></div>
+        <div class="field"><label for="offerAdvance">Amount to advance</label><input id="offerAdvance" name="advance" inputmode="decimal" placeholder="e.g. 1800" required /><span class="hint" id="advanceHint">Up to ${percent(state.network?.rules?.maxAdvanceRate)} of the invoice.</span></div>
+        <div class="field"><label for="offerFee">Lender's fee (optional)</label><input id="offerFee" name="fee" inputmode="decimal" placeholder="e.g. 100" /><span class="hint" id="feeHint">Agreed now. The rest comes back to you when the buyer pays.</span></div>
       </div>
       <div class="form-actions"><button class="button button-secondary" type="submit">Send private offer</button><span class="hint">Only this lender sees the offer.</span></div>
     </form>` : ""}
@@ -461,8 +474,8 @@ function buyerActions() {
   if (!state.network?.rules?.buyerOnboarded) {
     return `<div class="notice"><strong>Not set up yet</strong>The network admins haven't added this buyer yet.</div>`;
   }
-  const drafts = contractsFor("buyer", "InvoiceDraft");
-  const financed = contractsFor("buyer", "FinancedInvoice");
+  const drafts = contractsFor("buyer", "InvoiceDraft").filter(payable);
+  const financed = contractsFor("buyer", "FinancedInvoice").filter(payable);
   const lenders = admittedFinancierRoles();
   const draftLabel = (contract) => {
     const terms = argument(contract).terms;
@@ -488,7 +501,6 @@ function buyerActions() {
       <div class="form-grid">
         <div class="field wide"><label for="financedCid">Invoice</label><select id="financedCid" name="financedCid" required>${optionList(financed, "Choose an invoice", financedLabel)}</select></div>
         <div class="field"><label for="repaymentDate">Payment date</label><input id="repaymentDate" name="repaymentDate" type="date" value="${isoDate(0)}" required /></div>
-        <div class="field" id="repayReferenceField" hidden><label for="repayReference">Bank transfer reference</label><input id="repayReference" name="paymentReference" placeholder="e.g. NIP reference" /></div>
       </div>
       <div class="form-actions"><button class="button button-primary" type="submit">Repay</button><span class="hint">Paying early is fine. A retry never pays twice.</span></div>
     </form>` : ""}
@@ -496,13 +508,18 @@ function buyerActions() {
 }
 
 function lenderActions() {
-  const offers = contractsFor(state.role, "FinancingOffer");
-  const balances = contractsFor(state.role, "BalanceDue");
+  const offers = contractsFor(state.role, "FinancingOffer").filter(payable);
+  const balances = contractsFor(state.role, "BalanceDue").filter(payable);
   const balanceLabel = (contract) => {
     const arg = argument(contract);
     return `${money(arg.balance, arg.currency)} to the supplier · collected ${money(arg.collected, arg.currency)}, advance ${money(arg.advance, arg.currency)}, fee ${money(arg.fee, arg.currency)}`;
   };
   const closed = contractsFor(state.role, "OfferClosed");
+  const loopLocks = contractsFor(state.role, "PendingFunding").filter((contract) => String(argument(contract).trackingId).startsWith("tavryn-loop-"));
+  const lockLabel = (contract) => {
+    const arg = argument(contract);
+    return `${arg.terms.externalInvoiceNumber} · pay ${money(arg.settlementAmount, arg.terms.currency)} to the supplier`;
+  };
   const offerLabel = (contract) => {
     const arg = argument(contract);
     const fee = arg.fee !== null && arg.fee !== undefined ? ` · fee ${money(arg.fee, arg.terms.currency)}` : "";
@@ -511,16 +528,20 @@ function lenderActions() {
   return `
     ${offers.length ? `
     <form class="action-form" data-action="fund">
-      <div class="form-grid"><div class="field wide"><label for="offerCid">Offer</label><select id="offerCid" name="offerCid" required>${optionList(offers, "Choose an offer", offerLabel)}</select><span id="offerFile"></span></div>
-        <div class="field wide" id="fundReferenceField" hidden><label for="fundReference">Bank transfer reference</label><input id="fundReference" name="paymentReference" placeholder="The reference of your transfer to the supplier" /><span class="hint">Naira moves by bank transfer. Tavryn records your reference and locks the invoice to you.</span></div></div>
-      <div class="form-actions"><button class="button button-primary" type="submit">Finance this invoice</button><span class="hint">You pay the supplier now and the buyer repays you by the due date.</span></div>
+      <div class="form-grid"><div class="field wide"><label for="offerCid">Offer</label><select id="offerCid" name="offerCid" required>${optionList(offers, "Choose an offer", offerLabel)}</select><span id="offerFile"></span></div></div>
+      <div class="form-actions"><button class="button button-primary" type="submit" id="fundButton" value="wallet">Finance this invoice</button><button class="button button-primary" type="submit" id="loopButton" value="loop" hidden>Pay with Loop</button><span class="hint" id="fundHint">You pay the supplier now and the buyer repays you by the due date.</span></div>
     </form>` : `<div class="notice"><strong>No open offers</strong>Offers made to you will appear here.</div>`}
+    ${loopLocks.length ? `
+    <form class="action-form" data-action="loop-check">
+      <p class="form-title">Waiting for your Loop payment</p>
+      <div class="form-grid"><div class="field wide"><label for="lockCid">Reserved invoice</label><select id="lockCid" name="lockCid" required>${optionList(loopLocks, "Choose an invoice", lockLabel)}</select><span class="hint">Approved the payment in Loop? Check it here. A reservation you never pay is released after 15 minutes.</span></div></div>
+      <div class="form-actions"><button class="button button-primary" type="submit">Check payment</button></div>
+    </form>` : ""}
     ${balances.length ? `
     <form class="action-form" data-action="pay-balance">
       <p class="form-title">Pay the supplier's balance</p>
       <div class="form-grid">
         <div class="field wide"><label for="balanceCid">Balance due</label><select id="balanceCid" name="balanceCid" required>${optionList(balances, "Choose a balance", balanceLabel)}</select></div>
-        <div class="field wide" id="balanceReferenceField" hidden><label for="balanceReference">Bank transfer reference</label><input id="balanceReference" name="paymentReference" placeholder="The reference of your transfer to the supplier" /></div>
       </div>
       <div class="form-actions"><button class="button button-primary" type="submit">Pay balance</button><span class="hint">The buyer paid you the full invoice. This returns the rest, less your agreed fee.</span></div>
     </form>` : ""}
@@ -579,8 +600,18 @@ function describeAction(action) {
   return action.type;
 }
 
+const OPEN_STAGES = new Set(["InvoiceDraft", "ApprovedInvoice", "FinancingOffer", "FinancedInvoice", "BalanceDue"]);
+
 // One plain-language line per record. Internal bookkeeping records are not shown.
 function activityItem(contract) {
+  const item = activityLine(contract);
+  if (item && OPEN_STAGES.has(templateName(contract)) && !payable(contract)) {
+    return [item[0], `${item[1]} · older naira invoice, kept for the record`, "View only", "closed"];
+  }
+  return item;
+}
+
+function activityLine(contract) {
   const arg = argument(contract);
   const terms = arg.terms || termsFor(arg.invoiceCommitment);
   const lender = isFinancier(state.role) ? "You" : lenderName(arg.financier);
@@ -680,7 +711,7 @@ function rateFor(advance, faceValue) {
   return (Math.ceil((advance / faceValue) * 10_000) / 10_000).toFixed(4);
 }
 
-async function handleAction(form) {
+async function handleAction(form, submitter) {
   const data = new FormData(form);
   const value = (name) => String(data.get(name) || "").trim();
   const action = form.dataset.action;
@@ -694,7 +725,7 @@ async function handleAction(form) {
       }
       const amountValue = value("faceValue").replaceAll(",", "");
       result = await api("/api/v1/invoices/drafts", { method: "POST", body: JSON.stringify({
-        terms: { externalInvoiceNumber: number, faceValue: amountValue, currency: value("currency") || currency(), issuedDate: value("issuedDate"), dueDate: value("dueDate") },
+        terms: { externalInvoiceNumber: number, faceValue: amountValue, currency: currency(), issuedDate: value("issuedDate"), dueDate: value("dueDate") },
         ...(state.upload ? { documentSha256: state.upload.sha256 } : {}),
       }) });
       state.currentStep = "draft";
@@ -729,13 +760,11 @@ async function handleAction(form) {
     } else if (action === "fund") {
       const offer = contractsFor(state.role, "FinancingOffer").find((contract) => contractId(contract) === value("offerCid"));
       const terms = offer ? argument(offer).terms : undefined;
-      if (terms && terms.currency !== currency()) {
-        if (!value("paymentReference")) throw new Error("Enter the reference of your bank transfer to the supplier.");
-        result = await api(`/api/v1/offers/${encodeURIComponent(value("offerCid"))}/accept`, { method: "POST", body: JSON.stringify({ financierRole: state.role, paymentReference: value("paymentReference") }) });
-        state.currentStep = "funded";
+      if (submitter?.value === "loop") {
+        const outcome = await payWithLoop(value("offerCid"), terms);
+        state.currentStep = outcome.outcome === "completed" ? "funded" : state.currentStep;
         await loadRole(state.role);
-        setResult({ ok: true, title: "Invoice financed", message: `Your transfer ${value("paymentReference")} is recorded. No one else can finance this invoice now.`, updateId: result.updateId });
-        guideEvent("fund");
+        if (outcome.outcome === "completed") guideEvent("fund");
       } else {
         result = await api(`/api/v1/offers/${encodeURIComponent(value("offerCid"))}/fund`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
         state.currentStep = "funded";
@@ -743,38 +772,21 @@ async function handleAction(form) {
         setResult({ ok: true, title: "Invoice financed", message: `You paid ${money(result.cashTransfer?.amount)} to the supplier. No one else can finance this invoice now.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
         guideEvent("fund");
       }
+    } else if (action === "loop-check") {
+      const outcome = await confirmLoopPayment(value("lockCid"));
+      await loadRole(state.role);
+      showLoopOutcome(outcome);
     } else if (action === "repay") {
-      const financed = contractsFor("buyer", "FinancedInvoice").find((contract) => contractId(contract) === value("financedCid"));
-      const terms = financed ? argument(financed).terms : undefined;
-      if (terms && terms.currency !== currency()) {
-        if (!value("paymentReference")) throw new Error("Enter the reference of your bank transfer to the lender.");
-        result = await api(`/api/v1/financed/${encodeURIComponent(value("financedCid"))}/repay`, { method: "POST", body: JSON.stringify({ repaymentDate: value("repaymentDate"), paymentReference: value("paymentReference") }) });
-        state.currentStep = "repaid";
-        await loadRole("buyer");
-        setResult({ ok: true, title: "Lender repaid", message: `Your transfer ${value("paymentReference")} is recorded. The invoice is closed.`, updateId: result.updateId });
-        guideEvent("repay", { balance: hasBalanceDue(result) });
-      } else {
-        result = await api(`/api/v1/financed/${encodeURIComponent(value("financedCid"))}/settle-repay`, { method: "POST", body: JSON.stringify({ repaymentDate: value("repaymentDate") }) });
-        state.currentStep = "repaid";
-        await loadRole("buyer");
-        setResult({ ok: true, title: "Lender repaid", message: `${money(result.cashTransfer?.amount)} paid. The invoice is closed.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
-        guideEvent("repay", { balance: hasBalanceDue(result) });
-      }
+      result = await api(`/api/v1/financed/${encodeURIComponent(value("financedCid"))}/settle-repay`, { method: "POST", body: JSON.stringify({ repaymentDate: value("repaymentDate") }) });
+      state.currentStep = "repaid";
+      await loadRole("buyer");
+      setResult({ ok: true, title: "Lender repaid", message: `${money(result.cashTransfer?.amount)} paid. The invoice is closed.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+      guideEvent("repay", { balance: hasBalanceDue(result) });
     } else if (action === "pay-balance") {
-      const due = contractsFor(state.role, "BalanceDue").find((contract) => contractId(contract) === value("balanceCid"));
-      const arg = due ? argument(due) : {};
-      if (arg.currency && arg.currency !== currency()) {
-        if (!value("paymentReference")) throw new Error("Enter the reference of your bank transfer to the supplier.");
-        result = await api(`/api/v1/balances/${encodeURIComponent(value("balanceCid"))}/pay`, { method: "POST", body: JSON.stringify({ financierRole: state.role, paymentReference: value("paymentReference") }) });
-        await loadRole(state.role);
-        setResult({ ok: true, title: "Balance paid", message: `Your transfer ${value("paymentReference")} of ${money(arg.balance, arg.currency)} is recorded. The invoice is fully settled.`, updateId: result.updateId });
-        guideEvent("pay-balance");
-      } else {
-        result = await api(`/api/v1/balances/${encodeURIComponent(value("balanceCid"))}/settle`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
-        await loadRole(state.role);
-        setResult({ ok: true, title: "Balance paid", message: `${money(result.cashTransfer?.amount)} paid to the supplier. The invoice is fully settled.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
-        guideEvent("pay-balance");
-      }
+      result = await api(`/api/v1/balances/${encodeURIComponent(value("balanceCid"))}/settle`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
+      await loadRole(state.role);
+      setResult({ ok: true, title: "Balance paid", message: `${money(result.cashTransfer?.amount)} paid to the supplier. The invoice is fully settled.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+      guideEvent("pay-balance");
     } else if (action === "propose") {
       const type = value("type");
       let proposal;
@@ -887,7 +899,7 @@ function bindEvents() {
   });
   $("actionPanel").addEventListener("submit", (event) => {
     event.preventDefault();
-    if (!state.loading) handleAction(event.target);
+    if (!state.loading) handleAction(event.target, event.submitter);
   });
   $("actionPanel").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-governance]");
@@ -918,23 +930,23 @@ function bindEvents() {
 const GUIDE_KEY = "tavryn.guide";
 const GUIDE = [
   { role: "supplier", on: "create-draft", title: "Create your invoice",
-    text: "You are Adeyemi Packaging, a supplier. Type an amount, for example 20250000, or attach an invoice PDF. Then click Create invoice." },
+    text: "You are Adeyemi Packaging, a supplier. Type an amount in {coin}, the network's coin, for example 2025, or attach an invoice PDF. Then click Create invoice." },
   { role: "buyer", on: "approve", title: "Approve the invoice",
     text: "You are Sunrise Foods, the company that owes the money. Pick invoice {invoice} and click Approve invoice. This invoice number can never be approved again." },
   { role: "supplier", on: "offer-2", title: "Offer it to two lenders",
-    text: "Back as Adeyemi. Under \"Offer an approved invoice\", pick {invoice}, choose Lender A, enter an advance (up to 90%) and a fee such as 2%, and send. Then do the same for Lender B." },
+    text: "Back as Adeyemi. Under \"Offer an approved invoice\", pick {invoice} and choose Lender A. Enter the amount to advance (up to 90% of the invoice, for example 1800) and the lender's fee in {coin} (for example 40), then send. Do the same for Lender B." },
   { role: "financierB", manual: true, title: "Look as Lender B",
     text: "You see only your own offer for {invoice}. Nothing about Lender A's offer. Click Next when you have looked." },
   { role: "financierA", on: "fund", title: "Finance the invoice",
-    text: "You are Lender A. Pick the offer for {invoice}, type any bank transfer reference, and click Finance this invoice. You pay Adeyemi now." },
+    text: "You are Lender A. Pick the offer for {invoice} and click Finance this invoice. The coins go from your wallet to Adeyemi now, and the network checks they arrived." },
   { role: "financierB", manual: true, title: "Lender B is too late",
     text: "The invoice is gone: \"1 offer is no longer available\". Lender B can't see who won or at what price. Click Next." },
   { role: "buyer", on: "repay", title: "Pay the lender",
-    text: "On the due date Sunrise Foods pays the full invoice to the lender, not to Adeyemi. Pick {invoice}, type a transfer reference, and click Repay." },
+    text: "On the due date Sunrise Foods pays the full invoice to the lender, not to Adeyemi. Pick {invoice} and click Repay. The coins go from Sunrise's wallet to Lender A." },
   { role: "financierA", on: "pay-balance", title: "Return Adeyemi's balance",
-    text: "Sunrise paid you the full invoice. Return the rest to Adeyemi: the invoice less your advance and fee. Pick the balance, type a reference, and click Pay balance." },
+    text: "Sunrise paid you the full invoice. Return the rest to Adeyemi: the invoice less your advance and fee. Pick the balance and click Pay balance." },
   { role: "auditor", manual: true, last: true, title: "See the whole trail",
-    text: "The auditor sees every payment with its reference and can change nothing. That's the story: one invoice, financed once, and everyone paid." },
+    text: "The auditor sees every payment and its network record, and can change nothing. That's the story: one invoice, financed once, and everyone paid on the network." },
 ];
 
 function loadGuide() {
@@ -991,7 +1003,7 @@ function renderGuide() {
   const company = companyFor(step.role);
   const here = state.account.role === step.role;
   const body = here
-    ? `<p>${escapeHtml(step.text).replaceAll("{invoice}", `<strong>${invoice}</strong>`)}</p>
+    ? `<p>${escapeHtml(step.text).replaceAll("{invoice}", `<strong>${invoice}</strong>`).replaceAll("{coin}", escapeHtml(currency()))}</p>
        ${step.manual ? `<div class="guide-actions"><button class="button button-primary" type="button" data-guide="next">${step.last ? "Finish" : "Next"}</button></div>` : ""}`
     : `<p>This step is done as <strong>${escapeHtml(company.name)}</strong>. You are signed in as ${escapeHtml(state.account.name)}.</p>
        <div class="guide-actions"><button class="button button-primary" type="button" data-guide="switch" data-email="${escapeHtml(company.email || "")}">Switch to ${escapeHtml(company.name)}</button></div>`;
@@ -1049,31 +1061,100 @@ async function start() {
   await loadSelectedRole();
 }
 
-// Shows the bank-reference field when the chosen invoice is in naira, and a link to
-// the invoice file when one was attached.
+// Shows the payment buttons that fit this lender, and a link to the invoice file when
+// one was attached.
 function updatePaymentFields() {
   const offerSelect = $("offerCid");
   if (offerSelect) {
     const offer = contractsFor(state.role, "FinancingOffer").find((contract) => contractId(contract) === offerSelect.value);
     const terms = offer ? argument(offer).terms : undefined;
-    $("fundReferenceField").hidden = !terms || terms.currency === currency();
+    const loopReady = Boolean(state.network?.loop);
+    const hasWallet = (state.network?.walletRoles || []).includes(state.role);
+    $("loopButton").hidden = !loopReady;
+    $("fundButton").hidden = loopReady && !hasWallet;
+    $("fundHint").textContent = loopReady
+      ? "Pay the supplier from your own Loop wallet. The invoice is reserved for you while you approve it, and nobody else can finance it."
+      : "You pay the supplier now and the buyer repays you by the due date.";
     $("offerFile").innerHTML = terms ? documentLink(terms.externalInvoiceNumber) : "";
-  }
-  const balanceSelect = $("balanceCid");
-  if (balanceSelect) {
-    const due = contractsFor(state.role, "BalanceDue").find((contract) => contractId(contract) === balanceSelect.value);
-    $("balanceReferenceField").hidden = !due || argument(due).currency === currency();
-  }
-  const financedSelect = $("financedCid");
-  if (financedSelect) {
-    const financed = contractsFor("buyer", "FinancedInvoice").find((contract) => contractId(contract) === financedSelect.value);
-    const terms = financed ? argument(financed).terms : undefined;
-    $("repayReferenceField").hidden = !terms || terms.currency === currency();
   }
   const draftSelect = $("draftCid");
   if (draftSelect) {
     const draft = contractsFor("buyer", "InvoiceDraft").find((contract) => contractId(contract) === draftSelect.value);
     $("draftFile").innerHTML = draft ? documentLink(argument(draft).terms.externalInvoiceNumber) : "";
+  }
+}
+
+// ------------------------------------------------------------------ Pay with Loop
+
+// The lender pays from their own Loop wallet. Tavryn reserves the invoice first, Loop
+// sends the coins, and the invoice is financed only once the supplier's own view of the
+// network shows them arriving from that wallet.
+const LOOP_SDK_URL = "https://unpkg.com/@fivenorth/loop-sdk@0.15.0/dist/index.js";
+let loopConnection = null;
+
+function connectLoop() {
+  if (loopConnection) return loopConnection;
+  loopConnection = (async () => {
+    const { loop } = await import(LOOP_SDK_URL);
+    return new Promise((resolve, reject) => {
+      loop.init({
+        appName: "Tavryn",
+        network: state.network.loop.network,
+        onAccept: resolve,
+        onReject: () => reject(new Error("The Loop connection was declined.")),
+      });
+      Promise.resolve(loop.connect()).catch(reject);
+    });
+  })();
+  loopConnection.catch(() => { loopConnection = null; });
+  return loopConnection;
+}
+
+async function payWithLoop(offerCid, terms) {
+  let provider;
+  try {
+    provider = await connectLoop();
+  } catch (error) {
+    throw new Error(error?.message?.includes("declined") ? error.message : "Couldn't open Loop. Check that pop-ups are allowed and try again.");
+  }
+  const lock = await api(`/api/v1/offers/${encodeURIComponent(offerCid)}/loop`, { method: "POST", body: JSON.stringify({ financierRole: state.role, loopParty: provider.party_id }) });
+  setResult({ ok: true, title: "Invoice reserved for you", message: `Approve the payment of ${money(lock.amount)} in your Loop wallet. Nobody else can finance this invoice while you do.`, updateId: lock.updateId });
+  let sent;
+  try {
+    sent = await provider.transfer(lock.receiver, lock.amount, undefined, {
+      memo: lock.trackingId,
+      message: `Tavryn: finance invoice ${terms?.externalInvoiceNumber ?? ""} by paying ${lock.amount} CC to the supplier`,
+      executionMode: "wait",
+      executeBefore: lock.payBefore,
+    });
+  } catch {
+    sent = undefined;
+  }
+  const outcome = await confirmLoopPayment(lock.pendingFundingCid, sent?.update_id);
+  showLoopOutcome(outcome);
+  return outcome;
+}
+
+// Asks Tavryn to look for the payment, a few times, since it can take a moment to land.
+async function confirmLoopPayment(pendingFundingCid, updateId) {
+  let outcome;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    outcome = await api(`/api/v1/pending-funding/${encodeURIComponent(pendingFundingCid)}/loop-confirm`, { method: "POST", body: JSON.stringify({ financierRole: state.role, ...(updateId ? { updateId } : {}) }) });
+    if (outcome.outcome !== "pending") return outcome;
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+  return outcome;
+}
+
+function showLoopOutcome(outcome) {
+  if (outcome.outcome === "completed") {
+    setResult({ ok: true, title: "Invoice financed", message: "Your Loop payment reached the supplier. No one else can finance this invoice now.", updateId: outcome.updateId, cashUpdateId: outcome.cashUpdateId });
+  } else if (outcome.outcome === "cancelled") {
+    setResult({ ok: false, title: "Reservation released", message: "No payment arrived in time, so the invoice is open again. Nothing was paid." });
+  } else if (outcome.outcome === "already-resolved") {
+    setResult({ ok: true, title: "Already settled", message: "This reservation was already completed or released." });
+  } else {
+    setResult({ ok: false, title: "Payment not seen yet", message: "The invoice stays reserved for you. If you approved it in Loop, use Check payment in a moment. If you don't pay, the reservation is released after 15 minutes." });
   }
 }
 
@@ -1132,7 +1213,6 @@ function extractFields(text) {
   const preferred = amounts.filter((match) => /due|grand/i.test(match[1]));
   const chosen = (preferred.length ? preferred : amounts).at(-1);
   if (chosen) found.amount = chosen[2].replaceAll(",", "");
-  if (/₦|\bNGN\b/.test(text)) found.currency = "NGN";
   const issued = new RegExp(`(?:invoice date|date of issue|issue date|issued(?: on)?|date)\\s*[:.]?\\s*${DATE}`, "i").exec(text);
   if (issued) found.issued = parseDate(issued[1]);
   const due = new RegExp(`(?:due date|payment due|due on|due)\\s*[:.]?\\s*${DATE}`, "i").exec(text);
@@ -1173,7 +1253,6 @@ async function handleInvoiceFile(file) {
       const fields = extractFields(await pdfText(file).catch(() => ""));
       if (fields.number) { $("externalInvoiceNumber").value = fields.number; filled.push("number"); }
       if (fields.amount) { $("faceValue").value = fields.amount; filled.push("amount"); }
-      if (fields.currency) $("invoiceCurrency").value = fields.currency;
       if (fields.issued) { $("issuedDate").value = fields.issued; filled.push("issue date"); }
       if (fields.due) { $("dueDate").value = fields.due; filled.push("due date"); }
     } else if (file.type === "image/png" || file.type === "image/jpeg") {

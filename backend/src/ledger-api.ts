@@ -37,6 +37,7 @@ export interface LedgerTransaction {
   synchronizerId: string;
   events: unknown[];
   recordTime?: string;
+  effectiveAt?: string;
 }
 
 export interface SubmissionResult {
@@ -314,6 +315,35 @@ export class LedgerApi {
     return contracts.filter((contract) => accepted.has(contract.templateId.split(":", 1)[0]));
   }
 
+  // One transaction as `party` sees it, with every event. Undefined when the party saw
+  // nothing of it or the ID is unknown.
+  async transactionById(party: string, updateId: string): Promise<LedgerTransaction | undefined> {
+    try {
+      const response = await this.request<{ update?: { Transaction?: { value?: LedgerTransaction } } }>(
+        "/v2/updates/update-by-id",
+        { method: "POST", body: JSON.stringify({ updateId, updateFormat: wildcardUpdateFormat(party) }) },
+      );
+      return response.update?.Transaction?.value;
+    } catch (error) {
+      if (error instanceof LedgerApiError && (error.status === 404 || error.status === 400)) return undefined;
+      throw error;
+    }
+  }
+
+  // Transactions `party` saw after `beginExclusive`, oldest first, at most `limit`.
+  async transactionsSince(party: string, beginExclusive: number, limit = 100): Promise<LedgerTransaction[]> {
+    const endInclusive = await this.getLedgerEnd();
+    if (endInclusive <= beginExclusive) return [];
+    const response = await this.request<Array<{ update?: { Transaction?: { value?: LedgerTransaction } } }>>(
+      `/v2/updates?limit=${limit}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ beginExclusive, endInclusive, updateFormat: wildcardUpdateFormat(party) }),
+      },
+    );
+    return response.flatMap((item) => (item.update?.Transaction?.value ? [item.update.Transaction.value] : []));
+  }
+
   private async streamActiveContracts(body: unknown): Promise<ActiveContractResponse[]> {
     const token = await this.tokens.token();
     const url = `${this.config.ledgerApiUrl.replace(/^http/, "ws")}/v2/state/active-contracts`;
@@ -521,4 +551,20 @@ function qualifyTemplateId(packageId: string | undefined, templateId: string): s
     return templateId;
   }
   return `${packageId}${templateId.slice(separator)}`;
+}
+
+function wildcardUpdateFormat(party: string) {
+  return {
+    includeTransactions: {
+      eventFormat: {
+        filtersByParty: {
+          [party]: {
+            cumulative: [{ identifierFilter: { WildcardFilter: { value: { includeCreatedEventBlob: false } } } }],
+          },
+        },
+        verbose: true,
+      },
+      transactionShape: "TRANSACTION_SHAPE_LEDGER_EFFECTS",
+    },
+  };
 }

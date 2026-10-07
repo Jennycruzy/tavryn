@@ -48,6 +48,20 @@ export interface TavrynConfig {
   financiers: Map<FinancierRole, string>;
   governance: GovernanceConfig;
   settlement: SettlementConfig;
+  // Pay with Loop, when this server runs on a network Loop wallets can reach.
+  loop?: LoopConfig;
+  // Typed payment references (no cash checked on the network). Off on every real
+  // server; the test harnesses turn it on to exercise the contract rules alone.
+  paymentReferences: boolean;
+}
+
+export interface LoopConfig {
+  // The Loop SDK network name: devnet or mainnet.
+  network: string;
+  // How long a lender has to approve the payment in Loop before the lock may lapse.
+  paymentWindowSeconds: number;
+  // Where the lock-to-wallet record is kept; without it, a restart forgets it.
+  payersFile?: string;
 }
 
 export interface GovernanceConfig {
@@ -219,6 +233,14 @@ export function loadConfig(): TavrynConfig {
       walletTokens,
       transferExpirySeconds: optionalPositiveInteger("CANTON_TRANSFER_EXPIRY_SECONDS", 300),
     },
+    paymentReferences: optional("TAVRYN_ALLOW_PAYMENT_REFERENCES") === "true",
+    loop: optional("TAVRYN_LOOP_NETWORK")
+      ? {
+          network: optional("TAVRYN_LOOP_NETWORK") as string,
+          paymentWindowSeconds: optionalPositiveInteger("TAVRYN_LOOP_PAYMENT_WINDOW_SECONDS", 900),
+          payersFile: optional("TAVRYN_LOOP_PAYERS_FILE"),
+        }
+      : undefined,
   };
 }
 

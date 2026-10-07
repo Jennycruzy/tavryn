@@ -49,6 +49,7 @@ export async function raceCandidates(service: TavrynService): Promise<RaceCandid
     if (templateName(contract) !== "FinancingOffer") continue;
     const argument = record(contract.createArgument);
     const terms = record(argument.terms);
+    if (terms.currency !== service.config.settlement.cantonCoinSymbol) continue;
     const role = roleFor.get(argument.financier);
     if (!role || typeof terms.externalInvoiceNumber !== "string") continue;
     const key = String(argument.invoiceCommitment);
@@ -86,21 +87,16 @@ export async function runRace(
     throw Object.assign(new Error("That invoice has no open offers to two lenders."), { publicCode: "RACE_NOT_AVAILABLE" });
   }
   const offers = [...new Map(candidate.offers.map((offer) => [offer.financierRole, offer])).values()].slice(0, 2);
-  const onNetwork = candidate.currency === service.config.settlement.cantonCoinSymbol;
-  const stamp = Date.now().toString(36).toUpperCase();
   const outcomes = await Promise.all(offers.map(async (offer): Promise<RaceOutcome> => {
     const started = Date.now();
-    const paymentReference = onNetwork ? undefined : `RACE-${offer.financierRole.slice(-1)}-${stamp}`;
     try {
-      const result = onNetwork
-        ? (await service.fundOffer(offer.offerContractId, offer.financierRole)).ledger
-        : await service.acceptOffer(offer.offerContractId, offer.financierRole, paymentReference as string);
+      const { ledger, cash } = await service.fundOffer(offer.offerContractId, offer.financierRole);
       return {
         financierRole: offer.financierRole,
         status: "funded",
         elapsedMs: Date.now() - started,
-        updateId: (result as SubmissionResult).transaction.updateId,
-        paymentReference,
+        updateId: ledger.transaction.updateId,
+        paymentReference: cash.updateId,
       };
     } catch (error) {
       const code = record(error).publicCode as string | undefined;
@@ -131,7 +127,7 @@ async function lenderView(service: TavrynService, role: string, invoiceCommitmen
     if (argument.invoiceCommitment !== invoiceCommitment) continue;
     const name = templateName(contract);
     if (name === "FinancedInvoice") lines.push("Financed invoice: this lender is owed the invoice amount");
-    if (name === "FundingReceipt") lines.push(`Payment receipt: advance paid to the supplier (ref ${argument.paymentReference})`);
+    if (name === "FundingReceipt") lines.push(`Payment receipt: ${Number(argument.settlementAmount).toLocaleString("en-US")} ${argument.instrument} paid to the supplier on the network`);
     if (name === "OfferClosed") lines.push("Notice: this invoice is no longer available. No winner, amount or terms");
     if (name === "FinancingOffer") lines.push("Offer still open");
   }
@@ -146,15 +142,15 @@ export async function prepareRaceInvoice(service: TavrynService): Promise<RaceCa
     result.createdContracts.find((event) => event.templateId.endsWith(`:${entity}`))?.contractId as string;
   const draft = await service.createInvoiceDraft({
     externalInvoiceNumber: number,
-    faceValue: "20250000.00",
-    currency: "NGN",
+    faceValue: "2025.00",
+    currency: service.config.settlement.cantonCoinSymbol as string,
     issuedDate: new Date().toISOString().slice(0, 10),
     dueDate: new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10),
   });
   const approved = await service.approveInvoice(created(draft, "InvoiceDraft"), ["financierA", "financierB"]);
   const approvedCid = created(approved, "ApprovedInvoice");
   for (const role of ["financierA", "financierB"]) {
-    await service.createOffer(approvedCid, role, "16200000.00", "0.8000", "405000.00");
+    await service.createOffer(approvedCid, role, "1620.00", "0.8000", "40.50");
   }
   return (await raceCandidates(service)).find((entry) => entry.invoiceNumber === number);
 }

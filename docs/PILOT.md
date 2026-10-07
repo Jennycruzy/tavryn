@@ -14,9 +14,9 @@
 
 - Buyer ERP/accounting export or API for invoice import and approval status.
 - Financier credit/origination system for funding decisions and limits.
-- Naira settlement through the lender's own bank, recorded on the ledger by payment
-  reference (the existing off-ledger path); Canton Coin or a stablecoin only where the
-  participants and their regulators allow it.
+- Settlement on the network, so every payment is checked rather than typed in: Canton
+  Coin today (lenders can pay from their own Loop wallet), and a naira digital currency
+  on Canton as the next step, where the participants and their regulators allow it.
 - Optional: registering the financed receivable in the National Collateral Registry, so
   the lender's claim is also on the public notice record.
 - Identity/onboarding controls for supplier, buyer, financier, auditor, and governance

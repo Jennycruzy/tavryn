@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-10-07T20:53:44.688Z",
+  "network": "HackCanton DevNet (hackcanton-01)",
+  "claim": "Pay with Loop rules on DevNet with real Canton Coin: an invoice is reserved for one outside wallet, financed only when the supplier's own view shows that wallet's payment, a payment cannot be used twice, and an unpaid reservation is released.",
+  "payingWallet": {
+    "party": "a1f68d5f-0f28-4568-8b6b-a754b4f94ee8::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+    "note": "The node's own DevNet wallet standing in for a Loop wallet; same checks as a Loop app payment."
+  },
+  "lender": "financierA",
+  "paymentWindowSeconds": 60,
+  "reserved": {
+    "invoiceNumber": "TVN-DEVNET-LOOP-MUYL10GN-GRJP",
+    "pendingFundingCid": "00885bd5c8afdafa058c4972a999869652e57c86dc67c4a470959f209468e6761eca12122013e603f2cfcce71c91bebcc20a7095c8f1a57c55e94ec59f3780ed9039233e40",
+    "trackingId": "tavryn-loop-34e91a58-35c0-47ff-8faf-b4dcab53c32b",
+    "amount": "5.0000000000",
+    "receiver": "a1f68d5f-tavryn-supplier::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+    "network": "devnet",
+    "payBefore": "2026-10-07T20:52:07.548Z",
+    "updateId": "12207671d6b6f9d1d19b2f0a990e6ac898f00146c0f443eac9186b52fba005427f61"
+  },
+  "secondReservationRefused": {
+    "status": 409,
+    "code": "INVOICE_UNAVAILABLE"
+  },
+  "beforePayment": {
+    "outcome": "pending",
+    "contractId": "00885bd5c8afdafa058c4972a999869652e57c86dc67c4a470959f209468e6761eca12122013e603f2cfcce71c91bebcc20a7095c8f1a57c55e94ec59f3780ed9039233e40",
+    "trackingId": "tavryn-loop-34e91a58-35c0-47ff-8faf-b4dcab53c32b"
+  },
+  "payment": {
+    "updateId": "1220f88b37a27a67254aeba730d396cc864f938731a03c031beebc163a4d2c03fa8b",
+    "eventId": "#1220f88b37a27a67254aeba730d396cc864f938731a03c031beebc163a4d2c03fa8b:0",
+    "trackingId": "tavryn-loop-34e91a58-35c0-47ff-8faf-b4dcab53c32b",
+    "description": "Tavryn tavryn-loop-34e91a58-35c0-47ff-8faf-b4dcab53c32b",
+    "amount": "5.0000000000",
+    "sender": "a1f68d5f-0f28-4568-8b6b-a754b4f94ee8::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+    "receiver": "a1f68d5f-tavryn-supplier::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e"
+  },
+  "restartedBeforeConfirming": true,
+  "financed": {
+    "outcome": "completed",
+    "contractId": "00885bd5c8afdafa058c4972a999869652e57c86dc67c4a470959f209468e6761eca12122013e603f2cfcce71c91bebcc20a7095c8f1a57c55e94ec59f3780ed9039233e40",
+    "trackingId": "tavryn-loop-34e91a58-35c0-47ff-8faf-b4dcab53c32b",
+    "updateId": "1220e050d0952d0b0cc8df3ac69c7cf5f6cb5464157d16c1075a6ff1285528fc85b1",
+    "cashUpdateId": "1220f88b37a27a67254aeba730d396cc864f938731a03c031beebc163a4d2c03fa8b"
+  },
+  "reuse": {
+    "invoiceNumber": "TVN-DEVNET-LOOP-REUSE-MUYL1MH2-2P29",
+    "sameUpdateId": "1220f88b37a27a67254aeba730d396cc864f938731a03c031beebc163a4d2c03fa8b",
+    "outcome": {
+      "outcome": "pending",
+      "contractId": "004afde7ad6cb441adcb382d85170c4cfc838f6ff11e414aa6289b0782c732f6e3ca121220526c4a96dafec55084f2ba407a07b42be559ff9af98da162684ce8dc5670f3b7",
+      "trackingId": "tavryn-loop-d150d1ec-a61d-4b81-b415-e6af51da4aba"
+    }
+  },
+  "unpaidReservationReleased": {
+    "outcome": "cancelled",
+    "contractId": "004afde7ad6cb441adcb382d85170c4cfc838f6ff11e414aa6289b0782c732f6e3ca121220526c4a96dafec55084f2ba407a07b42be559ff9af98da162684ce8dc5670f3b7",
+    "trackingId": "tavryn-loop-d150d1ec-a61d-4b81-b415-e6af51da4aba",
+    "updateId": "122058e4eaefb24a84c6a2ed82198c99ff7d53e0025c622ce63510105f97a64e0df5"
+  }
+}

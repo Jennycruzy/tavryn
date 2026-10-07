@@ -16,11 +16,11 @@ InvoiceDraft.Approve ─▶ InvoiceDetails + FundingSlot + ApprovedInvoice
 ApprovedInvoice.CreateOffer ─▶ FinancingOffer (one per financier)
 FinancingOffer.BeginFunding ─▶ PendingFunding ─Complete─▶ FinancedInvoice + FundingReceipt
                                               └Cancel───▶ ApprovedInvoice + FundingSlot + offer
-FinancingOffer.Accept (off-ledger cash) ─▶ FinancedInvoice + FundingReceipt
+FinancingOffer.Accept (typed reference; test harness only) ─▶ FinancedInvoice + FundingReceipt
 FinancingOffer.Withdraw ─▶ OfferClosed (losing offers)
 FinancedInvoice.BeginRepayment ─▶ PendingRepayment ─CompleteRepayment─▶ RepaymentReceipt
                                                     └CancelRepayment──▶ FinancedInvoice
-FinancedInvoice.Repay (off-ledger cash) ─▶ RepaymentReceipt
+FinancedInvoice.Repay (typed reference; test harness only) ─▶ RepaymentReceipt
 ```
 
 ## Core ledger invariant
@@ -96,6 +96,28 @@ sweeper (on start and every 60 s) and `POST /api/v1/pending-funding/:cid/reconci
 search the sender's wallet history for the tracking ID: a found transfer completes the
 lock; no transfer after the transfer's expiry plus a margin cancels it; anything else
 stays pending. A transfer the wallet refuses outright cancels the lock immediately.
+
+### Pay with Loop
+
+A lender can pay from its own Loop wallet instead of a wallet the backend holds. The Loop
+wallet lives on another participant, so it carries the cash only; the lender's Tavryn party
+still signs every contract.
+
+1. `POST /api/v1/offers/:cid/loop` records the connected Loop party against a new tracking
+   ID (`tavryn-loop-…`, kept in `TAVRYN_LOOP_PAYERS_FILE`), then runs the same
+   `BeginFunding` lock and returns the amount, the supplier and a pay-by time.
+2. The browser asks Loop to pay that amount to the supplier, with the tracking ID as memo.
+3. `POST /api/v1/pending-funding/:cid/loop-confirm` (and the sweeper) look for the payment
+   in the supplier's own transactions since the lock: in one transaction the recorded
+   wallet must act and a Canton Coin holding of exactly the amount must be created for the
+   supplier, no earlier than the lock. A payment already used for another lock never
+   counts. Found, the lock completes with that transaction as the cash reference; not
+   found after the pay-by window plus a margin, the lock is cancelled.
+
+Loop runs on DevNet and MainNet, so Pay with Loop is offered only by a server with
+`TAVRYN_LOOP_NETWORK` set. Typed payment references (`Accept`, `Repay`, `PayBalance` with
+an external reference) are refused unless `TAVRYN_ALLOW_PAYMENT_REFERENCES=true`, which
+only the test harnesses set.
 
 ## Visibility
 

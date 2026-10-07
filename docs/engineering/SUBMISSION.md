@@ -86,9 +86,12 @@ lenders.
 - On the HackCanton DevNet, a lender paid the supplier 80 CC from its own DevNet wallet
   through Tavryn; the rival lender was refused
   (`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`).
-- The Nigerian pilot path runs on the DevNet: a naira invoice raced by two lenders, funded
-  once and repaid, with bank payment references on the receipts
-  (`docs/evidence/NAIRA_DEVNET_2026-10-06.json`).
+- Pay with Loop on the DevNet: a lender pays the supplier from its own Loop wallet, and
+  Tavryn finances the invoice only when the supplier's own view shows the coins arriving
+  from that wallet. A payment cannot be used twice, and an unpaid reservation is released
+  (`docs/evidence/LOOP_RULES_DEVNET_2026-10-07.json`).
+- Canton Coin only: typed bank references were removed because a lender could make one
+  up. The earlier naira runs stay in the record (`docs/evidence/NAIRA_DEVNET_2026-10-06.json`).
 - Shared governance: the network rules are signed by every operator and change only when
   two of three vote. One vote is refused ("Not enough operator approvals (1 of 2).
   Nothing changed."); two votes admit a financier or change the maximum advance rate.
@@ -114,7 +117,7 @@ one participant or wallet per organization.
 | Is it technically non-trivial? | Competing private offers contend for one terms-free funding right without revealing invoice terms. | Daml contracts, role-scoped backend, real update IDs |
 | Does it work? | The core lifecycle runs on LocalNet through the real JSON Ledger API. | Reproducible integration output and short demo |
 | Can it become a business? | Lenders pay per verified invoice because they carry the duplicate-financing risk; both buyer-side managers we interviewed said so, and a bank SME lending officer confirmed she would pay a small fee per check. | Pilot design, integrations, and interview evidence |
-| Is it complete? | Core invariant and governance run on LocalNet and the HackCanton DevNet node, with a recorded browser click-through; two-step Canton Coin funding is proven on LocalNet and DevNet, repayment on LocalNet. Interviews remain an explicit gate. | Progress matrix with no inflated claims |
+| Is it complete? | Core invariant and governance run on LocalNet and the HackCanton DevNet node, with a recorded browser click-through; two-step Canton Coin funding is proven on LocalNet and DevNet, repayment on LocalNet. Five interviews are recorded. | Progress matrix with no inflated claims |
 
 ## Language discipline
 
@@ -220,7 +223,8 @@ records, now moves on the hackathon network. Next: customer conversations.
 - [x] DevNet lifecycle and governance evidence (`docs/evidence/P7_DEVNET_2026-10-05.json`)
 - [x] DevNet Canton Coin funding (`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`)
 - [x] Sample invoices, synthetic and labelled (`fixtures/invoices/`)
-- [x] Naira invoice on DevNet through the bank-reference path (`docs/evidence/NAIRA_DEVNET_2026-10-06.json`)
+- [x] Naira invoice on DevNet through the bank-reference path, since removed (`docs/evidence/NAIRA_DEVNET_2026-10-06.json`)
+- [x] Pay with Loop rules on DevNet with real Canton Coin (`docs/evidence/LOOP_RULES_DEVNET_2026-10-07.json`)
 - [x] Customer interview evidence (five, `docs/engineering/INTERVIEWS.md`)
 - [ ] Under-five-minute demo video
 - [x] Public demo link checked in fresh browser contexts (`docs/evidence/P11_PUBLIC_LINK_2026-10-06/`)
