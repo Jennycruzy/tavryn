@@ -99,18 +99,9 @@ A Loop wallet's payment to the supplier is the same kind of transaction: on the 
 owner's Loop wallet paid the supplier 10 CC, and the unit tests check Tavryn's rules against
 that real transaction.
 
-Earlier, before payments became Canton Coin only (HackCanton DevNet, 6 October 2026): the synthetic Lagos
-invoice `fixtures/invoices/SYN-003` (₦20,250,000) was approved, offered to two lenders who
-paid at the same moment, funded by exactly one at ₦16,200,000, and repaid, with each bank
-payment reference recorded on the receipts; the second lender was told "This invoice is no
-longer available". The references are synthetic and no naira moved
+An earlier version also accepted typed bank references; it was removed because a lender
+could make one up. Those runs are kept for the record only
 ([`evidence/NAIRA_DEVNET_2026-10-06.json`](evidence/NAIRA_DEVNET_2026-10-06.json)).
-With package 0.1.5 the same invoice carries the lender's fee (₦405,000) agreed in the
-offer; after the buyer paid ₦20,250,000 to the winning lender, the lender paid the
-supplier's ₦3,645,000 balance, all on the DevNet
-([`evidence/NAIRA_BALANCE_DEVNET_2026-10-06.json`](evidence/NAIRA_BALANCE_DEVNET_2026-10-06.json)).
-Those runs proved the single-financing rules, but a typed bank reference can be made up, so
-Tavryn no longer accepts one: every payment is now Canton Coin checked on the network.
 
 Records: [`evidence/METRICS_localnet_2026-10-06.json`](evidence/METRICS_localnet_2026-10-06.json),
 [`evidence/METRICS_devnet_2026-10-06.json`](evidence/METRICS_devnet_2026-10-06.json).

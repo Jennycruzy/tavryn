@@ -46,8 +46,8 @@ Global factoring passed **€4 trillion** a year in 2025
    longer available"*, and nothing about who won or at what price.
 5. **The buyer** pays the full invoice to the winning lender on the due date.
 6. **The lender** returns the rest to the supplier: the invoice less the advance and the
-   fee. For a ₦20.25m invoice with a ₦16.2m advance and a ₦405,000 fee, the supplier gets
-   ₦16.2m now and ₦3,645,000 when the buyer pays. Every step is a signed record.
+   fee. For a 2,025 CC invoice with a 1,620 CC advance and a 40.50 CC fee, the supplier gets
+   1,620 CC now and 364.50 CC when the buyer pays. Every step is a signed record.
 
 ## Why it can be trusted
 
@@ -82,11 +82,8 @@ succeeded 5 of 5. Details and sources: [docs/VALIDATION.md](docs/VALIDATION.md).
   with real Canton Coin: the payment was found after a restart, the same payment could not
   finance a second invoice, and an unpaid reservation was released
   ([record](docs/evidence/LOOP_RULES_DEVNET_2026-10-07.json)).
-- **Canton Coin only:** every payment is checked on the network. An earlier version also
-  let lenders type a naira bank reference; we removed it, because a lender could type one
-  that was made up. Those earlier naira runs stay in the record
-  ([record](docs/evidence/NAIRA_DEVNET_2026-10-06.json)). For Nigeria, the next step is a
-  naira digital currency on Canton, paid the same way.
+- **Canton Coin only:** every payment is checked on the network, never typed in. For
+  Nigeria, the next step is a naira digital currency on Canton, paid the same way.
 - **The lender race:** a demo page (`/race`, sign in as the demo presenter) sends two
   lenders' real financing requests to Canton at the same instant and shows which one
   Canton accepted. The winner varies from run to run.

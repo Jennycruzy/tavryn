@@ -90,8 +90,7 @@ lenders.
   Tavryn finances the invoice only when the supplier's own view shows the coins arriving
   from that wallet. A payment cannot be used twice, and an unpaid reservation is released
   (`docs/evidence/LOOP_RULES_DEVNET_2026-10-07.json`).
-- Canton Coin only: typed bank references were removed because a lender could make one
-  up. The earlier naira runs stay in the record (`docs/evidence/NAIRA_DEVNET_2026-10-06.json`).
+- Canton Coin only: every payment is checked on the network, never typed in.
 - Shared governance: the network rules are signed by every operator and change only when
   two of three vote. One vote is refused ("Not enough operator approvals (1 of 2).
   Nothing changed."); two votes admit a financier or change the maximum advance rate.
@@ -223,7 +222,6 @@ records, now moves on the hackathon network. Next: customer conversations.
 - [x] DevNet lifecycle and governance evidence (`docs/evidence/P7_DEVNET_2026-10-05.json`)
 - [x] DevNet Canton Coin funding (`docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json`)
 - [x] Sample invoices, synthetic and labelled (`fixtures/invoices/`)
-- [x] Naira invoice on DevNet through the bank-reference path, since removed (`docs/evidence/NAIRA_DEVNET_2026-10-06.json`)
 - [x] Pay with Loop rules on DevNet with real Canton Coin (`docs/evidence/LOOP_RULES_DEVNET_2026-10-07.json`)
 - [x] Customer interview evidence (five, `docs/engineering/INTERVIEWS.md`)
 - [ ] Under-five-minute demo video
