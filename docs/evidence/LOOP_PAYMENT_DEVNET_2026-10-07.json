@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-10-07T22:00:00Z",
+  "network": "HackCanton DevNet (hackcanton-01)",
+  "app": "https://devnet.38-49-216-59.sslip.io",
+  "claim": "A lender financed an invoice by paying the supplier from its own Loop wallet, approved in the Loop app. Tavryn reserved the invoice for that wallet and financed it only after finding the payment in the supplier's own view of the network.",
+  "invoice": "LOOP-UI-1791406916",
+  "lender": "financierA (Lender A)",
+  "loopWallet": "e2f89af51e83e191da401da72759ad0c::122029f24d8b0f43bb66c069b29b3a1fbc29d3dff5c375c244a61c21433e3cfd641c",
+  "supplier": "a1f68d5f-tavryn-supplier::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+  "reservedAt": "2026-10-07T21:54:58.884319Z",
+  "trackingId": "tavryn-loop-f057d2b8-5a8f-4636-9ce5-569cf514fa90",
+  "payment": {
+    "updateId": "1220ee2d9b46a58e7761a8d91068cf8fd1f302ceb29500d8a4eb8887b89c2b780928",
+    "offset": 2362230,
+    "effectiveAt": "2026-10-07T21:56:44.559375Z",
+    "amount": "5.0000000000",
+    "instrument": "CC",
+    "choice": "TransferPreapproval_SendV2",
+    "actingParties": "the Loop wallet and the DSO",
+    "memoCarriesTrackingId": true
+  },
+  "financed": {
+    "financedInvoiceContractId": "006abe1be4a3d29805cde60e4bd9f9244a6319dedd82b72b4ef34dde746275629fca1212208af4a5ce54f9841b3877c0a691c0391265ad2726b25661402dd9ed235ec7bcf4",
+    "financedInvoiceOffset": 2362242,
+    "fundingReceiptContractId": "002d9df6e0f87b01659431799c6728604c764e6bca0615410fbe6862646b6e9cfaca1212208aff0631da61508918454a8a98b571a81309b8569f665559ff89c54fbaaf9361",
+    "fundingReceiptOffset": 2362242,
+    "receiptPaymentReference": "1220ee2d9b46a58e7761a8d91068cf8fd1f302ceb29500d8a4eb8887b89c2b780928",
+    "receiptAmount": "5.0000000000",
+    "receiptInstrument": "CC"
+  }
+}

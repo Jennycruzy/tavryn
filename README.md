@@ -78,7 +78,10 @@ succeeded 5 of 5. Details and sources: [docs/VALIDATION.md](docs/VALIDATION.md).
   Canton Coin repayment is proven on LocalNet.
 - **Pay with Loop:** a lender can pay the supplier from its own Loop wallet. Tavryn
   reserves the invoice for that lender, and finances it only when the supplier's own view
-  of the network shows the coins arriving from that wallet. On the DevNet the checks held
+  of the network shows the coins arriving from that wallet. On 7 October 2026 a lender
+  approved a 5 CC payment in the Loop app and the invoice was financed with that payment
+  as its receipt ([record](docs/evidence/LOOP_PAYMENT_DEVNET_2026-10-07.json); try it at
+  https://devnet.38-49-216-59.sslip.io). The checks also held
   with real Canton Coin: the payment was found after a restart, the same payment could not
   finance a second invoice, and an unpaid reservation was released
   ([record](docs/evidence/LOOP_RULES_DEVNET_2026-10-07.json)).

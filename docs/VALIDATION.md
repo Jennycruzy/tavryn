@@ -95,6 +95,10 @@ the payment in the supplier's own view and financed the invoice. The same paymen
 refused for a second invoice, and that unpaid reservation was released after its payment
 window ([`evidence/LOOP_RULES_DEVNET_2026-10-07.json`](evidence/LOOP_RULES_DEVNET_2026-10-07.json)).
 The paying wallet in that run is the node's own DevNet wallet standing in for a Loop wallet.
+The same evening a real Loop wallet did it end to end: the invoice was reserved for the wallet
+at 21:54:58 UTC, the lender approved 5 CC in the Loop app, the coins reached the supplier at
+21:56:44 carrying Tavryn's tracking ID as the memo, and the invoice was financed with that
+payment as its receipt ([`evidence/LOOP_PAYMENT_DEVNET_2026-10-07.json`](evidence/LOOP_PAYMENT_DEVNET_2026-10-07.json)).
 A Loop wallet's payment to the supplier is the same kind of transaction: on the same day the
 owner's Loop wallet paid the supplier 10 CC, and the unit tests check Tavryn's rules against
 that real transaction.

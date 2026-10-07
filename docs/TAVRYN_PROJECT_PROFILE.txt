@@ -47,7 +47,7 @@ MEASURED
 WORKING TODAY
 - Live on the HackCanton DevNet: two lenders paid for the same invoice at the same moment; the network accepted one and refused the other. Rule changes were refused with one approval and applied with two.
 - Real Canton Coin payments and repayments, with interrupted payments finished automatically and repayments never sent twice.
-- Pay with Loop: a lender pays the supplier from its own Loop wallet, and Tavryn finances the invoice only when the supplier's own view of the network shows the coins arriving from that wallet. Checked on the HackCanton DevNet with real Canton Coin.
+- Pay with Loop: a lender pays the supplier from its own Loop wallet, and Tavryn finances the invoice only when the supplier's own view of the network shows the coins arriving from that wallet. Done end to end on the HackCanton DevNet: a lender approved a 5 CC payment in the Loop app and the invoice was financed.
 - Canton Coin only: every payment is checked on the network, never typed in. A naira digital currency on Canton is the next step for Nigeria.
 - Canton Coin on the HackCanton DevNet: a lender paid a supplier 80 CC from its own DevNet wallet through Tavryn, and the rival lender was refused.
 - A web app with a page for each company, and a recorded walkthrough of the full flow.
