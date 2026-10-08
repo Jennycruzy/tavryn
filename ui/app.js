@@ -503,7 +503,7 @@ function buyerActions() {
         <div class="field wide"><label for="financedCid">Invoice</label><select id="financedCid" name="financedCid" required>${optionList(financed, "Choose an invoice", financedLabel)}</select></div>
         <div class="field"><label for="repaymentDate">Payment date</label><input id="repaymentDate" name="repaymentDate" type="date" value="${isoDate(0)}" required /></div>
       </div>
-      <div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Repay</button>${loopOption()}<span class="hint">${payHint("Paying early is fine. A retry never pays twice.")}</span></div>
+      <div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Repay</button><span class="hint">${payHint("Paying early is fine. A retry never pays twice.")}</span></div>
     </form>` : ""}
     ${loopCheckForm("repayment", contractsFor("buyer", "PendingRepayment"), "the lender")}
   `;
@@ -564,7 +564,7 @@ function lenderActions() {
       <div class="form-grid">
         <div class="field wide"><label for="balanceCid">Balance due</label><select id="balanceCid" name="balanceCid" required>${optionList(balances, "Choose a balance", balanceLabel)}</select></div>
       </div>
-      <div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Pay balance</button>${loopOption()}<span class="hint">${payHint("The buyer paid you the full invoice. This returns the rest, less your agreed fee.")}</span></div>
+      <div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Pay balance</button><span class="hint">${payHint("The buyer paid you the full invoice. This returns the rest, less your agreed fee.")}</span></div>
     </form>` : ""}
     ${closed.length ? `<div class="notice"><strong>${closed.length === 1 ? "1 offer is" : `${closed.length} offers are`} no longer available</strong>Another lender financed ${closed.length === 1 ? "that invoice" : "those invoices"} first. You aren't told who, or at what price.</div>` : ""}
   `;
