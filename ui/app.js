@@ -965,7 +965,9 @@ function bindEvents() {
 // Walks a visitor through one invoice, company by company. Progress is kept in this
 // browser only, so it survives signing out and in as the next company.
 
-const GUIDE_KEY = "tavryn.guide";
+// Tours saved before tavryn.site moved to the DevNet point at invoices that don't exist
+// here, so they are forgotten and everyone starts fresh.
+const GUIDE_KEY = "tavryn.guide.devnet";
 const GUIDE = [
   { role: "supplier", on: "create-draft", title: "Create your invoice",
     text: "You are Adeyemi Packaging, a supplier. Type an amount in {coin}, the network's coin, for example 20, or attach an invoice PDF. Then click Create invoice." },
@@ -1043,8 +1045,8 @@ function renderGuide() {
   const body = here
     ? `<p>${escapeHtml(step.text).replaceAll("{invoice}", `<strong>${invoice}</strong>`).replaceAll("{coin}", escapeHtml(currency()))}</p>
        ${step.manual ? `<div class="guide-actions"><button class="button button-primary" type="button" data-guide="next">${step.last ? "Finish" : "Next"}</button></div>` : ""}`
-    : `<p>This step is done as <strong>${escapeHtml(company.name)}</strong>. You are signed in as ${escapeHtml(state.account.name)}.</p>
-       <div class="guide-actions"><button class="button button-primary" type="button" data-guide="switch" data-email="${escapeHtml(company.email || "")}">Switch to ${escapeHtml(company.name)}</button></div>`;
+    : `<p>The next step of the tour is done as <strong>${escapeHtml(company.name)}</strong>. You are signed in as ${escapeHtml(state.account.name)}.</p>
+       <div class="guide-actions"><button class="button button-primary" type="button" data-guide="switch" data-email="${escapeHtml(company.email || "")}">Switch to ${escapeHtml(company.name)}</button><button class="button button-secondary" type="button" data-guide="hide">Stop the tour</button></div>`;
   panel.innerHTML = `
     <div class="guide-top"><span class="guide-step">Guided tour · step ${guide.step + 1} of ${GUIDE.length}</span>
       <span class="guide-actions"><button class="link-button" type="button" data-guide="start">Restart</button><button class="link-button" type="button" data-guide="hide">Hide</button></span></div>
