@@ -534,7 +534,7 @@ function loopCheckForm(kind, locks, receiver) {
       <input type="hidden" name="kind" value="${kind}" />
       <p class="form-title">Waiting for your Loop payment</p>
       <div class="form-grid"><div class="field wide"><label for="lockCid">Reserved invoice</label><select id="lockCid" name="lockCid" required>${optionList(mine, "Choose an invoice", label)}</select><span class="hint">Approved the payment in Loop? Check it here. A reservation you never pay is released after 15 minutes.</span></div></div>
-      <div class="form-actions"><button class="button button-primary" type="submit">Check payment</button></div>
+      <div class="form-actions"><button class="button button-primary" type="submit" value="loop">Approve in Loop</button><button class="button button-secondary" type="submit" value="check">Check payment</button></div>
     </form>`;
 }
 
@@ -795,7 +795,11 @@ async function handleAction(form, submitter) {
         guideEvent("fund");
       }
     } else if (action === "loop-check") {
-      const outcome = await confirmLoopPayment(value("kind"), value("lockCid"));
+      const lock = contractsFor(state.role, value("kind") === "funding" ? "PendingFunding" : "PendingRepayment")
+        .find((contract) => contractId(contract) === value("lockCid"));
+      const outcome = submitter?.value === "loop" && lock
+        ? await approveExistingLock(value("kind"), lock)
+        : await confirmLoopPayment(value("kind"), value("lockCid"));
       await loadRole(state.role);
       showLoopOutcome(value("kind"), outcome);
     } else if (action === "repay" && submitter?.value === "loop") {
@@ -1178,19 +1182,50 @@ async function payWithLoop(kind, cid, extra) {
   const [path, body] = step.begin(cid, extra, provider.party_id);
   const lock = await api(path, { method: "POST", body: JSON.stringify(body) });
   if (lock.outcome === "completed") return lock;
-  setResult({ ok: true, title: "Approve the payment in Loop", message: `Approve ${money(lock.amount)} to ${step.receiver} in your Loop wallet.${kind === "balance" ? "" : " The invoice is reserved for you while you do."}`, updateId: lock.updateId });
-  let sent;
+  await approveClick(`${kind === "balance" ? "Ready to pay" : "Invoice reserved for you"}`, `Now approve ${money(lock.amount)} to ${step.receiver} in your Loop wallet.`);
+  const sent = await sendFromLoop(provider, lock, `Tavryn: ${step.what} ${extra.invoice ?? ""} by paying ${lock.amount} CC to ${step.receiver}`);
+  return confirmLoopPayment(kind, step.lockId(lock), sent?.update_id);
+}
+
+// A reservation made earlier (the Loop window was closed or blocked): pay it now.
+async function approveExistingLock(kind, contract) {
+  const step = LOOP_STEPS[kind];
+  const arg = argument(contract);
+  const provider = await connectLoop();
+  await approveClick("Approve the reserved payment", `Approve ${money(arg.settlementAmount)} to ${step.receiver} in your Loop wallet.`);
+  const sent = await sendFromLoop(provider, {
+    receiver: kind === "funding" ? arg.supplier : arg.financier,
+    amount: String(arg.settlementAmount),
+    trackingId: arg.trackingId,
+    payBefore: new Date(new Date(arg.lockedAt).getTime() + 15 * 60_000).toISOString(),
+  }, `Tavryn: ${step.what} ${arg.terms?.externalInvoiceNumber ?? ""} by paying ${Number(arg.settlementAmount)} CC to ${step.receiver}`);
+  return confirmLoopPayment(kind, contractId(contract), sent?.update_id);
+}
+
+// Browsers only allow the Loop window straight after a click, so the approval opens from
+// its own button rather than after the reservation's network round trip.
+function approveClick(title, message) {
+  return new Promise((resolve) => {
+    $("resultBody").innerHTML = `<div class="result-box ok"><p class="result-title">${escapeHtml(title)}</p><p class="result-message">${escapeHtml(message)}</p><div class="form-actions"><button class="button button-primary" type="button" id="loopApprove">Open Loop to approve</button></div></div>`;
+    $("loopApprove").addEventListener("click", () => {
+      $("loopApprove").disabled = true;
+      $("loopApprove").textContent = "Waiting for Loop…";
+      resolve();
+    }, { once: true });
+  });
+}
+
+async function sendFromLoop(provider, lock, message) {
   try {
-    sent = await provider.transfer(lock.receiver, lock.amount, undefined, {
+    return await provider.transfer(lock.receiver, lock.amount, undefined, {
       memo: lock.trackingId,
-      message: `Tavryn: ${step.what} ${extra.invoice ?? ""} by paying ${lock.amount} CC to ${step.receiver}`,
+      message,
       executionMode: "wait",
       executeBefore: lock.payBefore,
     });
   } catch {
-    sent = undefined;
+    return undefined;
   }
-  return confirmLoopPayment(kind, step.lockId(lock), sent?.update_id);
 }
 
 // Asks Tavryn to look for the payment, a few times, since it can take a moment to land.
