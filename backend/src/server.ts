@@ -328,6 +328,42 @@ async function route(
     return;
   }
 
+  if (method === "POST" && matches(parts, ["api", "v1", "financed", "*", "loop"])) {
+    allow(account, (signedIn) => signedIn.role === "buyer");
+    const body = await readJson(request);
+    writeJson(response, 201, await service.beginLoopRepayment(
+      parts[3],
+      stringField(body, "repaymentDate"),
+      stringField(body, "loopParty"),
+    ));
+    return;
+  }
+
+  if (method === "POST" && matches(parts, ["api", "v1", "pending-repayment", "*", "loop-confirm"])) {
+    allow(account, (signedIn) => signedIn.role === "buyer");
+    const body = await readJson(request);
+    const updateId = typeof body.updateId === "string" ? body.updateId : undefined;
+    writeJson(response, 200, await service.confirmLoopRepayment(parts[3], updateId));
+    return;
+  }
+
+  if (method === "POST" && matches(parts, ["api", "v1", "balances", "*", "loop"])) {
+    const body = await readJson(request);
+    writeJson(response, 201, await service.beginLoopBalance(
+      parts[3],
+      financierRoleFor(account, body),
+      stringField(body, "loopParty"),
+    ));
+    return;
+  }
+
+  if (method === "POST" && matches(parts, ["api", "v1", "balances", "*", "loop-confirm"])) {
+    const body = await readJson(request);
+    const updateId = typeof body.updateId === "string" ? body.updateId : undefined;
+    writeJson(response, 200, await service.confirmLoopBalance(parts[3], financierRoleFor(account, body), updateId));
+    return;
+  }
+
   if (method === "POST" && matches(parts, ["api", "v1", "pending-funding", "*", "loop-confirm"])) {
     const body = await readJson(request);
     const updateId = typeof body.updateId === "string" ? body.updateId : undefined;

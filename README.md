@@ -5,6 +5,9 @@ see each other's deals.**
 
 **Live at [tavryn.site](https://tavryn.site)** · [open the app](https://tavryn.site/app)
 
+tavryn.site runs on the HackCanton DevNet. Every payment you make there moves real DevNet
+Canton Coin: click Pay and it comes from the demo wallet, or pay from your own Loop wallet.
+
 ![Tavryn](docs/images/tavryn-landing.png)
 
 ## The problem
@@ -46,8 +49,8 @@ Global factoring passed **€4 trillion** a year in 2025
    longer available"*, and nothing about who won or at what price.
 5. **The buyer** pays the full invoice to the winning lender on the due date.
 6. **The lender** returns the rest to the supplier: the invoice less the advance and the
-   fee. For a 2,025 CC invoice with a 1,620 CC advance and a 40.50 CC fee, the supplier gets
-   1,620 CC now and 364.50 CC when the buyer pays. Every step is a signed record.
+   fee. For a 20 CC invoice with a 16 CC advance and a 1 CC fee, the supplier gets 16 CC now
+   and 3 CC when the buyer pays. Every step is a signed record.
 
 ## Why it can be trusted
 
@@ -75,13 +78,16 @@ succeeded 5 of 5. Details and sources: [docs/VALIDATION.md](docs/VALIDATION.md).
 - **Canton Coin on the DevNet:** on 6 October 2026 a lender paid a supplier 80 CC from its
   own DevNet wallet through Tavryn, the receipt on the ledger carries the same payment
   reference, and the rival lender was refused ([record](docs/evidence/P3_SETTLEMENT_DEVNET_2026-10-06.json)).
-  Canton Coin repayment is proven on LocalNet.
+- **The whole story on the DevNet:** on 8 October 2026 one invoice was financed (16 CC to
+  the supplier, the rival lender refused), repaid (20 CC to the lender) and settled (3 CC
+  balance to the supplier), every payment checked on the network
+  ([record](docs/evidence/FULL_FLOW_DEVNET_2026-10-08.json)).
 - **Pay with Loop:** a lender can pay the supplier from its own Loop wallet. Tavryn
   reserves the invoice for that lender, and finances it only when the supplier's own view
   of the network shows the coins arriving from that wallet. On 7 October 2026 a lender
   approved a 5 CC payment in the Loop app and the invoice was financed with that payment
-  as its receipt ([record](docs/evidence/LOOP_PAYMENT_DEVNET_2026-10-07.json); try it at
-  https://devnet.38-49-216-59.sslip.io). The checks also held
+  as its receipt ([record](docs/evidence/LOOP_PAYMENT_DEVNET_2026-10-07.json)). Repaying
+  and returning the balance can be paid from Loop the same way. The checks also held
   with real Canton Coin: the payment was found after a restart, the same payment could not
   finance a second invoice, and an unpaid reservation was released
   ([record](docs/evidence/LOOP_RULES_DEVNET_2026-10-07.json)).

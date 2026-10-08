@@ -81,6 +81,7 @@ function friendlyError(status, payload) {
     REPAYMENT_NOT_AVAILABLE: "This invoice isn't waiting for repayment. If a repayment is already in progress it will finish on its own, so don't pay again.",
     SETTLEMENT_NOT_CONFIGURED: "Payments aren't set up for this account.",
     LOOP_NOT_AVAILABLE: "Pay with Loop isn't available on this network.",
+    DEMO_WALLET_LIMIT: "The demo wallet pays at most 50 coins at a time. Use a smaller amount, or pay from your own Loop wallet.",
     LOOP_PARTY_INVALID: "Loop didn't share a valid wallet address. Reconnect Loop and try again.",
     SETTLEMENT_PENDING: "The payment is still on its way. The invoice stays reserved until it arrives.",
     SETTLEMENT_LEDGER_FINALIZATION_FAILED: "The payment went through. The record will be completed automatically in a moment.",
@@ -450,7 +451,7 @@ function supplierActions() {
       <div class="form-grid">
         <div class="field wide"><label for="invoiceFile">Invoice file (PDF or photo, optional)</label><input id="invoiceFile" type="file" accept="application/pdf,image/png,image/jpeg" /><span class="hint" id="uploadStatus">We read the number, amount and dates from a PDF where we can. Check them before you create the invoice.</span></div>
         <div class="field"><label for="externalInvoiceNumber">Invoice number</label><input id="externalInvoiceNumber" name="externalInvoiceNumber" value="INV-${Date.now().toString().slice(-6)}" required /></div>
-        <div class="field"><label for="faceValue">Amount in ${escapeHtml(currency())}</label><input id="faceValue" name="faceValue" inputmode="decimal" placeholder="e.g. 4800" required /><span class="hint">Every payment on Tavryn is in Canton Coin.</span></div>
+        <div class="field"><label for="faceValue">Amount in ${escapeHtml(currency())}</label><input id="faceValue" name="faceValue" inputmode="decimal" placeholder="e.g. 20" required /><span class="hint">Every payment on Tavryn is in Canton Coin.</span></div>
         <div class="field"><label for="issuedDate">Issue date</label><input id="issuedDate" name="issuedDate" type="date" value="${isoDate(0)}" required /></div>
         <div class="field"><label for="dueDate">Due date</label><input id="dueDate" name="dueDate" type="date" value="${isoDate(60)}" required /></div>
       </div>
@@ -462,8 +463,8 @@ function supplierActions() {
       <div class="form-grid">
         <div class="field wide"><label for="approvedCid">Invoice</label><select id="approvedCid" name="approvedCid" required>${optionList(approved, "Choose an invoice", approvedLabel)}</select></div>
         <div class="field"><label for="offerFinancier">Lender</label><select id="offerFinancier" name="financierRole" required>${lenderOptions(lenders)}</select></div>
-        <div class="field"><label for="offerAdvance">Amount to advance</label><input id="offerAdvance" name="advance" inputmode="decimal" placeholder="e.g. 1800" required /><span class="hint" id="advanceHint">Up to ${percent(state.network?.rules?.maxAdvanceRate)} of the invoice.</span></div>
-        <div class="field"><label for="offerFee">Lender's fee (optional)</label><input id="offerFee" name="fee" inputmode="decimal" placeholder="e.g. 100" /><span class="hint" id="feeHint">Agreed now. The rest comes back to you when the buyer pays.</span></div>
+        <div class="field"><label for="offerAdvance">Amount to advance</label><input id="offerAdvance" name="advance" inputmode="decimal" placeholder="e.g. 16" required /><span class="hint" id="advanceHint">Up to ${percent(state.network?.rules?.maxAdvanceRate)} of the invoice.</span></div>
+        <div class="field"><label for="offerFee">Lender's fee (optional)</label><input id="offerFee" name="fee" inputmode="decimal" placeholder="e.g. 1" /><span class="hint" id="feeHint">Agreed now. The rest comes back to you when the buyer pays.</span></div>
       </div>
       <div class="form-actions"><button class="button button-secondary" type="submit">Send private offer</button><span class="hint">Only this lender sees the offer.</span></div>
     </form>` : ""}
@@ -502,9 +503,39 @@ function buyerActions() {
         <div class="field wide"><label for="financedCid">Invoice</label><select id="financedCid" name="financedCid" required>${optionList(financed, "Choose an invoice", financedLabel)}</select></div>
         <div class="field"><label for="repaymentDate">Payment date</label><input id="repaymentDate" name="repaymentDate" type="date" value="${isoDate(0)}" required /></div>
       </div>
-      <div class="form-actions"><button class="button button-primary" type="submit">Repay</button><span class="hint">Paying early is fine. A retry never pays twice.</span></div>
+      <div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Repay</button>${loopOption()}<span class="hint">${payHint("Paying early is fine. A retry never pays twice.")}</span></div>
     </form>` : ""}
+    ${loopCheckForm("repayment", contractsFor("buyer", "PendingRepayment"), "the lender")}
   `;
+}
+
+// The second way to pay, for visitors with a Loop wallet on the same network.
+function loopOption() {
+  return state.network?.loop
+    ? `<button class="button button-secondary" type="submit" value="loop">Pay from my own Loop wallet</button>`
+    : "";
+}
+
+function payHint(text) {
+  return state.network?.demoWallet ? `${text} Paid from the demo wallet and checked on the network.` : text;
+}
+
+// Payments approved in Loop that Tavryn has not seen yet. A reservation nobody pays is
+// released after 15 minutes.
+function loopCheckForm(kind, locks, receiver) {
+  const mine = locks.filter((contract) => String(argument(contract).trackingId).startsWith("tavryn-loop-"));
+  if (!mine.length) return "";
+  const label = (contract) => {
+    const arg = argument(contract);
+    return `${arg.terms.externalInvoiceNumber} · pay ${money(arg.settlementAmount, arg.terms.currency)} to ${receiver}`;
+  };
+  return `
+    <form class="action-form" data-action="loop-check">
+      <input type="hidden" name="kind" value="${kind}" />
+      <p class="form-title">Waiting for your Loop payment</p>
+      <div class="form-grid"><div class="field wide"><label for="lockCid">Reserved invoice</label><select id="lockCid" name="lockCid" required>${optionList(mine, "Choose an invoice", label)}</select><span class="hint">Approved the payment in Loop? Check it here. A reservation you never pay is released after 15 minutes.</span></div></div>
+      <div class="form-actions"><button class="button button-primary" type="submit">Check payment</button></div>
+    </form>`;
 }
 
 function lenderActions() {
@@ -515,11 +546,6 @@ function lenderActions() {
     return `${money(arg.balance, arg.currency)} to the supplier · collected ${money(arg.collected, arg.currency)}, advance ${money(arg.advance, arg.currency)}, fee ${money(arg.fee, arg.currency)}`;
   };
   const closed = contractsFor(state.role, "OfferClosed");
-  const loopLocks = contractsFor(state.role, "PendingFunding").filter((contract) => String(argument(contract).trackingId).startsWith("tavryn-loop-"));
-  const lockLabel = (contract) => {
-    const arg = argument(contract);
-    return `${arg.terms.externalInvoiceNumber} · pay ${money(arg.settlementAmount, arg.terms.currency)} to the supplier`;
-  };
   const offerLabel = (contract) => {
     const arg = argument(contract);
     const fee = arg.fee !== null && arg.fee !== undefined ? ` · fee ${money(arg.fee, arg.terms.currency)}` : "";
@@ -529,21 +555,16 @@ function lenderActions() {
     ${offers.length ? `
     <form class="action-form" data-action="fund">
       <div class="form-grid"><div class="field wide"><label for="offerCid">Offer</label><select id="offerCid" name="offerCid" required>${optionList(offers, "Choose an offer", offerLabel)}</select><span id="offerFile"></span></div></div>
-      <div class="form-actions"><button class="button button-primary" type="submit" id="fundButton" value="wallet">Finance this invoice</button><button class="button button-primary" type="submit" id="loopButton" value="loop" hidden>Pay with Loop</button><span class="hint" id="fundHint">You pay the supplier now and the buyer repays you by the due date.</span></div>
+      <div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Finance this invoice</button>${loopOption()}<span class="hint">${payHint("You pay the supplier now and the buyer repays you by the due date.")}</span></div>
     </form>` : `<div class="notice"><strong>No open offers</strong>Offers made to you will appear here.</div>`}
-    ${loopLocks.length ? `
-    <form class="action-form" data-action="loop-check">
-      <p class="form-title">Waiting for your Loop payment</p>
-      <div class="form-grid"><div class="field wide"><label for="lockCid">Reserved invoice</label><select id="lockCid" name="lockCid" required>${optionList(loopLocks, "Choose an invoice", lockLabel)}</select><span class="hint">Approved the payment in Loop? Check it here. A reservation you never pay is released after 15 minutes.</span></div></div>
-      <div class="form-actions"><button class="button button-primary" type="submit">Check payment</button></div>
-    </form>` : ""}
+    ${loopCheckForm("funding", contractsFor(state.role, "PendingFunding"), "the supplier")}
     ${balances.length ? `
     <form class="action-form" data-action="pay-balance">
       <p class="form-title">Pay the supplier's balance</p>
       <div class="form-grid">
         <div class="field wide"><label for="balanceCid">Balance due</label><select id="balanceCid" name="balanceCid" required>${optionList(balances, "Choose a balance", balanceLabel)}</select></div>
       </div>
-      <div class="form-actions"><button class="button button-primary" type="submit">Pay balance</button><span class="hint">The buyer paid you the full invoice. This returns the rest, less your agreed fee.</span></div>
+      <div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Pay balance</button>${loopOption()}<span class="hint">${payHint("The buyer paid you the full invoice. This returns the rest, less your agreed fee.")}</span></div>
     </form>` : ""}
     ${closed.length ? `<div class="notice"><strong>${closed.length === 1 ? "1 offer is" : `${closed.length} offers are`} no longer available</strong>Another lender financed ${closed.length === 1 ? "that invoice" : "those invoices"} first. You aren't told who, or at what price.</div>` : ""}
   `;
@@ -761,9 +782,10 @@ async function handleAction(form, submitter) {
       const offer = contractsFor(state.role, "FinancingOffer").find((contract) => contractId(contract) === value("offerCid"));
       const terms = offer ? argument(offer).terms : undefined;
       if (submitter?.value === "loop") {
-        const outcome = await payWithLoop(value("offerCid"), terms);
+        const outcome = await payWithLoop("funding", value("offerCid"), { invoice: terms?.externalInvoiceNumber });
         state.currentStep = outcome.outcome === "completed" ? "funded" : state.currentStep;
         await loadRole(state.role);
+        showLoopOutcome("funding", outcome);
         if (outcome.outcome === "completed") guideEvent("fund");
       } else {
         result = await api(`/api/v1/offers/${encodeURIComponent(value("offerCid"))}/fund`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
@@ -773,15 +795,31 @@ async function handleAction(form, submitter) {
         guideEvent("fund");
       }
     } else if (action === "loop-check") {
-      const outcome = await confirmLoopPayment(value("lockCid"));
+      const outcome = await confirmLoopPayment(value("kind"), value("lockCid"));
       await loadRole(state.role);
-      showLoopOutcome(outcome);
+      showLoopOutcome(value("kind"), outcome);
+    } else if (action === "repay" && submitter?.value === "loop") {
+      const financed = contractsFor("buyer", "FinancedInvoice").find((contract) => contractId(contract) === value("financedCid"));
+      const arg = financed ? argument(financed) : {};
+      const balance = arg.terms && Number(arg.terms.faceValue) - Number(arg.advance) - Number(arg.fee ?? 0) > 0;
+      const outcome = await payWithLoop("repayment", value("financedCid"), { invoice: arg.terms?.externalInvoiceNumber, repaymentDate: value("repaymentDate") });
+      await loadRole("buyer");
+      showLoopOutcome("repayment", outcome);
+      if (outcome.outcome === "completed") {
+        state.currentStep = "repaid";
+        guideEvent("repay", { balance });
+      }
     } else if (action === "repay") {
       result = await api(`/api/v1/financed/${encodeURIComponent(value("financedCid"))}/settle-repay`, { method: "POST", body: JSON.stringify({ repaymentDate: value("repaymentDate") }) });
       state.currentStep = "repaid";
       await loadRole("buyer");
       setResult({ ok: true, title: "Lender repaid", message: `${money(result.cashTransfer?.amount)} paid. The invoice is closed.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
       guideEvent("repay", { balance: hasBalanceDue(result) });
+    } else if (action === "pay-balance" && submitter?.value === "loop") {
+      const outcome = await payWithLoop("balance", value("balanceCid"), {});
+      await loadRole(state.role);
+      showLoopOutcome("balance", outcome);
+      if (outcome.outcome === "completed") guideEvent("pay-balance");
     } else if (action === "pay-balance") {
       result = await api(`/api/v1/balances/${encodeURIComponent(value("balanceCid"))}/settle`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
       await loadRole(state.role);
@@ -930,19 +968,19 @@ function bindEvents() {
 const GUIDE_KEY = "tavryn.guide";
 const GUIDE = [
   { role: "supplier", on: "create-draft", title: "Create your invoice",
-    text: "You are Adeyemi Packaging, a supplier. Type an amount in {coin}, the network's coin, for example 2025, or attach an invoice PDF. Then click Create invoice." },
+    text: "You are Adeyemi Packaging, a supplier. Type an amount in {coin}, the network's coin, for example 20, or attach an invoice PDF. Then click Create invoice." },
   { role: "buyer", on: "approve", title: "Approve the invoice",
     text: "You are Sunrise Foods, the company that owes the money. Pick invoice {invoice} and click Approve invoice. This invoice number can never be approved again." },
   { role: "supplier", on: "offer-2", title: "Offer it to two lenders",
-    text: "Back as Adeyemi. Under \"Offer an approved invoice\", pick {invoice} and choose Lender A. Enter the amount to advance (up to 90% of the invoice, for example 1800) and the lender's fee in {coin} (for example 40), then send. Do the same for Lender B." },
+    text: "Back as Adeyemi. Under \"Offer an approved invoice\", pick {invoice} and choose Lender A. Enter the amount to advance (up to 90% of the invoice, for example 16) and the lender's fee in {coin} (for example 1), then send. Do the same for Lender B." },
   { role: "financierB", manual: true, title: "Look as Lender B",
     text: "You see only your own offer for {invoice}. Nothing about Lender A's offer. Click Next when you have looked." },
   { role: "financierA", on: "fund", title: "Finance the invoice",
-    text: "You are Lender A. Pick the offer for {invoice} and click Finance this invoice. The coins go from your wallet to Adeyemi now, and the network checks they arrived." },
+    text: "You are Lender A. Pick the offer for {invoice} and click Finance this invoice. The coins go to Adeyemi now, and the network checks they arrived." },
   { role: "financierB", manual: true, title: "Lender B is too late",
     text: "The invoice is gone: \"1 offer is no longer available\". Lender B can't see who won or at what price. Click Next." },
   { role: "buyer", on: "repay", title: "Pay the lender",
-    text: "On the due date Sunrise Foods pays the full invoice to the lender, not to Adeyemi. Pick {invoice} and click Repay. The coins go from Sunrise's wallet to Lender A." },
+    text: "On the due date Sunrise Foods pays the full invoice to the lender, not to Adeyemi. Pick {invoice} and click Repay. The coins go to Lender A, and the network checks they arrived." },
   { role: "financierA", on: "pay-balance", title: "Return Adeyemi's balance",
     text: "Sunrise paid you the full invoice. Return the rest to Adeyemi: the invoice less your advance and fee. Pick the balance and click Pay balance." },
   { role: "auditor", manual: true, last: true, title: "See the whole trail",
@@ -1068,13 +1106,6 @@ function updatePaymentFields() {
   if (offerSelect) {
     const offer = contractsFor(state.role, "FinancingOffer").find((contract) => contractId(contract) === offerSelect.value);
     const terms = offer ? argument(offer).terms : undefined;
-    const loopReady = Boolean(state.network?.loop);
-    const hasWallet = (state.network?.walletRoles || []).includes(state.role);
-    $("loopButton").hidden = !loopReady;
-    $("fundButton").hidden = loopReady && !hasWallet;
-    $("fundHint").textContent = loopReady
-      ? "Pay the supplier from your own Loop wallet. The invoice is reserved for you while you approve it, and nobody else can finance it."
-      : "You pay the supplier now and the buyer repays you by the due date.";
     $("offerFile").innerHTML = terms ? documentLink(terms.externalInvoiceNumber) : "";
   }
   const draftSelect = $("draftCid");
@@ -1110,51 +1141,80 @@ function connectLoop() {
   return loopConnection;
 }
 
-async function payWithLoop(offerCid, terms) {
+const LOOP_STEPS = {
+  funding: {
+    begin: (cid, extra, party) => [`/api/v1/offers/${encodeURIComponent(cid)}/loop`, { financierRole: state.role, loopParty: party }],
+    lockId: (lock) => lock.pendingFundingCid,
+    confirm: (id) => `/api/v1/pending-funding/${encodeURIComponent(id)}/loop-confirm`,
+    receiver: "the supplier", what: "finance invoice", done: "Invoice financed",
+    doneText: "Your Loop payment reached the supplier. No one else can finance this invoice now.",
+  },
+  repayment: {
+    begin: (cid, extra, party) => [`/api/v1/financed/${encodeURIComponent(cid)}/loop`, { repaymentDate: extra.repaymentDate, loopParty: party }],
+    lockId: (lock) => lock.pendingRepaymentCid,
+    confirm: (id) => `/api/v1/pending-repayment/${encodeURIComponent(id)}/loop-confirm`,
+    receiver: "the lender", what: "repay invoice", done: "Lender repaid",
+    doneText: "Your Loop payment reached the lender. The invoice is closed.",
+  },
+  balance: {
+    begin: (cid, extra, party) => [`/api/v1/balances/${encodeURIComponent(cid)}/loop`, { financierRole: state.role, loopParty: party }],
+    lockId: (lock) => lock.balanceDueCid,
+    confirm: (id) => `/api/v1/balances/${encodeURIComponent(id)}/loop-confirm`,
+    receiver: "the supplier", what: "return the balance of invoice", done: "Balance paid",
+    doneText: "Your Loop payment reached the supplier. The invoice is fully settled.",
+  },
+};
+
+async function payWithLoop(kind, cid, extra) {
+  const step = LOOP_STEPS[kind];
   let provider;
   try {
     provider = await connectLoop();
   } catch (error) {
     throw new Error(error?.message?.includes("declined") ? error.message : "Couldn't open Loop. Check that pop-ups are allowed and try again.");
   }
-  const lock = await api(`/api/v1/offers/${encodeURIComponent(offerCid)}/loop`, { method: "POST", body: JSON.stringify({ financierRole: state.role, loopParty: provider.party_id }) });
-  setResult({ ok: true, title: "Invoice reserved for you", message: `Approve the payment of ${money(lock.amount)} in your Loop wallet. Nobody else can finance this invoice while you do.`, updateId: lock.updateId });
+  const [path, body] = step.begin(cid, extra, provider.party_id);
+  const lock = await api(path, { method: "POST", body: JSON.stringify(body) });
+  if (lock.outcome === "completed") return lock;
+  setResult({ ok: true, title: "Approve the payment in Loop", message: `Approve ${money(lock.amount)} to ${step.receiver} in your Loop wallet.${kind === "balance" ? "" : " The invoice is reserved for you while you do."}`, updateId: lock.updateId });
   let sent;
   try {
     sent = await provider.transfer(lock.receiver, lock.amount, undefined, {
       memo: lock.trackingId,
-      message: `Tavryn: finance invoice ${terms?.externalInvoiceNumber ?? ""} by paying ${lock.amount} CC to the supplier`,
+      message: `Tavryn: ${step.what} ${extra.invoice ?? ""} by paying ${lock.amount} CC to ${step.receiver}`,
       executionMode: "wait",
       executeBefore: lock.payBefore,
     });
   } catch {
     sent = undefined;
   }
-  const outcome = await confirmLoopPayment(lock.pendingFundingCid, sent?.update_id);
-  showLoopOutcome(outcome);
-  return outcome;
+  return confirmLoopPayment(kind, step.lockId(lock), sent?.update_id);
 }
 
 // Asks Tavryn to look for the payment, a few times, since it can take a moment to land.
-async function confirmLoopPayment(pendingFundingCid, updateId) {
+async function confirmLoopPayment(kind, id, updateId) {
+  const step = LOOP_STEPS[kind];
   let outcome;
   for (let attempt = 0; attempt < 6; attempt += 1) {
-    outcome = await api(`/api/v1/pending-funding/${encodeURIComponent(pendingFundingCid)}/loop-confirm`, { method: "POST", body: JSON.stringify({ financierRole: state.role, ...(updateId ? { updateId } : {}) }) });
+    outcome = await api(step.confirm(id), { method: "POST", body: JSON.stringify({ financierRole: state.role, ...(updateId ? { updateId } : {}) }) });
     if (outcome.outcome !== "pending") return outcome;
     await new Promise((resolve) => setTimeout(resolve, 5000));
   }
   return outcome;
 }
 
-function showLoopOutcome(outcome) {
+function showLoopOutcome(kind, outcome) {
+  const step = LOOP_STEPS[kind];
   if (outcome.outcome === "completed") {
-    setResult({ ok: true, title: "Invoice financed", message: "Your Loop payment reached the supplier. No one else can finance this invoice now.", updateId: outcome.updateId, cashUpdateId: outcome.cashUpdateId });
+    setResult({ ok: true, title: step.done, message: step.doneText, updateId: outcome.updateId, cashUpdateId: outcome.cashUpdateId });
   } else if (outcome.outcome === "cancelled") {
     setResult({ ok: false, title: "Reservation released", message: "No payment arrived in time, so the invoice is open again. Nothing was paid." });
   } else if (outcome.outcome === "already-resolved") {
-    setResult({ ok: true, title: "Already settled", message: "This reservation was already completed or released." });
+    setResult({ ok: true, title: "Already settled", message: "This payment was already completed or released." });
   } else {
-    setResult({ ok: false, title: "Payment not seen yet", message: "The invoice stays reserved for you. If you approved it in Loop, use Check payment in a moment. If you don't pay, the reservation is released after 15 minutes." });
+    setResult({ ok: false, title: "Payment not seen yet", message: kind === "balance"
+      ? "If you approved it in Loop, click Pay from my own Loop wallet again in a moment: Tavryn finds the payment and does not ask you to pay twice."
+      : "The invoice stays reserved for you. If you approved it in Loop, use Check payment in a moment. If you don't pay, the reservation is released after 15 minutes." });
   }
 }
 

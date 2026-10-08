@@ -16,7 +16,7 @@ const transaction = (JSON.parse(
 const supplier = "a1f68d5f-tavryn-supplier::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e";
 const loopWallet = "e2f89af51e83e191da401da72759ad0c::122029f24d8b0f43bb66c069b29b3a1fbc29d3dff5c375c244a61c21433e3cfd641c";
 const expected = {
-  supplier,
+  receiver: supplier,
   sender: loopWallet,
   amount: "10",
   trackingId: "tavryn-loop-test",
@@ -41,7 +41,12 @@ test("a payment from another wallet does not match", () => {
 });
 
 test("coins a wallet keeps for itself never count as a payment", () => {
-  assert.equal(matchLoopPayment(transaction, { ...expected, supplier: loopWallet, amount: "490" }), undefined);
+  assert.equal(matchLoopPayment(transaction, { ...expected, receiver: loopWallet, amount: "490" }), undefined);
+});
+
+test("a payment recorded before the step it pays for does not match", () => {
+  assert.equal(matchLoopPayment(transaction, { ...expected, notBeforeOffset: 2327905 }), undefined);
+  assert.ok(matchLoopPayment(transaction, { ...expected, notBeforeOffset: 2327904 }));
 });
 
 test("a payment made before the invoice was locked does not match", () => {

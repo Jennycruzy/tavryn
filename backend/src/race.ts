@@ -142,7 +142,7 @@ export async function prepareRaceInvoice(service: TavrynService): Promise<RaceCa
     result.createdContracts.find((event) => event.templateId.endsWith(`:${entity}`))?.contractId as string;
   const draft = await service.createInvoiceDraft({
     externalInvoiceNumber: number,
-    faceValue: "2025.00",
+    faceValue: "20.25",
     currency: service.config.settlement.cantonCoinSymbol as string,
     issuedDate: new Date().toISOString().slice(0, 10),
     dueDate: new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10),
@@ -150,7 +150,7 @@ export async function prepareRaceInvoice(service: TavrynService): Promise<RaceCa
   const approved = await service.approveInvoice(created(draft, "InvoiceDraft"), ["financierA", "financierB"]);
   const approvedCid = created(approved, "ApprovedInvoice");
   for (const role of ["financierA", "financierB"]) {
-    await service.createOffer(approvedCid, role, "1620.00", "0.8000", "40.50");
+    await service.createOffer(approvedCid, role, "16.20", "0.8000", "0.40");
   }
   return (await raceCandidates(service)).find((entry) => entry.invoiceNumber === number);
 }

@@ -1,7 +1,7 @@
 {
   "generatedAt": "2026-10-07T22:00:00Z",
   "network": "HackCanton DevNet (hackcanton-01)",
-  "app": "https://devnet.38-49-216-59.sslip.io",
+  "app": "Tavryn on the HackCanton DevNet (now served at https://tavryn.site)",
   "claim": "A lender financed an invoice by paying the supplier from its own Loop wallet, approved in the Loop app. Tavryn reserved the invoice for that wallet and financed it only after finding the payment in the supplier's own view of the network.",
   "invoice": "LOOP-UI-1791406916",
   "lender": "financierA (Lender A)",

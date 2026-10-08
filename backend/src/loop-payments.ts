@@ -2,26 +2,30 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 
 import type { LedgerTransaction } from "./ledger-api.js";
 
-// Pay with Loop: a lender pays the supplier from their own Loop wallet, which lives on
-// another participant and so cannot hold Tavryn contracts. Loop carries the cash only.
-// Tavryn locks the invoice first (BeginFunding), the lender pays in Loop, and the lock
-// completes only when the supplier's own ledger view shows the coins arriving from the
-// wallet the lender connected.
+// Wallet payments: a company pays from a wallet Tavryn does not hold (the visitor's Loop
+// wallet, or the demo wallet), which lives on another participant and so cannot hold
+// Tavryn contracts. The wallet carries the cash only. Tavryn locks the step first, the
+// wallet pays, and the step completes only when the receiver's own ledger view shows the
+// coins arriving from the recorded wallet.
 
 export const LOOP_TRACKING_PREFIX = "tavryn-loop-";
+export const DEMO_TRACKING_PREFIX = "tavryn-demo-";
 
-export function isLoopTrackingId(trackingId: string): boolean {
-  return trackingId.startsWith(LOOP_TRACKING_PREFIX);
+export function isWalletTrackingId(trackingId: string): boolean {
+  return trackingId.startsWith(LOOP_TRACKING_PREFIX) || trackingId.startsWith(DEMO_TRACKING_PREFIX);
 }
 
 export interface LoopPaymentExpectation {
-  supplier: string;
+  // The supplier for funding and balances, the lender for repayments.
+  receiver: string;
   // The Loop party the lender connected. Undefined when it was not recorded, in which
   // case only a payment carrying the tracking ID as its memo is accepted.
   sender?: string;
   amount: string;
   trackingId: string;
-  lockedAt: Date;
+  lockedAt?: Date;
+  // The ledger offset of the step being paid; anything earlier never counts.
+  notBeforeOffset?: number;
 }
 
 export interface LoopPayment {
@@ -37,8 +41,8 @@ export interface LoopPayment {
 const SKEW_MS = 5_000;
 
 /**
- * A transaction pays the supplier when, in the same transaction, the sender acts and a
- * Canton Coin holding of exactly `amount` is created for the supplier. Holdings for
+ * A transaction pays the receiver when, in the same transaction, the sender acts and a
+ * Canton Coin holding of exactly `amount` is created for the receiver. Holdings for
  * anyone else (the sender's change) are ignored.
  */
 export function matchLoopPayment(
@@ -46,16 +50,19 @@ export function matchLoopPayment(
   expected: LoopPaymentExpectation,
 ): LoopPayment | undefined {
   const events = (transaction.events ?? []) as Array<Record<string, any>>;
-  const paidSupplier = events.some((event) => {
+  if (expected.notBeforeOffset !== undefined && Number(transaction.offset) < expected.notBeforeOffset) {
+    return undefined;
+  }
+  const paidReceiver = events.some((event) => {
     const created = event.CreatedEvent;
     return (
       created &&
       String(created.templateId).endsWith(":Splice.Amulet:Amulet") &&
-      created.createArgument?.owner === expected.supplier &&
+      created.createArgument?.owner === expected.receiver &&
       sameDecimal(created.createArgument?.amount?.initialAmount, expected.amount)
     );
   });
-  if (!paidSupplier) return undefined;
+  if (!paidReceiver) return undefined;
 
   const actors = new Set<string>(
     events.flatMap((event) => (event.ExercisedEvent?.actingParties as string[] | undefined) ?? []),
@@ -65,11 +72,11 @@ export function matchLoopPayment(
     .map((event) => event.ExercisedEvent?.choiceArgument?.sender)
     .find((party): party is string => typeof party === "string");
   const sender = expected.sender ?? namedSender;
-  if (!sender || sender === expected.supplier || !actors.has(sender)) return undefined;
+  if (!sender || sender === expected.receiver || !actors.has(sender)) return undefined;
   if (!expected.sender && !memoMatched) return undefined;
 
   const effectiveAt = transaction.effectiveAt ?? transaction.recordTime;
-  if (effectiveAt && new Date(effectiveAt).getTime() < expected.lockedAt.getTime() - SKEW_MS) {
+  if (effectiveAt && expected.lockedAt && new Date(effectiveAt).getTime() < expected.lockedAt.getTime() - SKEW_MS) {
     return undefined;
   }
   return {

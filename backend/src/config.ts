@@ -53,6 +53,8 @@ export interface TavrynConfig {
   // Typed payment references (no cash checked on the network). Off on every real
   // server; the test harnesses turn it on to exercise the contract rules alone.
   paymentReferences: boolean;
+  // The party of a wallet that pays for visitors without a wallet of their own.
+  demoWallet?: string;
 }
 
 export interface LoopConfig {
@@ -234,6 +236,7 @@ export function loadConfig(): TavrynConfig {
       transferExpirySeconds: optionalPositiveInteger("CANTON_TRANSFER_EXPIRY_SECONDS", 300),
     },
     paymentReferences: optional("TAVRYN_ALLOW_PAYMENT_REFERENCES") === "true",
+    demoWallet: optional("TAVRYN_DEMO_WALLET_PARTY"),
     loop: optional("TAVRYN_LOOP_NETWORK")
       ? {
           network: optional("TAVRYN_LOOP_NETWORK") as string,

@@ -21,18 +21,28 @@ import {
   CantonCoinSettlement,
   CantonCoinSettlementError,
   type CantonCoinTransfer,
+  DEMO_WALLET,
 } from "./canton-coin.js";
 import { type LedgerErrorContext, mapLedgerError } from "./ledger-errors.js";
 import { reconcileDecision } from "./reconcile.js";
 import {
+  DEMO_TRACKING_PREFIX,
   LOOP_TRACKING_PREFIX,
   type LoopPayment,
   type LoopPaymentExpectation,
   LoopPayers,
-  isLoopTrackingId,
   isPartyId,
+  isWalletTrackingId,
   matchLoopPayment,
 } from "./loop-payments.js";
+
+type LockKind = "funding" | "repayment";
+
+// The balance has no lock, so its tracking ID is derived from the balance record: a retry
+// looks for the same payment instead of paying twice.
+function balanceTrackingId(prefix: string, balanceDueContractId: string): string {
+  return `${prefix}balance-${createHash("sha256").update(balanceDueContractId).digest("hex").slice(0, 32)}`;
+}
 
 const { Contracts, Governance } = TavrynBindings;
 
@@ -342,7 +352,10 @@ export class TavrynService {
       settlementCurrency: this.config.settlement.cantonCoinSymbol,
       loop: this.config.loop ? { network: this.config.loop.network } : undefined,
       // Lenders whose Canton Coin wallet this server pays from; the rest pay with Loop.
-      walletRoles: [...this.config.financiers.keys()].filter((role) => this.settlement.isConfigured(role)),
+      walletRoles: [...this.config.financiers.keys(), "buyer"].filter(
+        (role) => this.settlement.isConfigured(role) || this.usesDemoWallet(role),
+      ),
+      demoWallet: this.settlement.isConfigured(DEMO_WALLET),
       operators: operators.map((party, index) => ({ index: index + 1, party })),
       threshold: this.config.governance.threshold,
       committeeCid: network?.committee.contractId,
@@ -576,6 +589,7 @@ export class TavrynService {
     financierRole: FinancierRole,
   ): Promise<SettledSubmission> {
     requireContractId(offerContractId, "offerContractId");
+    if (this.usesDemoWallet(financierRole)) return this.fundFromDemoWallet(offerContractId, financierRole);
     const financier = this.financierParty(financierRole);
     this.settlement.assertConfigured(financierRole);
     const { offer, approved, network } = await this.fundingInputs(financierRole, offerContractId);
@@ -648,8 +662,8 @@ export class TavrynService {
       return { outcome: "already-resolved", contractId: pendingFundingCid };
     }
     const argument = record(pending.createArgument);
-    if (isLoopTrackingId(String(argument.trackingId))) {
-      return this.reconcileLoopFunding(pending);
+    if (isWalletTrackingId(String(argument.trackingId))) {
+      return this.reconcileWalletLock("funding", pending);
     }
     const financier = String(argument.financier);
     const financierRole = roleForFinancierParty(this.config, financier);
@@ -698,119 +712,348 @@ export class TavrynService {
     return { outcome: "pending", contractId: pendingFundingCid, trackingId };
   }
 
-  /**
-   * Pay with Loop, step one: lock the invoice to this lender and say exactly what to pay.
-   * The wallet is recorded before the lock exists, so the lock can always be checked.
-   */
+  // ------------------------------------------------------------ wallet payments
+  //
+  // A company pays from a wallet Tavryn does not hold: the visitor's own Loop wallet, or
+  // the demo wallet. Funding and repayment lock the step first (BeginFunding,
+  // BeginRepayment); the balance has no lock and uses a tracking ID derived from it. The
+  // wallet is recorded against the tracking ID before anything moves, and the step
+  // completes only when the receiver's own ledger view shows the coins from that wallet.
+
+  /** Pay with Loop, financing: lock the invoice to this lender and say what to pay. */
   async beginLoopFunding(
     offerContractId: string,
     financierRole: FinancierRole,
     loopParty: string,
   ): Promise<Record<string, unknown>> {
     const loop = this.requireLoop();
-    requireContractId(offerContractId, "offerContractId");
-    if (!isPartyId(loopParty)) {
-      throw new TavrynInputError("That is not a Loop wallet address.", "LOOP_PARTY_INVALID");
-    }
-    const financier = this.financierParty(financierRole);
-    const { offer, approved, network } = await this.fundingInputs(financierRole, offerContractId);
-    const offerArgument = record(offer.createArgument);
-    const instrument = this.assertCantonCoinCurrency(record(offerArgument.terms));
-    const amount = decimalString(offerArgument.advance, "FinancingOffer.advance");
+    this.assertLoopParty(loopParty);
     const trackingId = `${LOOP_TRACKING_PREFIX}${randomUUID()}`;
     this.loopPayers.recordPayer(trackingId, loopParty);
-
-    const pending = await this.ledger
-      .exercise(
-        Contracts.FinancingOffer,
-        Contracts.FinancingOffer.BeginFunding,
-        offerContractId,
-        {
-          approvedInvoiceCid: approved.contractId,
-          rulesCid: network.rules.contractId,
-          trackingId,
-          settlementAmount: amount,
-          instrument,
-        },
-        [this.config.parties.buyer, this.config.parties.supplier, financier],
-      )
-      .catch((error) => this.rethrow(error, "funding"));
+    const lock = await this.lockFunding(offerContractId, financierRole, trackingId);
     return {
-      pendingFundingCid: createdContractId(pending, "PendingFunding"),
+      pendingFundingCid: lock.pendingCid,
       trackingId,
-      amount,
+      amount: lock.amount,
       receiver: this.config.parties.supplier,
       network: loop.network,
-      payBefore: new Date(Date.now() + loop.paymentWindowSeconds * 1000).toISOString(),
-      updateId: pending.transaction.updateId,
+      payBefore: this.payBefore(),
+      updateId: lock.result.transaction.updateId,
     };
   }
 
-  /** Pay with Loop, step two: complete the lock once the supplier has the coins. */
+  /** Pay with Loop, repayment: lock the financed invoice and say what to pay the lender. */
+  async beginLoopRepayment(
+    financedContractId: string,
+    repaymentDate: string,
+    loopParty: string,
+  ): Promise<Record<string, unknown>> {
+    const loop = this.requireLoop();
+    this.assertLoopParty(loopParty);
+    const trackingId = `${LOOP_TRACKING_PREFIX}${randomUUID()}`;
+    this.loopPayers.recordPayer(trackingId, loopParty);
+    const lock = await this.lockRepayment(financedContractId, repaymentDate, trackingId);
+    return {
+      pendingRepaymentCid: lock.pendingCid,
+      trackingId,
+      amount: lock.amount,
+      receiver: lock.financier,
+      network: loop.network,
+      payBefore: this.payBefore(),
+      updateId: lock.result.transaction.updateId,
+    };
+  }
+
+  /** Pay with Loop, balance: say what to pay the supplier. Already paid means done. */
+  async beginLoopBalance(
+    balanceDueContractId: string,
+    financierRole: FinancierRole,
+    loopParty: string,
+  ): Promise<Record<string, unknown>> {
+    const loop = this.requireLoop();
+    this.assertLoopParty(loopParty);
+    const due = await this.activeBalanceDue(balanceDueContractId, financierRole);
+    const trackingId = balanceTrackingId(LOOP_TRACKING_PREFIX, balanceDueContractId);
+    const earlier = await this.settleWalletBalance(due, trackingId);
+    if (earlier) {
+      return { outcome: "completed", updateId: earlier.completed.transaction.updateId, cashUpdateId: earlier.payment.updateId };
+    }
+    this.loopPayers.recordPayer(trackingId, loopParty);
+    return {
+      balanceDueCid: balanceDueContractId,
+      trackingId,
+      amount: decimalString(record(due.createArgument).balance, "BalanceDue.balance"),
+      receiver: this.config.parties.supplier,
+      network: loop.network,
+      payBefore: this.payBefore(),
+    };
+  }
+
+  /** Completes a financing lock once the supplier has the coins. */
   async confirmLoopFunding(
     pendingFundingCid: string,
     financierRole: FinancierRole,
     updateId?: string,
   ): Promise<ReconcileOutcome> {
-    this.requireLoop();
     requireContractId(pendingFundingCid, "pendingFundingCid");
-    const pending = (await this.contractsOf({ role: "supplier" }, "PendingFunding")).find(
-      (contract) =>
-        contract.contractId === pendingFundingCid &&
-        isTemplate(contract, "Tavryn.Contracts", "PendingFunding"),
-    );
-    if (!pending) {
-      return { outcome: "already-resolved", contractId: pendingFundingCid };
-    }
+    const pending = await this.activeLock("funding", pendingFundingCid);
+    if (!pending) return { outcome: "already-resolved", contractId: pendingFundingCid };
     if (record(pending.createArgument).financier !== this.financierParty(financierRole)) {
       throw new TavrynConflictError("This payment belongs to another lender.", "FORBIDDEN", undefined, 403);
     }
-    return this.reconcileLoopFunding(pending, updateId);
+    return this.reconcileWalletLock("funding", pending, updateId);
   }
 
-  private async reconcileLoopFunding(pending: ActiveContract, updateId?: string): Promise<ReconcileOutcome> {
-    const loop = this.requireLoop();
-    const argument = record(pending.createArgument);
-    const financier = String(argument.financier);
-    const trackingId = String(argument.trackingId);
-    const expected: LoopPaymentExpectation = {
-      supplier: this.config.parties.supplier,
-      sender: this.loopPayers.payerFor(trackingId),
-      amount: decimalString(argument.settlementAmount, "PendingFunding.settlementAmount"),
+  /** Completes a repayment lock once the lender has the coins. */
+  async confirmLoopRepayment(pendingRepaymentCid: string, updateId?: string): Promise<ReconcileOutcome> {
+    requireContractId(pendingRepaymentCid, "pendingRepaymentCid");
+    const pending = await this.activeLock("repayment", pendingRepaymentCid);
+    if (!pending) return { outcome: "already-resolved", contractId: pendingRepaymentCid };
+    return this.reconcileWalletLock("repayment", pending, updateId);
+  }
+
+  /** Records the balance as paid once the supplier has the coins. */
+  async confirmLoopBalance(
+    balanceDueContractId: string,
+    financierRole: FinancierRole,
+    updateId?: string,
+  ): Promise<ReconcileOutcome> {
+    requireContractId(balanceDueContractId, "balanceDueContractId");
+    const due = (await this.contractsOf({ role: financierRole }, "BalanceDue")).find(
+      (contract) =>
+        contract.contractId === balanceDueContractId && isTemplate(contract, "Tavryn.Contracts", "BalanceDue"),
+    );
+    if (!due) return { outcome: "already-resolved", contractId: balanceDueContractId };
+    if (record(due.createArgument).financier !== this.financierParty(financierRole)) {
+      throw new TavrynConflictError("This balance belongs to another lender.", "FORBIDDEN", undefined, 403);
+    }
+    const trackingId = balanceTrackingId(LOOP_TRACKING_PREFIX, balanceDueContractId);
+    const done = await this.settleWalletBalance(due, trackingId, updateId);
+    return done
+      ? { outcome: "completed", contractId: balanceDueContractId, trackingId, updateId: done.completed.transaction.updateId, cashUpdateId: done.payment.updateId }
+      : { outcome: "pending", contractId: balanceDueContractId, trackingId };
+  }
+
+  // The demo wallet pays for a visitor without a wallet: lock, pay, then the same ledger
+  // check as a Loop payment. A rejected transfer releases the lock at once.
+  private async fundFromDemoWallet(offerContractId: string, financierRole: FinancierRole): Promise<SettledSubmission> {
+    const trackingId = `${DEMO_TRACKING_PREFIX}${randomUUID()}`;
+    this.loopPayers.recordPayer(trackingId, this.config.demoWallet as string);
+    const lock = await this.lockFunding(offerContractId, financierRole, trackingId);
+    const cash = await this.payFromDemoWallet(this.config.parties.supplier, lock.amount, trackingId, () =>
+      this.cancelFunding(lock.pendingCid, lock.financier),
+    );
+    return this.finishDemoLock("funding", lock.pendingCid, cash);
+  }
+
+  private async repayFromDemoWallet(financedContractId: string, repaymentDate: string): Promise<SettledSubmission> {
+    const trackingId = `${DEMO_TRACKING_PREFIX}${randomUUID()}`;
+    this.loopPayers.recordPayer(trackingId, this.config.demoWallet as string);
+    const lock = await this.lockRepayment(financedContractId, repaymentDate, trackingId);
+    const cash = await this.payFromDemoWallet(lock.financier, lock.amount, trackingId, () =>
+      this.cancelRepayment(lock.pendingCid, lock.financier),
+    );
+    return this.finishDemoLock("repayment", lock.pendingCid, cash);
+  }
+
+  private async payBalanceFromDemoWallet(balanceDueContractId: string, financierRole: FinancierRole): Promise<SettledSubmission> {
+    const due = await this.activeBalanceDue(balanceDueContractId, financierRole);
+    const trackingId = balanceTrackingId(DEMO_TRACKING_PREFIX, balanceDueContractId);
+    this.loopPayers.recordPayer(trackingId, this.config.demoWallet as string);
+    // A retry finds the earlier payment instead of paying twice.
+    const earlier = await this.settleWalletBalance(due, trackingId);
+    if (earlier) return { ledger: earlier.completed, cash: this.demoTransfer(earlier.payment, trackingId) };
+    const amount = decimalString(record(due.createArgument).balance, "BalanceDue.balance");
+    const cash = await this.payFromDemoWallet(this.config.parties.supplier, amount, trackingId);
+    const done = await this.settleWalletBalance(due, trackingId, cash.updateId);
+    if (!done) {
+      throw new TavrynSettlementError(
+        "The coins moved, but the ledger could not record the balance yet. Try again: the same payment will be found and not repeated.",
+        "SETTLEMENT_LEDGER_BALANCE_FAILED",
+        cash.updateId,
+        balanceDueContractId,
+      );
+    }
+    return { ledger: done.completed, cash };
+  }
+
+  private async payFromDemoWallet(
+    receiver: string,
+    amount: string,
+    trackingId: string,
+    releaseLock?: () => Promise<unknown>,
+  ): Promise<CantonCoinTransfer> {
+    try {
+      return await this.settlement.transfer(DEMO_WALLET, receiver, amount, trackingId);
+    } catch (error) {
+      if (releaseLock && error instanceof CantonCoinSettlementError && error.safeToCancel) {
+        await releaseLock().catch(() => console.error("Lock release failed after a rejected demo payment", { trackingId }));
+      }
+      throw error;
+    }
+  }
+
+  private async finishDemoLock(kind: LockKind, pendingCid: string, cash: CantonCoinTransfer): Promise<SettledSubmission> {
+    const pending = await this.activeLock(kind, pendingCid);
+    const done = pending && (await this.completeWalletLock(kind, pending, cash.updateId));
+    if (!done) {
+      throw new TavrynSettlementError(
+        "The coins moved, but the ledger could not record it yet. It will be completed automatically; do not pay again.",
+        kind === "funding" ? "SETTLEMENT_LEDGER_FINALIZATION_FAILED" : "SETTLEMENT_LEDGER_REPAYMENT_FAILED",
+        cash.updateId,
+        pendingCid,
+      );
+    }
+    return { ledger: done.completed, cash };
+  }
+
+  private demoTransfer(payment: LoopPayment, trackingId: string): CantonCoinTransfer {
+    return {
+      updateId: payment.updateId,
+      eventId: "",
       trackingId,
-      lockedAt: new Date(String(argument.lockedAt)),
+      description: `Tavryn ${trackingId}`,
+      amount: payment.amount,
+      sender: payment.sender,
+      receiver: this.config.parties.supplier,
     };
-    const payment = await this.findLoopPayment(expected, pending.offset ?? 0, updateId);
-    if (payment) {
-      this.loopPayers.recordUsed(payment.updateId, trackingId);
-      const completed = await this.completeFunding(pending.contractId, financier, payment.updateId);
-      await this.closeLosingOffers(String(argument.invoiceCommitment));
+  }
+
+  private async lockFunding(offerContractId: string, financierRole: FinancierRole, trackingId: string) {
+    requireContractId(offerContractId, "offerContractId");
+    const financier = this.financierParty(financierRole);
+    const { offer, approved, network } = await this.fundingInputs(financierRole, offerContractId);
+    const offerArgument = record(offer.createArgument);
+    const instrument = this.assertCantonCoinCurrency(record(offerArgument.terms));
+    const amount = decimalString(offerArgument.advance, "FinancingOffer.advance");
+    const result = await this.ledger
+      .exercise(
+        Contracts.FinancingOffer,
+        Contracts.FinancingOffer.BeginFunding,
+        offerContractId,
+        { approvedInvoiceCid: approved.contractId, rulesCid: network.rules.contractId, trackingId, settlementAmount: amount, instrument },
+        [this.config.parties.buyer, this.config.parties.supplier, financier],
+      )
+      .catch((error) => this.rethrow(error, "funding"));
+    return { pendingCid: createdContractId(result, "PendingFunding"), amount, financier, result };
+  }
+
+  private async lockRepayment(financedContractId: string, repaymentDate: string, trackingId: string) {
+    requireContractId(financedContractId, "financedContractId");
+    validateDate(repaymentDate, "repaymentDate");
+    const financed = await this.activeFinanced(financedContractId);
+    const argument = record(financed.createArgument);
+    const financier = String(argument.financier);
+    const terms = record(argument.terms);
+    const instrument = this.assertCantonCoinCurrency(terms);
+    const amount = decimalString(terms.faceValue, "FinancedInvoice.terms.faceValue");
+    const result = await this.ledger
+      .exercise(
+        Contracts.FinancedInvoice,
+        Contracts.FinancedInvoice.BeginRepayment,
+        financedContractId,
+        { repaymentDate, trackingId, settlementAmount: amount, instrument },
+        [this.config.parties.buyer, financier],
+      )
+      .catch((error) => this.rethrow(error, "settlement"));
+    return { pendingCid: createdContractId(result, "PendingRepayment"), amount, financier, result };
+  }
+
+  private async activeLock(kind: LockKind, cid: string): Promise<ActiveContract | undefined> {
+    const template = kind === "funding" ? "PendingFunding" : "PendingRepayment";
+    const viewer = kind === "funding" ? "supplier" : "buyer";
+    return (await this.contractsOf({ role: viewer }, template)).find(
+      (contract) => contract.contractId === cid && isTemplate(contract, "Tavryn.Contracts", template),
+    );
+  }
+
+  private async reconcileWalletLock(kind: LockKind, pending: ActiveContract, updateId?: string): Promise<ReconcileOutcome> {
+    const argument = record(pending.createArgument);
+    const trackingId = String(argument.trackingId);
+    const done = await this.completeWalletLock(kind, pending, updateId);
+    if (done) {
       return {
         outcome: "completed",
         contractId: pending.contractId,
         trackingId,
-        updateId: completed.transaction.updateId,
-        cashUpdateId: payment.updateId,
+        updateId: done.completed.transaction.updateId,
+        cashUpdateId: done.payment.updateId,
       };
     }
     const decision = reconcileDecision({
       transferFound: false,
-      lockedAt: expected.lockedAt,
+      lockedAt: new Date(String(argument.lockedAt)),
       now: new Date(),
-      transferExpirySeconds: loop.paymentWindowSeconds,
+      transferExpirySeconds: this.config.loop?.paymentWindowSeconds ?? 900,
     });
     if (decision === "cancel") {
-      const cancelled = await this.cancelFunding(pending.contractId, financier);
+      const financier = String(argument.financier);
+      const cancelled = kind === "funding"
+        ? await this.cancelFunding(pending.contractId, financier)
+        : await this.cancelRepayment(pending.contractId, financier);
       return { outcome: "cancelled", contractId: pending.contractId, trackingId, updateId: cancelled.transaction.updateId };
     }
     return { outcome: "pending", contractId: pending.contractId, trackingId };
   }
 
-  // Checks the transaction the lender's wallet reported first, then the supplier's
-  // transactions since the lock. A payment already used for another invoice never counts.
+  private async completeWalletLock(kind: LockKind, pending: ActiveContract, updateId?: string) {
+    const argument = record(pending.createArgument);
+    const financier = String(argument.financier);
+    const trackingId = String(argument.trackingId);
+    const payment = await this.findLoopPayment(
+      {
+        receiver: kind === "funding" ? this.config.parties.supplier : financier,
+        sender: this.loopPayers.payerFor(trackingId),
+        amount: decimalString(argument.settlementAmount, `${kind} settlementAmount`),
+        trackingId,
+        lockedAt: new Date(String(argument.lockedAt)),
+        notBeforeOffset: pending.offset,
+      },
+      pending.offset ?? 0,
+      updateId,
+    );
+    if (!payment) return undefined;
+    this.loopPayers.recordUsed(payment.updateId, trackingId);
+    const completed = kind === "funding"
+      ? await this.completeFunding(pending.contractId, financier, payment.updateId)
+      : await this.completeRepayment(pending.contractId, financier, payment.updateId);
+    if (kind === "funding") await this.closeLosingOffers(String(argument.invoiceCommitment));
+    return { payment, completed };
+  }
+
+  private async settleWalletBalance(due: ActiveContract, trackingId: string, updateId?: string) {
+    const argument = record(due.createArgument);
+    const instrument = this.assertCantonCoinCurrency({ currency: argument.currency });
+    const sender = this.loopPayers.payerFor(trackingId);
+    if (!sender) return undefined;
+    const payment = await this.findLoopPayment(
+      {
+        receiver: this.config.parties.supplier,
+        sender,
+        amount: decimalString(argument.balance, "BalanceDue.balance"),
+        trackingId,
+        notBeforeOffset: due.offset,
+      },
+      due.offset ?? 0,
+      updateId,
+    );
+    if (!payment) return undefined;
+    this.loopPayers.recordUsed(payment.updateId, trackingId);
+    const completed = await this.ledger.exercise(
+      Contracts.BalanceDue,
+      Contracts.BalanceDue.PayBalance,
+      due.contractId,
+      { paymentReference: payment.updateId, instrument, trackingId },
+      [String(argument.financier)],
+    );
+    return { payment, completed };
+  }
+
+  // Checks the transaction the wallet reported first, then the receiver's transactions
+  // since the step began. A payment already used for another step never counts.
   private async findLoopPayment(
     expected: LoopPaymentExpectation,
-    lockOffset: number,
+    fromOffset: number,
     updateId?: string,
   ): Promise<LoopPayment | undefined> {
     const unused = (payment: LoopPayment | undefined) => {
@@ -818,13 +1061,13 @@ export class TavrynService {
       return payment && (!usedBy || usedBy === expected.trackingId) ? payment : undefined;
     };
     if (updateId && /^[0-9a-f]{20,200}$/.test(updateId)) {
-      const transaction = await this.ledger.transactionById(expected.supplier, updateId);
+      const transaction = await this.ledger.transactionById(expected.receiver, updateId);
       const payment = transaction && unused(matchLoopPayment(transaction, expected));
       if (payment) return payment;
     }
-    let from = Math.max(0, lockOffset - 1);
+    let from = Math.max(0, fromOffset - 1);
     for (let page = 0; page < 20; page += 1) {
-      const transactions = await this.ledger.transactionsSince(expected.supplier, from, 100);
+      const transactions = await this.ledger.transactionsSince(expected.receiver, from, 100);
       for (const transaction of transactions) {
         const payment = unused(matchLoopPayment(transaction, expected));
         if (payment) return payment;
@@ -833,6 +1076,21 @@ export class TavrynService {
       from = Number(transactions.at(-1)?.offset);
     }
     return undefined;
+  }
+
+  private assertLoopParty(loopParty: string): void {
+    if (!isPartyId(loopParty)) {
+      throw new TavrynInputError("That is not a Loop wallet address.", "LOOP_PARTY_INVALID");
+    }
+  }
+
+  private payBefore(): string {
+    return new Date(Date.now() + (this.config.loop?.paymentWindowSeconds ?? 900) * 1000).toISOString();
+  }
+
+  // The demo wallet pays for a company whose own wallet this server does not hold.
+  private usesDemoWallet(role: string): boolean {
+    return !this.settlement.isConfigured(role) && this.settlement.isConfigured(DEMO_WALLET);
   }
 
   // Every real payment is Canton Coin checked on the network; a typed reference could be
@@ -885,6 +1143,7 @@ export class TavrynService {
   ): Promise<SettledSubmission> {
     requireContractId(financedContractId, "financedContractId");
     validateDate(repaymentDate, "repaymentDate");
+    if (this.usesDemoWallet("buyer")) return this.repayFromDemoWallet(financedContractId, repaymentDate);
     this.settlement.assertConfigured("buyer");
     const financed = await this.activeFinanced(financedContractId);
     const argument = record(financed.createArgument);
@@ -963,6 +1222,7 @@ export class TavrynService {
    */
   async settleBalance(balanceDueContractId: string, financierRole: FinancierRole): Promise<SettledSubmission> {
     requireContractId(balanceDueContractId, "balanceDueContractId");
+    if (this.usesDemoWallet(financierRole)) return this.payBalanceFromDemoWallet(balanceDueContractId, financierRole);
     const financier = this.financierParty(financierRole);
     this.settlement.assertConfigured(financierRole);
     const due = await this.activeBalanceDue(balanceDueContractId, financierRole);
@@ -1019,6 +1279,9 @@ export class TavrynService {
     );
     if (!pending) {
       return { outcome: "already-resolved", contractId: pendingRepaymentCid };
+    }
+    if (isWalletTrackingId(String(record(pending.createArgument).trackingId))) {
+      return this.reconcileWalletLock("repayment", pending);
     }
     if (!this.settlement.isConfigured("buyer")) {
       throw new TavrynConflictError(

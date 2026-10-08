@@ -59,6 +59,13 @@ interface WalletTransactionsResponse {
 // DevNet wallet user), so its token comes from the same refreshing provider as the ledger.
 const OIDC_WALLET_TOKEN = "oidc";
 
+// The demo wallet pays for visitors who have no wallet of their own (owner-approved,
+// DevNet test coins). It belongs to the OIDC login (TAVRYN_DEMO_WALLET_PARTY), and its
+// payments are checked on the ledger the same way as a Loop wallet's.
+export const DEMO_WALLET = "demo-wallet";
+// No single demo payment may exceed this, so the wallet cannot be emptied in one go.
+export const DEMO_WALLET_MAX_PAYMENT = 50;
+
 export class CantonCoinSettlement {
   private readonly oidcTokens: LedgerTokenProvider;
 
@@ -67,7 +74,9 @@ export class CantonCoinSettlement {
   }
 
   private async walletToken(role: SettlementSenderRole): Promise<string> {
-    const configured = this.config.settlement.walletTokens.get(role) as string;
+    const configured = role === DEMO_WALLET
+      ? OIDC_WALLET_TOKEN
+      : this.config.settlement.walletTokens.get(role) as string;
     if (configured !== OIDC_WALLET_TOKEN) return configured;
     const token = await this.oidcTokens.token();
     if (!token) {
@@ -79,7 +88,14 @@ export class CantonCoinSettlement {
     return token;
   }
 
+  private senderParty(role: SettlementSenderRole): string {
+    return role === DEMO_WALLET ? (this.config.demoWallet as string) : partyForRole(this.config, role);
+  }
+
   isConfigured(senderRole: SettlementSenderRole): boolean {
+    if (senderRole === DEMO_WALLET) {
+      return Boolean(this.config.settlement.validatorApiUrl && this.config.demoWallet && this.config.oidc);
+    }
     return Boolean(
       this.config.settlement.validatorApiUrl &&
         this.config.settlement.walletTokens.get(senderRole),
@@ -104,11 +120,18 @@ export class CantonCoinSettlement {
     trackingId: string,
   ): Promise<CantonCoinTransfer> {
     assertPositiveDecimal(amount, "settlement amount");
+    if (senderRole === DEMO_WALLET && Number(amount) > DEMO_WALLET_MAX_PAYMENT) {
+      throw new CantonCoinSettlementError(
+        `The demo wallet pays at most ${DEMO_WALLET_MAX_PAYMENT} coins at a time. Use a smaller amount, or pay from your own Loop wallet.`,
+        "DEMO_WALLET_LIMIT",
+        true,
+      );
+    }
     this.assertConfigured(senderRole);
     const validatorApiUrl = this.config.settlement.validatorApiUrl as string;
     const token = await this.walletToken(senderRole);
 
-    const sender = partyForRole(this.config, senderRole);
+    const sender = this.senderParty(senderRole);
     const description = transferDescription(trackingId);
     const expiresAt =
       Math.floor(Date.now() / 1000) * 1_000_000 +
@@ -171,7 +194,7 @@ export class CantonCoinSettlement {
     this.assertConfigured(senderRole);
     const validatorApiUrl = this.config.settlement.validatorApiUrl as string;
     const token = await this.walletToken(senderRole);
-    const sender = partyForRole(this.config, senderRole);
+    const sender = this.senderParty(senderRole);
     const description = transferDescription(trackingId);
     let beginAfterId: string | undefined;
     for (let page = 0; page < 50; page += 1) {
