@@ -152,3 +152,4 @@ offerTo network approvedCid financier advance advanceRate = do
       advance
       advanceRate
       fee = None
+      coinAdmin = None

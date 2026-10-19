@@ -20,6 +20,7 @@ offerWithFee network approvedCid financier advance advanceRate fee = do
       advance
       advanceRate
       fee
+      coinAdmin = None
 
 -- Invoice 100, advance 80, fee 2: when the buyer pays 100 to the lender, the lender owes
 -- the supplier 18. Off-ledger (bank) path.
@@ -38,6 +39,7 @@ testBalanceAfterBankRepayment = script do
       advance = 80.0
       advanceRate = 0.80
       fee = Some 25.0
+      coinAdmin = None
   submitMustFail (actAs [p.buyer, p.supplier]) do
     exerciseCmd invoiceCid CreateOffer with
       rulesCid
@@ -45,6 +47,7 @@ testBalanceAfterBankRepayment = script do
       advance = 80.0
       advanceRate = 0.80
       fee = Some (-1.0)
+      coinAdmin = None
 
   offerCid <- offerWithFee network invoiceCid p.financierA 80.0 0.80 (Some 2.0)
   Some offer <- queryContractId p.financierA offerCid

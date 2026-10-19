@@ -1,0 +1,61 @@
+{
+  "generatedAt": "2026-10-19T16:46:52.449Z",
+  "network": "Canton LocalNet (Splice 0.6.11), two participant nodes",
+  "nodes": {
+    "tavryn": "participant::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df",
+    "lender": "participant::122023a95f136902785ec1dc65c52ade95ce77bcfe0ba391ab5f871b5354775faac8"
+  },
+  "outsideLender": "app_user_builder-localnet-1::122023a95f136902785ec1dc65c52ade95ce77bcfe0ba391ab5f871b5354775faac8",
+  "steps": [
+    {
+      "step": "packages uploaded",
+      "tavrynNode": [
+        "0.1.6"
+      ],
+      "lenderNode": [
+        "0.1.4",
+        "0.1.5",
+        "0.1.6"
+      ]
+    },
+    {
+      "step": "outside lender already admitted"
+    },
+    {
+      "step": "invoice approved and offered to both lenders",
+      "invoiceNumber": "NODE2-MVFHLNV3",
+      "faceValue": "25 CC",
+      "advance": "20 CC",
+      "fee": "1 CC"
+    },
+    {
+      "step": "outside lender funded in one transaction from its own node",
+      "submittedBy": "participant::122023a95f136902785ec1dc65c52ade95ce77bcfe0ba391ab5f871b5354775faac8",
+      "updateId": "12203bc4c85b5b52eac71e76e673384fb555a792dd208ac2a56735c96c779c51b28f",
+      "createdInThatTransaction": [
+        "Splice.Amulet:Amulet",
+        "Tavryn.Contracts:FinancedInvoice",
+        "Tavryn.Contracts:FundingReceipt"
+      ],
+      "supplierReceived": "20.0000000000",
+      "lenderCoinsSpent": 1,
+      "lenderChange": "1086610.1600000000",
+      "supplierSeesLenderChange": true,
+      "lenderWalletBefore": "1086630.1600000000",
+      "lenderWalletAfter": "1086610.1600000000"
+    },
+    {
+      "step": "second lender refused by Canton",
+      "status": 404,
+      "code": "CONTRACT_NOT_FOUND",
+      "coinsMoved": false,
+      "lenderACoinContractsUnchanged": 1
+    },
+    {
+      "step": "who sees the financed invoice",
+      "outsideLenderOnItsNode": true,
+      "lenderA": false,
+      "auditor": true
+    }
+  ]
+}

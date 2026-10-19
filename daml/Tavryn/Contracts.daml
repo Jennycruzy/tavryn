@@ -3,6 +3,11 @@ module Tavryn.Contracts where
 import DA.Crypto.Text (sha256, toHex)
 import DA.List (unique)
 import qualified DA.Text as T
+import qualified DA.TextMap as TextMap
+
+import Splice.Api.Token.HoldingV1 (Holding, InstrumentId(..))
+import Splice.Api.Token.MetadataV1 (ExtraArgs, Metadata(..))
+import Splice.Api.Token.TransferInstructionV1
 
 import Tavryn.Rules
 import Tavryn.Types
@@ -131,6 +136,9 @@ template ApprovedInvoice
         advanceRate : Decimal
         -- Added in 0.1.5: the lender's fee, agreed up front. Absent on older offers.
         fee : Optional Decimal
+        -- Added in 0.1.6: the coin the buyer and supplier accept for one-step funding,
+        -- named by its registry admin. Absent on older offers.
+        coinAdmin : Optional Party
       controller buyer, supplier
       do
         rules <- fetch rulesCid
@@ -154,6 +162,7 @@ template ApprovedInvoice
           advance
           advanceRate
           fee
+          coinAdmin
 
 template FinancingOffer
   with
@@ -167,6 +176,7 @@ template FinancingOffer
     advance : Decimal
     advanceRate : Decimal
     fee : Optional Decimal
+    coinAdmin : Optional Party
   where
     ensure invoiceCommitment /= ""
       && advance > 0.0 && advance <= terms.faceValue
@@ -198,6 +208,58 @@ template FinancingOffer
           instrument = "OFF_LEDGER"
           trackingId = ""
           paymentReference
+        pure financedCid
+
+    -- One-step funding, added in 0.1.6. The lender pays the supplier through the
+    -- Canton token standard and the invoice is recorded as financed in the same
+    -- transaction, so both happen or neither does. Only the lender acts: the buyer and
+    -- supplier agreed to these terms, and to the coin, when they signed this offer.
+    -- The lender's node can run this itself; it needs no one else to be online.
+    choice FundNow : ContractId FinancedInvoice
+      with
+        approvedInvoiceCid : ContractId ApprovedInvoice
+        rulesCid : ContractId NetworkRules
+        transferFactoryCid : ContractId TransferFactory
+        inputHoldingCids : [ContractId Holding]
+        requestedAt : Time
+        executeBefore : Time
+        extraArgs : ExtraArgs
+      controller financier
+      do
+        admin <- case coinAdmin of
+          Some admin -> pure admin
+          None -> abort "TAVRYN_COIN_NOT_SET"
+        approved <- lockForFunding this approvedInvoiceCid rulesCid
+        archive approved.invoiceDetails
+        payment <- exercise transferFactoryCid TransferFactory_Transfer with
+          expectedAdmin = admin
+          transfer = Transfer with
+            sender = financier
+            receiver = supplier
+            amount = advance
+            instrumentId = InstrumentId with admin; id = "Amulet"
+            requestedAt
+            executeBefore
+            inputHoldingCids
+            meta = Metadata with
+              values = TextMap.fromList
+                [("splice.lfdecentralizedtrust.org/reason", "Tavryn advance " <> terms.externalInvoiceNumber)]
+          extraArgs
+        case payment.output of
+          TransferInstructionResult_Completed {} -> pure ()
+          _ -> abort "TAVRYN_PAYMENT_NOT_COMPLETED"
+        financedCid <- create (financedFrom this approved.auditor)
+        _ <- create FundingReceipt with
+          buyer
+          supplier
+          financier
+          auditor = approved.auditor
+          financedInvoice = financedCid
+          invoiceCommitment
+          settlementAmount = advance
+          instrument = terms.currency
+          trackingId = "one-step"
+          paymentReference = "Paid in the same transaction"
         pure financedCid
 
     -- Two-step Canton Coin settlement: lock the invoice on the ledger first, then move
@@ -363,6 +425,7 @@ template PendingFunding
           advance
           advanceRate
           fee
+          coinAdmin = None
         create ApprovedInvoice with
           supplier
           buyer

@@ -125,6 +125,7 @@ testGovernanceGatesFunding = script do
       advance = 60.0
       advanceRate = 0.60
       fee = None
+      coinAdmin = None
 
   -- Removing a financier stops its open offers.
   offerBCid <- offerTo network invoiceCid p.financierB 45.0 0.45
