@@ -127,8 +127,32 @@
       const walletSay = (text, bad = false) => { $("walletStatus").textContent = text; $("walletStatus").classList.toggle("bad", bad); };
       const post = (path, body) => fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
         .then(async (response) => ({ response, payload: await response.json().catch(() => ({})) }));
-      const signatureOf = (result) => typeof result === "string" ? result
-        : result?.signature ?? result?.signedMessage ?? result?.signed_message ?? result?.data?.signature ?? "";
+      // Loop's signMessage reply has no documented shape: a hex or base64 string, a JSON
+      // string, an object holding the signature (sometimes nested), or a byte array. Any
+      // 64-byte Ed25519 signature is returned as hex; the server verifies it.
+      const SIG_KEYS = ["signature", "signed_message", "signedMessage", "sig", "result", "data"];
+      const toHex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+      function signatureOf(raw, depth = 0) {
+        if (depth > 3 || raw == null) return "";
+        if (typeof raw === "string") {
+          const text = raw.trim();
+          if (/^(0x)?[0-9a-fA-F]{128}$/.test(text)) return text.replace(/^0x/, "").toLowerCase();
+          if (text.startsWith("{")) { try { return signatureOf(JSON.parse(text), depth + 1); } catch { /* not JSON */ } }
+          return text;
+        }
+        if (raw instanceof Uint8Array || (Array.isArray(raw) && raw.length === 64 && raw.every((x) => Number.isInteger(x) && x >= 0 && x <= 255))) {
+          return raw.length === 64 ? toHex(raw) : "";
+        }
+        if (typeof raw === "object") {
+          for (const key of SIG_KEYS) if (raw[key] != null) return signatureOf(raw[key], depth + 1);
+        }
+        return "";
+      }
+      // What the wallet returned, in words, without the signature itself.
+      const shapeOf = (raw) => raw == null ? String(raw)
+        : Array.isArray(raw) ? `a list of ${raw.length} items`
+        : typeof raw === "object" ? `an object with ${Object.keys(raw).join(", ") || "no fields"}`
+        : `${typeof raw} of length ${String(raw).length}`;
 
       async function loopWallet() {
         const options = await fetch("/api/v1/auth/wallet/options").then((r) => r.json()).catch(() => ({}));
@@ -138,7 +162,12 @@
           loop.init({ appName: "Tavryn", network: options.loopNetwork, onAccept: resolve, onReject: () => reject(new Error("The Loop connection was declined.")) });
           Promise.resolve(loop.connect()).catch(reject);
         });
-        return { partyId: provider.party_id, publicKey: provider.public_key, sign: async (message) => signatureOf(await provider.signMessage(message)) };
+        return { partyId: provider.party_id, publicKey: provider.public_key, sign: async (message) => {
+          const raw = await provider.signMessage(message);
+          const signature = signatureOf(raw);
+          if (!signature) throw new Error(`Loop answered, but with no signature Tavryn could read (${shapeOf(raw)}).`);
+          return signature;
+        } };
       }
 
       async function standardWallet() {
@@ -148,7 +177,12 @@
         const accounts = await sdk.listAccounts();
         const account = (accounts || []).find((entry) => entry.primary) || (accounts || [])[0];
         if (!account) throw new Error("The wallet shared no account.");
-        return { partyId: account.partyId, publicKey: account.publicKey, sign: async (message) => signatureOf(await sdk.signMessage({ message })) };
+        return { partyId: account.partyId, publicKey: account.publicKey, sign: async (message) => {
+          const raw = await sdk.signMessage({ message });
+          const signature = signatureOf(raw);
+          if (!signature) throw new Error(`The wallet answered, but with no signature Tavryn could read (${shapeOf(raw)}).`);
+          return signature;
+        } };
       }
 
       async function walletSignIn(connect) {
@@ -174,7 +208,9 @@
           }
           throw new Error(login.payload.error || "The wallet sign-in was refused.");
         } catch (error) {
-          walletSay(error?.message || "The wallet sign-in didn't work.", true);
+          // Loop's own refusals carry a code (for example POPUP_CLOSED); show it so the cause is clear.
+          const code = error?.code ? ` (${error.code})` : "";
+          walletSay(`${error?.message || "The wallet sign-in didn't work."}${code}`, true);
         }
       }
       $("walletLoop").addEventListener("click", () => walletSignIn(loopWallet));
