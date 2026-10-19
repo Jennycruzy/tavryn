@@ -338,6 +338,7 @@ function renderRoleButtons() {
     $("roleButtons").innerHTML = `<p class="side-group">Your company</p>
       <button class="role-button active" type="button" aria-selected="true">${roleIcon(role)}${escapeHtml(state.account.name)}</button>
       <p class="hint" style="padding: 4px 10px">${escapeHtml(kind)} · ${escapeHtml(state.account.email)}</p>
+      ${state.account.wallet ? `<p class="hint" style="padding: 0 10px 4px" title="${escapeHtml(state.account.wallet)}">Signed in with wallet ${escapeHtml(state.account.wallet.split("::")[0])}</p>` : ""}
       <button class="link-button" type="button" id="signOut" style="padding: 4px 10px">Sign out</button>`;
     return;
   }

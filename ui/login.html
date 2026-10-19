@@ -24,7 +24,15 @@
       .demo-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rule-soft); }
       .demo-row .who { font-weight: 600; font-size: 0.92rem; }
       .demo-row .creds { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
+      .wallet-box { border: 1px solid var(--rule); background: var(--paper-2, #fbf9f4); padding: 16px; margin-top: 18px; }
+      .wallet-box h2 { font-family: var(--serif); font-weight: 400; font-size: 1.35rem; margin: 0 0 4px; }
+      .wallet-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+      .wallet-status { font-size: 0.88rem; min-height: 1.4em; margin-top: 10px; overflow-wrap: anywhere; }
+      .wallet-status.bad { color: var(--red); }
+      .or { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; color: var(--muted); font-size: 0.8rem; margin-top: 18px; }
+      .or::before, .or::after { content: ""; border-top: 1px solid var(--rule-soft); }
       @media (max-width: 760px) { .signin-wrap { grid-template-columns: 1fr; } }
+      @media (max-width: 420px) { .wallet-buttons { grid-template-columns: 1fr; } }
     </style>
   </head>
   <body>
@@ -34,6 +42,22 @@
           <a class="logo" href="/"><img src="/assets/tavryn-logo-480.png" alt="" />Tavryn</a>
           <h1>Sign in to your company</h1>
           <p class="page-sub">Each company signs in to its own workspace and sees only its own business.</p>
+          <div class="wallet-box" id="walletBox">
+            <h2>Sign in with your Canton wallet</h2>
+            <p class="hint">Your wallet signs a one-time message. Tavryn checks the signature against your wallet's own key. No password is needed.</p>
+            <div class="wallet-buttons">
+              <button class="button button-primary" type="button" id="walletLoop">Loop wallet</button>
+              <button class="button button-secondary" type="button" id="walletOther">Other wallet</button>
+            </div>
+            <p class="wallet-status" id="walletStatus" role="status"></p>
+            <form id="linkForm" hidden>
+              <p class="hint">First time with this wallet: choose the company it belongs to. You do this once.</p>
+              <div class="field"><label for="linkEmail">Company email</label><input id="linkEmail" type="email" autocomplete="username" required /></div>
+              <div class="field"><label for="linkPassword">Company password</label><input id="linkPassword" type="password" autocomplete="current-password" required /></div>
+              <button class="button button-primary" type="submit">Link wallet and sign in</button>
+            </form>
+          </div>
+          <div class="or">or with email</div>
           <form id="signin">
             <div class="field"><label for="email">Work email</label><input id="email" name="email" type="email" autocomplete="username" required /></div>
             <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required /></div>
@@ -44,7 +68,7 @@
 
         <section class="card" id="demoCard" hidden>
           <h2>Demo access</h2>
-          <p class="hint">These companies are fictional. Pick one to fill in its sign-in, then sign in. To act as another company, sign out and sign in again.</p>
+          <p class="hint">These companies are fictional. Pick one to fill in its sign-in, then sign in. To act as another company, sign out and sign in again. To try wallet sign-in, connect your wallet and link it to one of these companies.</p>
           <div class="demo-list" id="demoList"></div>
         </section>
       </div>
@@ -83,10 +107,83 @@
           const button = event.target.closest("button[data-index]");
           if (!button) return;
           const account = accounts[Number(button.dataset.index)];
+          if (!$("linkForm").hidden) {
+            $("linkEmail").value = account.email;
+            $("linkPassword").value = account.password;
+            return;
+          }
           $("email").value = account.email;
           $("password").value = account.password;
           $("password").focus();
         });
+      });
+
+      // Wallet sign-in. Loop through its own SDK; any other wallet through the Canton
+      // dApp standard (CIP-103), which opens a picker of installed and remote wallets.
+      const LOOP_SDK = "https://unpkg.com/@fivenorth/loop-sdk@0.15.0/dist/index.js";
+      const CIP103_SDK = "https://cdn.jsdelivr.net/npm/@canton-network/dapp-sdk@1.8.0/+esm";
+      let linkTicket = null;
+      let linkParty = null;
+      const walletSay = (text, bad = false) => { $("walletStatus").textContent = text; $("walletStatus").classList.toggle("bad", bad); };
+      const post = (path, body) => fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        .then(async (response) => ({ response, payload: await response.json().catch(() => ({})) }));
+      const signatureOf = (result) => typeof result === "string" ? result
+        : result?.signature ?? result?.signedMessage ?? result?.signed_message ?? result?.data?.signature ?? "";
+
+      async function loopWallet() {
+        const options = await fetch("/api/v1/auth/wallet/options").then((r) => r.json()).catch(() => ({}));
+        if (!options.loopNetwork) throw new Error("Loop isn't available on this network.");
+        const { loop } = await import(LOOP_SDK);
+        const provider = await new Promise((resolve, reject) => {
+          loop.init({ appName: "Tavryn", network: options.loopNetwork, onAccept: resolve, onReject: () => reject(new Error("The Loop connection was declined.")) });
+          Promise.resolve(loop.connect()).catch(reject);
+        });
+        return { partyId: provider.party_id, publicKey: provider.public_key, sign: async (message) => signatureOf(await provider.signMessage(message)) };
+      }
+
+      async function standardWallet() {
+        const sdk = await import(CIP103_SDK);
+        walletSay("Choose your wallet in the window that opened.");
+        await sdk.connect();
+        const accounts = await sdk.listAccounts();
+        const account = (accounts || []).find((entry) => entry.primary) || (accounts || [])[0];
+        if (!account) throw new Error("The wallet shared no account.");
+        return { partyId: account.partyId, publicKey: account.publicKey, sign: async (message) => signatureOf(await sdk.signMessage({ message })) };
+      }
+
+      async function walletSignIn(connect) {
+        $("linkForm").hidden = true;
+        walletSay("Opening your wallet...");
+        try {
+          const wallet = await connect();
+          if (!wallet.partyId || !wallet.publicKey) throw new Error("The wallet didn't share its address and public key.");
+          walletSay("Approve the sign-in message in your wallet.");
+          const challenge = await post("/api/v1/auth/wallet/challenge", { partyId: wallet.partyId });
+          if (!challenge.response.ok) throw new Error(challenge.payload.error || "Tavryn couldn't start the sign-in.");
+          const signature = await wallet.sign(challenge.payload.message);
+          if (!signature) throw new Error("The wallet returned no signature.");
+          const login = await post("/api/v1/auth/wallet/login", { partyId: wallet.partyId, publicKey: wallet.publicKey, signature, message: challenge.payload.message });
+          if (login.response.ok) { walletSay("Signed in."); location.replace("/app"); return; }
+          if (login.payload.code === "WALLET_NOT_LINKED") {
+            linkTicket = login.payload.linkTicket;
+            linkParty = login.payload.party;
+            walletSay(`Wallet verified: ${linkParty.split("::")[0]}. ${login.payload.error}`);
+            $("linkForm").hidden = false;
+            $("linkEmail").focus();
+            return;
+          }
+          throw new Error(login.payload.error || "The wallet sign-in was refused.");
+        } catch (error) {
+          walletSay(error?.message || "The wallet sign-in didn't work.", true);
+        }
+      }
+      $("walletLoop").addEventListener("click", () => walletSignIn(loopWallet));
+      $("walletOther").addEventListener("click", () => walletSignIn(standardWallet));
+      $("linkForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const { response, payload } = await post("/api/v1/auth/wallet/link", { party: linkParty, linkTicket, email: $("linkEmail").value, password: $("linkPassword").value });
+        if (response.ok) { location.replace("/app"); return; }
+        walletSay(payload.error || "Linking didn't work.", true);
       });
 
       $("signin").addEventListener("submit", async (event) => {

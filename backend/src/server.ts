@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,7 @@ import { isFinancierRole, isRole, loadConfig, type Role } from "./config.js";
 import { DocumentError, DocumentStore, MAX_DOCUMENT_BYTES } from "./documents.js";
 import { prepareRaceInvoice, raceCandidates, runRace } from "./race.js";
 import { CantonCoinSettlementError } from "./canton-coin.js";
+import { WalletAuth, WalletProofError } from "./wallet-auth.js";
 import {
   LedgerApiError,
   type SubmissionResult,
@@ -93,7 +95,7 @@ async function route(
   const account = accounts?.fromToken(cookieValue(request.headers.cookie, ACCOUNT_COOKIE));
 
   if (parts.join("/").startsWith("api/v1/auth/")) {
-    await authRoute(method, parts.join("/"), request, response, accounts, account);
+    await authRoute(method, parts.join("/"), request, response, accounts, account, service.config.loop?.network);
     return;
   }
 
@@ -552,6 +554,7 @@ async function authRoute(
   response: ServerResponse,
   accounts: Accounts | undefined,
   account: PublicAccount | undefined,
+  loopNetwork?: string,
 ): Promise<void> {
   if (!accounts) {
     writeJson(response, 404, { error: "Company accounts are not enabled on this server.", code: "ACCOUNTS_DISABLED" });
@@ -582,6 +585,73 @@ async function authRoute(
     });
     return;
   }
+  // Sign in with a Canton wallet: get a one-time message, sign it in the wallet, send
+  // the signature back. A wallet not yet linked to a company gets a short-lived link
+  // ticket, and links once with that company's password.
+  const wallets = walletAuth(accounts);
+  if (method === "GET" && path === "api/v1/auth/wallet/options") {
+    writeJson(response, 200, { loopNetwork: loopNetwork ?? null });
+    return;
+  }
+  if (method === "POST" && path === "api/v1/auth/wallet/challenge") {
+    const body = await readJson(request);
+    try {
+      writeJson(response, 200, wallets.challenge(stringField(body, "partyId").trim()));
+    } catch (error) {
+      if (!(error instanceof WalletProofError)) throw error;
+      writeJson(response, 400, { error: error.message, code: error.code });
+    }
+    return;
+  }
+  if (method === "POST" && path === "api/v1/auth/wallet/login") {
+    const body = await readJson(request);
+    let party: string;
+    try {
+      party = wallets.verify({
+        partyId: stringField(body, "partyId").trim(),
+        publicKey: stringField(body, "publicKey"),
+        signature: stringField(body, "signature"),
+        message: stringField(body, "message"),
+      });
+    } catch (error) {
+      if (!(error instanceof WalletProofError)) throw error;
+      console.error("Wallet sign-in refused", { code: error.code, publicKeyLength: stringField(body, "publicKey").length, signatureLength: stringField(body, "signature").length });
+      writeJson(response, 401, { error: error.message, code: error.code });
+      return;
+    }
+    const signedIn = accounts.signInWithWallet(party);
+    if (!signedIn) {
+      writeJson(response, 409, {
+        error: "Your wallet is verified. Link it to your company once, and next time the wallet alone signs you in.",
+        code: "WALLET_NOT_LINKED",
+        party,
+        linkTicket: linkTicket(accounts, party, Math.floor(Date.now() / 1000) + 600),
+      });
+      return;
+    }
+    writeJson(response, 200, { account: signedIn.account }, {
+      "Set-Cookie": `${ACCOUNT_COOKIE}=${encodeURIComponent(signedIn.token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${accounts.sessionSeconds()}${secure}`,
+    });
+    return;
+  }
+  if (method === "POST" && path === "api/v1/auth/wallet/link") {
+    const body = await readJson(request);
+    const party = stringField(body, "party").trim();
+    const [expires, tag] = stringField(body, "linkTicket").split(".");
+    if (!expires || Number(expires) < Date.now() / 1000 || linkTicket(accounts, party, Number(expires)) !== `${expires}.${tag}`) {
+      writeJson(response, 401, { error: "The wallet check expired. Connect your wallet again.", code: "WALLET_PROOF_EXPIRED" });
+      return;
+    }
+    const linked = accounts.linkWallet(stringField(body, "email"), stringField(body, "password"), party);
+    if (!linked) {
+      writeJson(response, 401, { error: "That email or password is not right.", code: "SIGN_IN_FAILED" });
+      return;
+    }
+    writeJson(response, 200, { account: linked.account }, {
+      "Set-Cookie": `${ACCOUNT_COOKIE}=${encodeURIComponent(linked.token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${accounts.sessionSeconds()}${secure}`,
+    });
+    return;
+  }
   if (method === "POST" && path === "api/v1/auth/logout") {
     writeJson(response, 200, { signedOut: true }, {
       "Set-Cookie": `${ACCOUNT_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure}`,
@@ -589,6 +659,20 @@ async function authRoute(
     return;
   }
   writeJson(response, 404, { error: "Route not found", code: "NOT_FOUND" });
+}
+
+const walletAuths = new WeakMap<Accounts, WalletAuth>();
+function walletAuth(accounts: Accounts): WalletAuth {
+  let auth = walletAuths.get(accounts);
+  if (!auth) {
+    auth = new WalletAuth(accounts.walletSecret());
+    walletAuths.set(accounts, auth);
+  }
+  return auth;
+}
+
+function linkTicket(accounts: Accounts, party: string, expires: number): string {
+  return `${expires}.${createHmac("sha256", accounts.walletSecret()).update(`link|${party}|${expires}`).digest("base64url")}`;
 }
 
 // With accounts enabled, the signed-in company must pass the check; without them the

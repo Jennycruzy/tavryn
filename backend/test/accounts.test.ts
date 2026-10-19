@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -139,4 +140,42 @@ test("each company can act only as itself", async () => {
   } finally {
     await stopTavrynServer(app);
   }
+});
+
+test("a proven wallet links to one company with its password, then signs in alone", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tavryn-wallets-"));
+  const file = join(dir, "accounts.json");
+  const store = new Accounts({
+    sessionSecret: "wallet-secret",
+    accounts: [
+      { email: "credit@lender-a.test", name: "Lender A", role: "financierA", passwordHash: hashPassword("a-pass") },
+      { email: "credit@lender-b.test", name: "Lender B", role: "financierB", passwordHash: hashPassword("b-pass") },
+    ],
+  }, file);
+  const party = `judge::1220${"ab".repeat(32)}`;
+  assert.equal(store.signInWithWallet(party), undefined);
+  assert.equal(store.linkWallet("credit@lender-a.test", "wrong", party), undefined);
+  const linked = store.linkWallet("credit@lender-a.test", "a-pass", party);
+  assert.equal(linked?.account.wallet, party);
+  assert.equal(store.signInWithWallet(party)?.account.role, "financierA");
+  assert.equal(store.fromToken(linked?.token)?.wallet, party);
+
+  // Saved, so the link survives a restart.
+  const reloaded = Accounts.fromFile(file);
+  assert.equal(reloaded.signInWithWallet(party)?.account.role, "financierA");
+
+  // Linking to another company moves the wallet, and its old session ends.
+  const moved = store.linkWallet("credit@lender-b.test", "b-pass", party);
+  assert.equal(moved?.account.role, "financierB");
+  assert.equal(store.fromToken(linked?.token), undefined);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("sessions issued before wallet sign-in still work", () => {
+  const store = new Accounts({ sessionSecret: "old-secret", accounts: [
+    { email: "ap@supplier.test", name: "Supplier Ltd", role: "supplier", passwordHash: hashPassword("s-pass") },
+  ] });
+  const payload = `${Buffer.from("ap@supplier.test").toString("base64url")}.${Math.floor(Date.now() / 1000) + 60}`;
+  const old = `${payload}.${createHmac("sha256", Buffer.from("old-secret")).update(payload).digest("base64url")}`;
+  assert.equal(store.fromToken(old)?.role, "supplier");
 });
