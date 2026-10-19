@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
-import { Tavryn as TavrynBindings } from "../daml.js/tavryn-network-0.1.5/lib/index.js";
+import { Tavryn as TavrynBindings } from "../daml.js/tavryn-network-0.1.6/lib/index.js";
 
 import {
   type FinancierRole,
@@ -25,6 +25,7 @@ import {
 } from "./canton-coin.js";
 import { type LedgerErrorContext, mapLedgerError } from "./ledger-errors.js";
 import { reconcileDecision } from "./reconcile.js";
+import { OneStepFunding, OneStepFundingError } from "./one-step.js";
 import {
   DEMO_TRACKING_PREFIX,
   LOOP_TRACKING_PREFIX,
@@ -158,11 +159,15 @@ export class TavrynService {
   readonly ledger: LedgerApi;
   readonly settlement: CantonCoinSettlement;
   private readonly loopPayers: LoopPayers;
+  private readonly oneStep?: OneStepFunding;
 
   constructor(readonly config: TavrynConfig) {
     this.ledger = new LedgerApi(config);
     this.settlement = new CantonCoinSettlement(config);
     this.loopPayers = new LoopPayers(config.loop?.payersFile);
+    if (config.oneStepFunding && config.settlement.validatorApiUrl) {
+      this.oneStep = new OneStepFunding(this.ledger, config.settlement.validatorApiUrl);
+    }
   }
 
   demoAuthEnabled(): boolean {
@@ -547,7 +552,14 @@ export class TavrynService {
         Contracts.ApprovedInvoice,
         Contracts.ApprovedInvoice.CreateOffer,
         approvedInvoiceContractId,
-        { rulesCid: network.rules.contractId, financier, advance, advanceRate, fee: fee ?? null },
+        {
+          rulesCid: network.rules.contractId,
+          financier,
+          advance,
+          advanceRate,
+          fee: fee ?? null,
+          coinAdmin: this.oneStep ? await this.oneStep.coinAdmin() : null,
+        },
         [this.config.parties.buyer, this.config.parties.supplier],
       )
       .catch((error) => this.rethrow(error, "other"));
@@ -589,6 +601,10 @@ export class TavrynService {
     financierRole: FinancierRole,
   ): Promise<SettledSubmission> {
     requireContractId(offerContractId, "offerContractId");
+    if (this.oneStep) {
+      const inputs = await this.fundingInputs(financierRole, offerContractId);
+      if (record(inputs.offer.createArgument).coinAdmin) return this.fundInOneStep(financierRole, inputs);
+    }
     if (this.usesDemoWallet(financierRole)) return this.fundFromDemoWallet(offerContractId, financierRole);
     const financier = this.financierParty(financierRole);
     this.settlement.assertConfigured(financierRole);
@@ -832,6 +848,65 @@ export class TavrynService {
     return done
       ? { outcome: "completed", contractId: balanceDueContractId, trackingId, updateId: done.completed.transaction.updateId, cashUpdateId: done.payment.updateId }
       : { outcome: "pending", contractId: balanceDueContractId, trackingId };
+  }
+
+  // One-step funding: the lender's own coins move to the supplier in the same Canton
+  // transaction that records the financing. On the demo network a lender low on coins
+  // is first topped up by the demo wallet, so visitors can always try it.
+  private async fundInOneStep(
+    financierRole: FinancierRole,
+    { offer, approved, network }: Awaited<ReturnType<TavrynService["fundingInputs"]>>,
+  ): Promise<SettledSubmission> {
+    const oneStep = this.oneStep as OneStepFunding;
+    const financier = this.financierParty(financierRole);
+    const offerArgument = record(offer.createArgument);
+    this.assertCantonCoinCurrency(record(offerArgument.terms));
+    const amount = decimalString(offerArgument.advance, "FinancingOffer.advance");
+    await this.topUpLender(financier, Number(amount));
+    let payment;
+    try {
+      payment = await oneStep.fund({
+        offer,
+        approvedInvoiceCid: approved.contractId,
+        rulesCid: network.rules.contractId,
+        financier,
+        supplier: this.config.parties.supplier,
+        amount,
+        coinAdmin: String(offerArgument.coinAdmin),
+        readAs: [this.config.parties.buyer, this.config.parties.supplier],
+      });
+    } catch (error) {
+      if (error instanceof OneStepFundingError) {
+        throw new TavrynConflictError(error.message, error.code);
+      }
+      return this.rethrow(error, "funding");
+    }
+    await this.closeLosingOffers(String(offerArgument.invoiceCommitment));
+    const updateId = payment.ledger.transaction.updateId;
+    return {
+      ledger: payment.ledger,
+      cash: {
+        updateId,
+        eventId: "",
+        trackingId: "one-step",
+        description: "Paid in the same transaction that recorded the financing",
+        amount: payment.amount,
+        sender: payment.sender,
+        receiver: payment.receiver,
+      },
+    };
+  }
+
+  private async topUpLender(financier: string, needed: number): Promise<void> {
+    const oneStep = this.oneStep as OneStepFunding;
+    const balance = await oneStep.balance(financier);
+    if (balance >= needed || !this.settlement.isConfigured(DEMO_WALLET)) return;
+    const topUp = Math.min(50, Math.ceil(needed - balance) + 10);
+    await this.settlement.transfer(DEMO_WALLET, financier, topUp.toFixed(2), `tavryn-topup-${randomUUID()}`);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if ((await oneStep.balance(financier)) >= needed) return;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
   }
 
   // The demo wallet pays for a visitor without a wallet: lock, pay, then the same ledger

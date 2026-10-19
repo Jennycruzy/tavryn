@@ -82,7 +82,22 @@ export class LedgerApiError extends Error {
   }
 }
 
-type Command =
+export interface DisclosedContract {
+  templateId: string;
+  contractId: string;
+  createdEventBlob: string;
+  synchronizerId?: string;
+}
+
+// One Canton Coin holding (token standard Holding view) owned by a party.
+export interface CoinHolding {
+  contractId: string;
+  amount: string;
+  locked: boolean;
+  instrument: { admin: string; id: string };
+}
+
+export type Command =
   | { CreateCommand: { templateId: string; createArguments: unknown } }
   | {
       ExerciseCommand: {
@@ -437,6 +452,7 @@ export class LedgerApi {
     commands: Command[],
     actAs: string[],
     readAs?: string[],
+    disclosedContracts?: DisclosedContract[],
   ): Promise<SubmissionResult> {
     if (commands.length === 0) {
       throw new Error("At least one Canton command is required");
@@ -464,6 +480,9 @@ export class LedgerApi {
     if (this.config.synchronizerId) {
       commandGroup.synchronizerId = this.config.synchronizerId;
     }
+    if (disclosedContracts && disclosedContracts.length > 0) {
+      commandGroup.disclosedContracts = disclosedContracts;
+    }
 
     const response = await this.request<JsTransactionResponse>(
       "/v2/commands/submit-and-wait-for-transaction",
@@ -483,6 +502,78 @@ export class LedgerApi {
         return [event.CreatedEvent];
       }),
     };
+  }
+
+  // The party's Canton Coin and other token standard holdings, read through the
+  // standard Holding interface so any registry's coins look the same.
+  async holdings(party: string): Promise<CoinHolding[]> {
+    const activeAtOffset = await this.getLedgerEnd();
+    const rows = await this.request<ActiveContractResponse[]>("/v2/state/active-contracts", {
+      method: "POST",
+      body: JSON.stringify({
+        activeAtOffset,
+        eventFormat: {
+          filtersByParty: {
+            [party]: {
+              cumulative: [{
+                identifierFilter: {
+                  InterfaceFilter: {
+                    value: {
+                      interfaceId: "#splice-api-token-holding-v1:Splice.Api.Token.HoldingV1:Holding",
+                      includeInterfaceView: true,
+                      includeCreatedEventBlob: false,
+                    },
+                  },
+                },
+              }],
+            },
+          },
+          verbose: true,
+        },
+      }),
+    });
+    return rows.flatMap((row) => {
+      const event = row.contractEntry?.JsActiveContract?.createdEvent as
+        | (CreatedEvent & { interfaceViews?: { viewValue?: Record<string, unknown> }[] })
+        | undefined;
+      const view = event?.interfaceViews?.[0]?.viewValue;
+      if (!event || !view || view.owner !== party) return [];
+      const instrument = view.instrumentId as { admin: string; id: string };
+      return [{ contractId: event.contractId, amount: String(view.amount), locked: view.lock != null, instrument }];
+    });
+  }
+
+  // GET or POST on the node's validator API with the ledger login, for the scan proxy
+  // and the token standard registry it serves.
+  async validator<T>(validatorApiUrl: string, path: string, body?: unknown): Promise<T> {
+    const token = await this.tokens.token();
+    let response: Response;
+    try {
+      response = await fetch(`${validatorApiUrl}${path}`, {
+        method: body === undefined ? "GET" : "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+    } catch {
+      throw new LedgerApiError(0, undefined);
+    }
+    const text = await response.text();
+    let payload: unknown = text;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      // keep text
+    }
+    if (!response.ok) throw new LedgerApiError(response.status, payload);
+    return payload as T;
+  }
+
+  qualify(templateId: string): string {
+    return qualifyTemplateId(this.config.packageId, templateId);
   }
 
   private async request<T>(

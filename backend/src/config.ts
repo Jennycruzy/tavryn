@@ -55,6 +55,9 @@ export interface TavrynConfig {
   paymentReferences: boolean;
   // The party of a wallet that pays for visitors without a wallet of their own.
   demoWallet?: string;
+  // One-step funding (package 0.1.6): lenders pay from their own coins in the same
+  // transaction that records the financing.
+  oneStepFunding: boolean;
 }
 
 export interface LoopConfig {
@@ -237,6 +240,7 @@ export function loadConfig(): TavrynConfig {
     },
     paymentReferences: optional("TAVRYN_ALLOW_PAYMENT_REFERENCES") === "true",
     demoWallet: optional("TAVRYN_DEMO_WALLET_PARTY"),
+    oneStepFunding: optional("TAVRYN_ONE_STEP_FUNDING") === "true",
     loop: optional("TAVRYN_LOOP_NETWORK")
       ? {
           network: optional("TAVRYN_LOOP_NETWORK") as string,

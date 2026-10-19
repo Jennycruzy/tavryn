@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-10-19T17:03:12Z",
+  "network": "Canton LocalNet (backup), one-step funding",
+  "claim": "Through the Tavryn web API: Lender A paid the supplier from its own coins in the same transaction that recorded the financing (cash.updateId equals ledgerUpdateId). Lender B was refused. Repayment and the supplier balance followed.",
+  "invoice": "FLOW-1792429384",
+  "financed": {
+    "status": 200,
+    "ledgerUpdateId": "122064a0bbb915c50b3eae3e63aba1b8dc1e99edac53fcfce4534e707c13a60a7329",
+    "cash": {
+      "updateId": "122064a0bbb915c50b3eae3e63aba1b8dc1e99edac53fcfce4534e707c13a60a7329",
+      "trackingId": "one-step",
+      "amount": "8.0000000000",
+      "sender": "tavryn-financier-a::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df",
+      "receiver": "tavryn-supplier::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df"
+    }
+  },
+  "rivalLender": {
+    "status": 409,
+    "code": "INVOICE_UNAVAILABLE",
+    "message": "This invoice is no longer available for funding."
+  },
+  "repaid": {
+    "status": 200,
+    "ledgerUpdateId": "122019fe4ee9fbc217315903add41b058987940f5274d137f7bf4b2924d22218e6f5",
+    "cash": {
+      "updateId": "1220e52da35f700c91a5d55a730f020df884ac297af6cdd54db4ca54c48ad80ecca9",
+      "trackingId": "tavryn-repayment-c3aa24c8-8c61-41f1-9bdf-a4a2e5566941",
+      "amount": "10.0000000000",
+      "sender": "tavryn-buyer::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df",
+      "receiver": "tavryn-financier-a::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df"
+    }
+  },
+  "balancePaid": {
+    "status": 200,
+    "ledgerUpdateId": "1220548df5eee2d523a34feddb83ea50141cf4bc8228934c9faa7b33489a7cd2b42d",
+    "cash": {
+      "updateId": "1220eaaff0a9ffe398037a4984cc4e0bdfaf0fa5e521050627fa00a7806a33a5307b",
+      "trackingId": "tavryn-balance-7db8386f20ce618f8016b4213b7f7de4",
+      "amount": "1.0000000000",
+      "sender": "tavryn-financier-a::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df",
+      "receiver": "tavryn-supplier::1220be033bec5665cfc307161f35b6b23ca9bfbc62a46d5c0b44d88ff845092941df"
+    }
+  },
+  "balanceRetry": {
+    "status": 409,
+    "code": "BALANCE_NOT_AVAILABLE",
+    "note": "a second click pays nothing"
+  }
+}
