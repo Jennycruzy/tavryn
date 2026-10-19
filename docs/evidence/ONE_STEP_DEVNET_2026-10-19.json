@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-10-19T18:04:45Z",
+  "network": "HackCanton DevNet (hackcanton-01)",
+  "claim": "Live on tavryn.site (HackCanton DevNet): Lender A paid the supplier from its own Canton Coin in the same transaction that recorded the financing (financed.cash.updateId equals financed.ledgerUpdateId). Lender B was refused. The buyer's repayment and the supplier's balance were paid by the demo wallet, which pays for visitors without a wallet.",
+  "invoice": "FLOW-1792433028",
+  "financed": {
+    "status": 200,
+    "ledgerUpdateId": "122036650009abe4b9fc63a2b8d6e56f3377eab375cbf242860b9401dcb59640e9a0",
+    "cash": {
+      "updateId": "122036650009abe4b9fc63a2b8d6e56f3377eab375cbf242860b9401dcb59640e9a0",
+      "trackingId": "one-step",
+      "amount": "8.0000000000",
+      "sender": "a1f68d5f-tavryn-financier-a::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "receiver": "a1f68d5f-tavryn-supplier::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e"
+    }
+  },
+  "rivalLender": {
+    "status": 409,
+    "code": "INVOICE_UNAVAILABLE",
+    "message": "This invoice is no longer available for funding."
+  },
+  "repaid": {
+    "status": 200,
+    "ledgerUpdateId": "1220bf34ea1f1f264d577ef83736b02048bfac2dc636c1a4363c25f6eb8c7ff1d8bf",
+    "cash": {
+      "updateId": "12204e5b525d9efc04b166c9e09d3d73990e65d34ec84eb80d4f65296d652eab4594",
+      "trackingId": "tavryn-demo-9a702994-b2d5-4608-a8f2-d1e83243222d",
+      "amount": "10.0000000000",
+      "sender": "a1f68d5f-0f28-4568-8b6b-a754b4f94ee8::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "receiver": "a1f68d5f-tavryn-financier-a::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e"
+    }
+  },
+  "balancePaid": {
+    "status": 200,
+    "ledgerUpdateId": "122045c2cb659daf1f98591d543cfa08d470da5d1acfa0aa1d462c07b06a4c9edf95",
+    "cash": {
+      "updateId": "12207f091761e03515e9654084dcb89d463d9fbfc067b0cf554ea1d3b323c3903e81",
+      "trackingId": "tavryn-demo-balance-2c7193728613c104f092d9025edcaecc",
+      "amount": "1.0000000000",
+      "sender": "a1f68d5f-0f28-4568-8b6b-a754b4f94ee8::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e",
+      "receiver": "a1f68d5f-tavryn-supplier::12204a9d883d1158141d8f099d06dd2e42cb52615deb42da5a46f042c8d0e1dbdf0e"
+    }
+  },
+  "balanceRetry": {
+    "status": 409,
+    "code": "BALANCE_NOT_AVAILABLE",
+    "note": "a second click pays nothing"
+  },
+  "package": "tavryn-network 0.1.6 (5a76cd23...)"
+}
