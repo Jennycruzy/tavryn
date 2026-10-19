@@ -83,7 +83,7 @@
 
       // Already signed in: go to the workspace, unless a specific company was asked for.
       if (!new URLSearchParams(location.search).get("use")) {
-        fetch("/api/v1/auth/me").then((response) => { if (response.ok) location.replace("/app"); });
+        fetch("/api/v1/auth/me?quiet=1").then((response) => response.json()).then((me) => { if (me.account) location.replace("/app"); }).catch(() => {});
       }
 
       fetch("/api/v1/auth/demo-accounts").then((response) => response.ok ? response.json() : { accounts: [] }).then(({ accounts }) => {

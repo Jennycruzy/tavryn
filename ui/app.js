@@ -248,6 +248,13 @@ function invoiceLabel(terms) {
   return terms ? `Invoice ${terms.externalInvoiceNumber}` : "Invoice";
 }
 
+// "Invoice X · " for receipts that carry only the invoice's commitment, when this view
+// knows which invoice that is.
+function invoicePrefix(arg) {
+  const terms = arg.invoiceCommitment ? termsFor(arg.invoiceCommitment) : undefined;
+  return terms ? `${invoiceLabel(terms)} · ` : "";
+}
+
 function optionList(items, placeholder, describe) {
   if (!items.length) return `<option value="">Nothing here yet</option>`;
   return `<option value="">${escapeHtml(placeholder)}</option>${items.map((item) =>
@@ -383,6 +390,10 @@ function renderSteps() {
   $("steps").hidden = state.role === "operator";
   const order = ["draft", "approved", "offered", "funded", "repaid"];
   const target = order.indexOf(state.account ? stepFromContracts() : state.currentStep);
+  // Say which invoice the bar follows, so it never reads as the tour's own progress.
+  const latest = state.account ? latestInvoiceTerms() : undefined;
+  $("stepsLabel").hidden = !latest || state.role === "operator";
+  $("stepsLabel").textContent = latest ? `Your latest invoice, ${latest.externalInvoiceNumber}` : "";
   document.querySelectorAll("#steps li").forEach((element) => {
     const index = order.indexOf(element.dataset.step);
     element.classList.toggle("complete", index < target);
@@ -392,17 +403,27 @@ function renderSteps() {
 
 // With company accounts each sign-in starts fresh, so progress follows the company's
 // most recent record instead of the last click.
+const STEP_OF = {
+  InvoiceDraft: "draft", ApprovedInvoice: "approved", FinancingOffer: "offered",
+  PendingFunding: "funded", FinancedInvoice: "funded", FundingReceipt: "funded",
+  PendingRepayment: "repaid", RepaymentReceipt: "repaid",
+};
+
+// The company's most recent invoice record: the bar shows its step, the label its number.
+function latestStepContract() {
+  return (state.contracts[state.role] || []).find((contract) => STEP_OF[templateName(contract)]);
+}
+
+function latestInvoiceTerms() {
+  const contract = latestStepContract();
+  if (!contract) return undefined;
+  const arg = argument(contract);
+  return arg.terms || (arg.invoiceCommitment ? termsFor(arg.invoiceCommitment) : undefined);
+}
+
 function stepFromContracts() {
-  const steps = {
-    InvoiceDraft: "draft", ApprovedInvoice: "approved", FinancingOffer: "offered",
-    PendingFunding: "funded", FinancedInvoice: "funded", FundingReceipt: "funded",
-    PendingRepayment: "repaid", RepaymentReceipt: "repaid",
-  };
-  for (const contract of state.contracts[state.role] || []) {
-    const step = steps[templateName(contract)];
-    if (step) return step;
-  }
-  return "draft";
+  const contract = latestStepContract();
+  return contract ? STEP_OF[templateName(contract)] : "draft";
 }
 
 function renderNetwork() {
@@ -556,7 +577,9 @@ function lenderActions() {
     ${offers.length ? `
     <form class="action-form" data-action="fund">
       <div class="form-grid"><div class="field wide"><label for="offerCid">Offer</label><select id="offerCid" name="offerCid" required>${optionList(offers, "Choose an offer", offerLabel)}</select><span id="offerFile"></span></div></div>
-      <div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Finance this invoice</button>${loopOption()}<span class="hint">${payHint("You pay the supplier now and the buyer repays you by the due date.")}</span></div>
+      <div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Finance this invoice</button>${loopOption()}<span class="hint">${state.network?.oneStepFunding
+        ? "Your coins go to the supplier and the invoice is marked financed in one Canton transaction. Both happen, or neither does. The buyer repays you by the due date."
+        : payHint("You pay the supplier now and the buyer repays you by the due date.")}</span></div>
     </form>` : `<div class="notice"><strong>No open offers</strong>Offers made to you will appear here.</div>`}
     ${loopCheckForm("funding", contractsFor(state.role, "PendingFunding"), "the supplier")}
     ${balances.length ? `
@@ -658,7 +681,7 @@ function activityLine(contract) {
       return [`${invoiceLabel(arg.terms)} · financed`, `${lender} advanced ${money(arg.advance, arg.terms.currency)}${arg.fee !== null && arg.fee !== undefined ? ` · fee ${money(arg.fee, arg.terms.currency)}` : ""} · repayment due ${niceDate(arg.terms.dueDate)}`, "Financed", "good"];
     case "FundingReceipt":
       return [`Payment made · ${money(arg.settlementAmount, unit(arg.instrument))}`,
-        `${lender} paid the supplier${arg.instrument === "OFF_LEDGER" ? ` by bank transfer · ref ${arg.paymentReference}` : ""}`, "Paid", "good"];
+        `${invoicePrefix(arg)}${lender} paid the supplier${arg.instrument === "OFF_LEDGER" ? ` by bank transfer · ref ${arg.paymentReference}` : arg.trackingId === "one-step" ? " in the same transaction that financed it" : ""}`, "Paid", "good"];
     case "PendingRepayment":
       return [`Repayment on its way · ${invoiceLabel(arg.terms)}`, money(arg.settlementAmount, arg.instrument), "In progress", "wait"];
     case "BalanceDue":
@@ -666,9 +689,9 @@ function activityLine(contract) {
         `Buyer paid ${money(arg.collected, arg.currency)} · advance ${money(arg.advance, arg.currency)} · fee ${money(arg.fee, arg.currency)}`, "Balance due", "wait"];
     case "BalanceReceipt":
       return [`Balance paid to the supplier · ${money(arg.amount, unit(arg.instrument))}`,
-        arg.instrument === "OFF_LEDGER" ? `ref ${arg.paymentReference}` : "Paid on the network in Canton Coin", "Settled", "good"];
+        `${invoicePrefix(arg)}${arg.instrument === "OFF_LEDGER" ? `ref ${arg.paymentReference}` : "Paid on the network in Canton Coin"}`, "Settled", "good"];
     case "RepaymentReceipt":
-      return [`Repaid · ${money(arg.amount, unit(arg.instrument))}`, `On ${niceDate(arg.repaymentDate)}${arg.early ? ", before the due date" : ""}${arg.instrument === "OFF_LEDGER" ? ` · ref ${arg.paymentReference}` : ""}`, "Repaid", "good"];
+      return [`Repaid · ${money(arg.amount, unit(arg.instrument))}`, `${invoicePrefix(arg)}On ${niceDate(arg.repaymentDate)}${arg.early ? ", before the due date" : ""}${arg.instrument === "OFF_LEDGER" ? ` · ref ${arg.paymentReference}` : ""}`, "Repaid", "good"];
     default:
       return null;
   }
@@ -792,7 +815,16 @@ async function handleAction(form, submitter) {
         result = await api(`/api/v1/offers/${encodeURIComponent(value("offerCid"))}/fund`, { method: "POST", body: JSON.stringify({ financierRole: state.role }) });
         state.currentStep = "funded";
         await loadRole(state.role);
-        setResult({ ok: true, title: "Invoice financed", message: `You paid ${money(result.cashTransfer?.amount)} to the supplier. No one else can finance this invoice now.`, updateId: result.updateId, cashUpdateId: result.cashTransfer?.updateId });
+        const oneStep = result.cashTransfer?.trackingId === "one-step";
+        setResult({
+          ok: true,
+          title: oneStep ? "Paid and financed in one step" : "Invoice financed",
+          message: oneStep
+            ? `${money(result.cashTransfer?.amount)} went from your wallet to the supplier in the same Canton transaction that recorded the financing. No one else can finance this invoice now.`
+            : `You paid ${money(result.cashTransfer?.amount)} to the supplier. No one else can finance this invoice now.`,
+          updateId: result.updateId,
+          cashUpdateId: oneStep ? undefined : result.cashTransfer?.updateId,
+        });
         guideEvent("fund");
       }
     } else if (action === "loop-check") {
@@ -983,7 +1015,7 @@ const GUIDE = [
   { role: "financierB", manual: true, title: "Look as Lender B",
     text: "You see only your own offer for {invoice}. Nothing about Lender A's offer. Click Next when you have looked." },
   { role: "financierA", on: "fund", title: "Finance the invoice",
-    text: "You are Lender A. Pick the offer for {invoice} and click Finance this invoice. The coins go to Adeyemi now, and the network checks they arrived." },
+    text: "You are Lender A. Pick the offer for {invoice} and click Finance this invoice. The coins go to Adeyemi and the invoice is financed in one Canton transaction." },
   { role: "financierB", manual: true, title: "Lender B is too late",
     text: "The invoice is gone: \"1 offer is no longer available\". Lender B can't see who won or at what price. Click Next." },
   { role: "buyer", on: "repay", title: "Pay the lender",

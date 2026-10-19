@@ -361,6 +361,7 @@ export class TavrynService {
         (role) => this.settlement.isConfigured(role) || this.usesDemoWallet(role),
       ),
       demoWallet: this.settlement.isConfigured(DEMO_WALLET),
+      oneStepFunding: Boolean(this.oneStep),
       operators: operators.map((party, index) => ({ index: index + 1, party })),
       threshold: this.config.governance.threshold,
       committeeCid: network?.committee.contractId,

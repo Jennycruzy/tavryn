@@ -95,7 +95,7 @@ async function route(
   const account = accounts?.fromToken(cookieValue(request.headers.cookie, ACCOUNT_COOKIE));
 
   if (parts.join("/").startsWith("api/v1/auth/")) {
-    await authRoute(method, parts.join("/"), request, response, accounts, account, service.config.loop?.network);
+    await authRoute(method, parts.join("/"), request, response, accounts, account, service.config.loop?.network, url.searchParams.get("quiet") === "1");
     return;
   }
 
@@ -555,12 +555,18 @@ async function authRoute(
   accounts: Accounts | undefined,
   account: PublicAccount | undefined,
   loopNetwork?: string,
+  quietAuthCheck = false,
 ): Promise<void> {
   if (!accounts) {
     writeJson(response, 404, { error: "Company accounts are not enabled on this server.", code: "ACCOUNTS_DISABLED" });
     return;
   }
   if (method === "GET" && path === "api/v1/auth/me") {
+    // The sign-in page only asks whether someone is signed in; a plain "no" is not an error.
+    if (!account && quietAuthCheck) {
+      writeJson(response, 200, { account: null });
+      return;
+    }
     if (!account) {
       writeJson(response, 401, { error: "Sign in to continue.", code: "ACCOUNT_REQUIRED" });
       return;
