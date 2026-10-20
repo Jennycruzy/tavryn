@@ -1165,6 +1165,7 @@ function updatePaymentFields() {
 // 0.14 prepares and approves both in the same wallet.
 const LOOP_SDK_URL = "https://unpkg.com/@fivenorth/loop-sdk@0.14.0/dist/index.js";
 let loopConnection = null;
+const CANTON_COIN_ADMIN = { devnet: "DSO::1220be58c29e65de40bf273be1dc2b266d43a9a002ea5b18955aeef7aac881bb471a" };
 
 function connectLoop() {
   if (loopConnection) return loopConnection;
@@ -1254,12 +1255,9 @@ function approveClick(title, message) {
 
 async function sendFromLoop(provider, lock, message) {
   try {
-    return await provider.transfer(lock.receiver, lock.amount, undefined, {
-      memo: lock.trackingId,
-      message,
-      executionMode: "wait",
-      executeBefore: lock.payBefore,
-    });
+    // A plain transfer, sent the way other Canton apps send it, with no extra options.
+    // Tavryn recognises the payment by the reserved sender and amount.
+    return await provider.transfer(lock.receiver, String(lock.amount), { instrument_admin: CANTON_COIN_ADMIN.devnet, instrument_id: "Amulet" });
   } catch {
     return undefined;
   }
