@@ -820,7 +820,7 @@ async function handleAction(form, submitter) {
           ok: true,
           title: oneStep ? "Paid and financed in one step" : "Invoice financed",
           message: oneStep
-            ? `${money(result.cashTransfer?.amount)} went from your wallet to the supplier in the same Canton transaction that recorded the financing. No one else can finance this invoice now.`
+            ? `${money(result.cashTransfer?.amount)} went from ${state.account?.name ?? "the lender"}'s Canton account to the supplier in the same Canton transaction that recorded the financing. No one else can finance this invoice now.`
             : `You paid ${money(result.cashTransfer?.amount)} to the supplier. No one else can finance this invoice now.`,
           updateId: result.updateId,
           cashUpdateId: oneStep ? undefined : result.cashTransfer?.updateId,
