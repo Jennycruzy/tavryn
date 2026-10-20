@@ -577,9 +577,11 @@ function lenderActions() {
     ${offers.length ? `
     <form class="action-form" data-action="fund">
       <div class="form-grid"><div class="field wide"><label for="offerCid">Offer</label><select id="offerCid" name="offerCid" required>${optionList(offers, "Choose an offer", offerLabel)}</select><span id="offerFile"></span></div></div>
-      <div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Finance this invoice</button>${loopOption()}<span class="hint">${state.network?.oneStepFunding
+      ${state.account?.wallet && state.network?.loop
+        ? `<div class="form-actions"><button class="button button-primary" type="submit" value="loop">Pay from my own Loop wallet</button><span class="hint">You signed in with your wallet, so you pay from it. Loop asks you to approve, the coins go from your wallet to the supplier, and the invoice is financed. The buyer repays you by the due date.</span></div>`
+        : `<div class="form-actions"><button class="button button-primary" type="submit" value="wallet">Finance this invoice</button>${loopOption()}<span class="hint">${state.network?.oneStepFunding
         ? "Your coins go to the supplier and the invoice is marked financed in one Canton transaction. Both happen, or neither does. The buyer repays you by the due date."
-        : payHint("You pay the supplier now and the buyer repays you by the due date.")}</span></div>
+        : payHint("You pay the supplier now and the buyer repays you by the due date.")}</span></div>`}
     </form>` : `<div class="notice"><strong>No open offers</strong>Offers made to you will appear here.</div>`}
     ${loopCheckForm("funding", contractsFor(state.role, "PendingFunding"), "the supplier")}
     ${balances.length ? `
