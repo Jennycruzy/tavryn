@@ -1163,6 +1163,7 @@ function updatePaymentFields() {
 // network shows them arriving from that wallet.
 const LOOP_SDK_URL = "https://unpkg.com/@fivenorth/loop-sdk@0.15.0/dist/index.js";
 let loopConnection = null;
+const LOOP_API_URLS = { devnet: "https://wallet.devnet.looptech.io" };
 
 function connectLoop() {
   if (loopConnection) return loopConnection;
@@ -1172,6 +1173,9 @@ function connectLoop() {
       loop.init({
         appName: "Tavryn",
         network: state.network.loop.network,
+        // Loop's new wallet prepares and approves payments on its own server; the library
+        // still defaults to the old one, where the new wallet can't find the payment.
+        ...(LOOP_API_URLS[state.network.loop.network] ? { apiUrl: LOOP_API_URLS[state.network.loop.network] } : {}),
         onAccept: resolve,
         onReject: () => reject(new Error("The Loop connection was declined.")),
       });
