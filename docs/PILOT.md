@@ -2,7 +2,7 @@
 
 ## Three steps
 
-1. Run one Nigerian buyer's supplier programme (a Port Harcourt manufacturer or FMCG company with
+1. Run one Nigerian buyer's supplier programme (a Lagos manufacturer or FMCG company with
    20 to 50 SME suppliers) in parallel with its current process, using one lender and a
    small set of approved invoices.
 2. Onboard the buyer's suppliers through the buyer's approval portal; import approved
