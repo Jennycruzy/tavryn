@@ -1161,7 +1161,9 @@ function updatePaymentFields() {
 // The lender pays from their own Loop wallet. Tavryn reserves the invoice first, Loop
 // sends the coins, and the invoice is financed only once the supplier's own view of the
 // network shows them arriving from that wallet.
-const LOOP_SDK_URL = "https://unpkg.com/@fivenorth/loop-sdk@0.15.0/dist/index.js";
+// 0.15 opens Loop's new wallet to approve payments that only the old wallet can find;
+// 0.14 prepares and approves both in the same wallet.
+const LOOP_SDK_URL = "https://unpkg.com/@fivenorth/loop-sdk@0.14.0/dist/index.js";
 let loopConnection = null;
 
 function connectLoop() {
